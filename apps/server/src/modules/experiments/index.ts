@@ -1,0 +1,8 @@
+import { experimentRoutes } from "./route";
+import type { ExperimentsDeps } from "./types";
+
+export { experimentJobs, runExperiment, EXPERIMENT_JOB } from "./service";
+
+export function experimentsModule(deps: ExperimentsDeps) {
+  return { routes: experimentRoutes(deps) };
+}

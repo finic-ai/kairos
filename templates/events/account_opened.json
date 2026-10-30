@@ -1,0 +1,41 @@
+{
+  "type": "account_opened",
+  "description": "A new account was opened.",
+  "entities": {
+    "user": {
+      "description": "The new customer.",
+      "required": true
+    },
+    "device": {
+      "description": "The device used to sign up.",
+      "required": false
+    },
+    "ip": {
+      "description": "The IP address used to sign up.",
+      "required": false
+    }
+  },
+  "properties": {
+    "channel": {
+      "type": "string",
+      "description": "Where the customer signed up.",
+      "enum": [
+        "mobile_app",
+        "web",
+        "branch",
+        "partner"
+      ]
+    },
+    "product": {
+      "type": "string",
+      "description": "What was opened."
+    }
+  },
+  "example": {
+    "userId": "user_123",
+    "deviceId": "dev_9",
+    "ipId": "203.0.113.7",
+    "channel": "mobile_app",
+    "product": "checking"
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "name": "@kairos/cli",
+  "version": "0.0.0",
+  "private": true,
+  "description": "kairos: start Kairos, connect to a Kairos server (local or production), and work with it from the terminal.",
+  "type": "module",
+  "bin": {
+    "kairos": "./bin/kairos.mjs"
+  },
+  "scripts": {
+    "typecheck": "tsc -p ."
+  },
+  "dependencies": {
+    "@kairos/core": "workspace:*",
+    "tsx": "^4.19.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5"
+  }
+}

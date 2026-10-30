@@ -1,0 +1,34 @@
+{
+  "name": "ticket_purchase",
+  "description": "Approve an event ticket purchase, or hold it for automation, purchase-limit evasion or account takeover",
+  "subject": "user",
+  "hold": "Should this ticket purchase be held because it shows automated inventory hoarding, coordinated evasion of the seller's purchase limit, or account takeover? Judge the visit, earlier purchases and linked buyers together. Fast checkout with saved details, shared household devices and buying the allowed number of tickets are not by themselves abuse. Attending the same performance does not link buyers. Queue validation, inventory and purchase limits must also be enforced by the ticketing application.",
+  "typologies": {
+    "automated_hoarding": "Automated sessions reserve inventory repeatedly across accounts using the same devices",
+    "limit_evasion": "One buyer splits purchases across accounts to exceed the stated limit for the same performance",
+    "account_takeover": "Someone other than the account owner buys tickets after changing access or delivery details",
+    "legit": "A genuine buyer, including a fast returning fan or members of a household sharing a device"
+  },
+  "reasons": {
+    "automation_detected": "Browser or server telemetry detects automation in the purchase visit; speed alone is not enough",
+    "repeated_reservations": "The buyer or linked accounts repeatedly reserve inventory for the same performance in a short time",
+    "coordinated_accounts": "Several recently opened accounts share a device or payment method and purchase the same performance within minutes",
+    "limit_evasion": "Closely coordinated purchases across linked accounts exceed the stated purchase limit for this performance; a shared household device alone is not evidence",
+    "linked_to_abuse": "A shared device or payment method links this buyer to earlier confirmed ticketing abuse",
+    "new_device": "This visit uses a device absent from the established buyer's purchase history",
+    "access_and_delivery_changed": "Credentials or contact details changed just before tickets were directed to a newly added recipient"
+  },
+  "policy": {
+    "block": 0.9,
+    "review": 0.5,
+    "rules": [
+      { "id": "automated_reservations", "allOf": ["automation_detected", "repeated_reservations"], "outcome": "review" },
+      { "id": "coordinated_limit_evasion", "allOf": ["coordinated_accounts", "limit_evasion"], "outcome": "review" },
+      { "id": "takeover", "allOf": ["new_device", "access_and_delivery_changed"], "outcome": "step_up" }
+    ]
+  },
+  "context": {
+    "recentEvents": 50,
+    "linkTypes": ["device", "payment_method"]
+  }
+}

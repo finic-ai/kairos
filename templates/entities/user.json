@@ -1,0 +1,86 @@
+{
+  "type": "user",
+  "kind": "person",
+  "description": "A customer who holds an account",
+  "display": { "icon": "person", "color": "blue" },
+  "facts": [
+    {
+      "name": "transactions_30d",
+      "label": "Transactions in 30 days",
+      "source": "events",
+      "measure": "count",
+      "filters": { "event_type": "transaction" },
+      "window": "30d"
+    },
+    {
+      "name": "money_out_7d",
+      "label": "Money out this week",
+      "source": "events",
+      "measure": "sum",
+      "field": "amount",
+      "filters": { "event_type": "transaction", "property": { "name": "direction", "value": "out" } },
+      "window": "7d",
+      "usual": "90d"
+    },
+    {
+      "name": "transfers_30d",
+      "label": "Bank transfers in 30 days",
+      "source": "events",
+      "measure": "count",
+      "filters": { "event_type": "bank_transfer_requested" },
+      "window": "30d"
+    },
+    {
+      "name": "failed_logins_24h",
+      "label": "Failed logins in 24 hours",
+      "source": "events",
+      "measure": "count",
+      "filters": { "event_type": "login_failed" },
+      "window": "24h"
+    },
+    { "name": "devices", "label": "Devices used", "source": "events", "measure": "unique", "field": "device" },
+    { "name": "first_seen", "label": "First seen", "source": "events", "measure": "first" },
+    { "name": "cases", "label": "Cases", "source": "cases", "measure": "count" }
+  ],
+  "lists": [
+    {
+      "name": "transactions",
+      "label": "Transactions",
+      "source": "events",
+      "filters": { "event_type": "transaction" },
+      "columns": [
+        "ts",
+        "event.direction",
+        { "field": "event.amount", "label": "Amount", "format": "money", "currency": "event.currency" },
+        "event.channel",
+        "decision.outcome"
+      ]
+    },
+    {
+      "name": "logins",
+      "label": "Logins",
+      "source": "events",
+      "filters": { "event_type": ["login", "login_failed"] },
+      "columns": [
+        "ts",
+        "type",
+        { "field": "event.ip_country", "label": "Country", "format": "country" },
+        { "field": "event.ip_city", "label": "City" },
+        { "field": "event.method", "label": "Method" }
+      ]
+    },
+    {
+      "name": "devices",
+      "label": "Devices",
+      "source": "linked",
+      "entity_type": "device",
+      "columns": ["id", "name", "events", "first_seen", "last_seen"]
+    },
+    {
+      "name": "cases",
+      "label": "Cases",
+      "source": "cases",
+      "columns": ["ts", "queue", "status", "assignee", "resolution"]
+    }
+  ]
+}

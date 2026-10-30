@@ -1,0 +1,278 @@
+{
+  "provider": "marqeta",
+  "version": 1,
+  "displayName": "Marqeta",
+  "category": "transaction_intelligence",
+  "checked": false,
+  "description": "Card transactions on the cards you issue: authorizations, clearings, reversals, refunds and cardholder disputes, with the merchant, how the card was used, and the network's risk scores.",
+  "verification": { "scheme": "hmac", "header": "X-Marqeta-Signature", "algorithm": "sha256", "encoding": "hex" },
+  "secretHint": "The webhook's secret (20 to 50 characters)",
+  "setup": [
+    "Create a webhook with POST /webhooks on the Marqeta Core API (or in the Marqeta Dashboard). Set config.url to the URL below.",
+    "Set config.secret to a new secret of 20 to 50 characters, set config.signature_algorithm to HMAC_SHA256, and paste the same secret here.",
+    "Marqeta requires config.basic_auth_username and config.basic_auth_password: set any values. Kairos does not read them; the token in the URL and the signature prove each delivery.",
+    "Subscribe to transaction.* (the events \"transaction.*\").",
+    "Marqeta does not know your user id unless you chose it as the Marqeta user token. Give each user the token of their Marqeta user as a property: PUT /v1/objects with { \"type\": \"user\", \"id\": \"user_42\", \"properties\": { \"marqeta_user_token\": \"…\" } }."
+  ],
+  "identity": "Kairos finds the user whose marqeta_user_token property is the transaction's user_token. Without that property, a transaction is stored on its Marqeta user and card only. Marqeta sends amounts in major units (10.5 is 10.50), not in cents.",
+  "events": ["transaction.*"],
+  "mapping": {
+    "rules": [
+      {
+        "name": "Authorization",
+        "items": "$.transactions",
+        "match": { "$$.type": ["authorization", "authorization.atm.withdrawal", "authorization.cashback", "authorization.quasi.cash", "authorization.account_verification"] },
+        "event": {
+          "id": "$$.token",
+          "type": "card_transaction",
+          "ts": "$$.created_time",
+          "entities": {
+            "user": { "lookup": { "property": "marqeta_user_token", "value": "$$.user_token" } },
+            "marqeta_user": "$$.user_token",
+            "card": "$$.card_token"
+          },
+          "universal_id": "$$.token",
+          "status": { "path": "$$.state", "values": { "PENDING": "pending", "CLEARED": "completed", "COMPLETION": "completed", "DECLINED": "declined", "ERROR": "failed" } },
+          "properties": {
+            "transaction_type": "$$.type",
+            "amount": "$$.amount",
+            "request_amount": "$$.request_amount",
+            "currency": "$$.currency_code",
+            "response_code": "$$.response.code",
+            "response_memo": "$$.response.memo",
+            "merchant": "$$.card_acceptor.name",
+            "merchant_id": "$$.card_acceptor.mid",
+            "mcc": "$$.card_acceptor.mcc",
+            "merchant_city": "$$.card_acceptor.city",
+            "merchant_country": "$$.card_acceptor.country_code",
+            "network": "$$.network",
+            "transaction_risk_score": "$$.fraud.network.transaction_risk_score",
+            "account_risk_score": "$$.fraud.network.account_risk_score",
+            "card_present": "$$.pos.card_presence",
+            "cardholder_present": "$$.pos.card_holder_presence",
+            "pan_entry_mode": "$$.pos.pan_entry_mode",
+            "pin_entry_mode": "$$.pos.pin_entry_mode",
+            "recurring": "$$.pos.is_recurring",
+            "payment_channel": "$$.transaction_metadata.payment_channel",
+            "cvv_result": "$$.card_security_code_verification.response.memo",
+            "three_ds_result": "$$.cardholder_authentication_data.verification_result",
+            "wallet": "$$.digital_wallet_token.wallet_provider",
+            "standin_reason": "$$.standin_reason"
+          }
+        }
+      },
+      {
+        "name": "Clearing",
+        "items": "$.transactions",
+        "match": { "$$.type": ["authorization.clearing", "authorization.clearing.atm.withdrawal", "authorization.clearing.cashback", "authorization.clearing.quasi.cash"] },
+        "event": {
+          "id": "$$.token",
+          "type": "card_transaction",
+          "ts": "$$.created_time",
+          "entities": {
+            "user": { "lookup": { "property": "marqeta_user_token", "value": "$$.user_token" } },
+            "marqeta_user": "$$.user_token",
+            "card": "$$.card_token"
+          },
+          "universal_id": "$$.preceding_related_transaction_token",
+          "status": { "path": "$$.state", "values": { "PENDING": "pending", "CLEARED": "completed", "COMPLETION": "completed", "DECLINED": "declined", "ERROR": "failed" } },
+          "properties": {
+            "transaction_type": "$$.type",
+            "amount": "$$.amount",
+            "currency": "$$.currency_code",
+            "response_code": "$$.response.code",
+            "merchant": "$$.card_acceptor.name",
+            "mcc": "$$.card_acceptor.mcc"
+          }
+        }
+      },
+      {
+        "name": "Reversal",
+        "items": "$.transactions",
+        "match": { "$$.type": ["authorization.reversal", "authorization.reversal.issuerexpiration"] },
+        "event": {
+          "id": "$$.token",
+          "type": "card_transaction",
+          "ts": "$$.created_time",
+          "entities": {
+            "user": { "lookup": { "property": "marqeta_user_token", "value": "$$.user_token" } },
+            "marqeta_user": "$$.user_token",
+            "card": "$$.card_token"
+          },
+          "universal_id": "$$.original_transaction_token",
+          "status": { "path": "$$.type", "values": { "authorization.reversal": "reversed", "authorization.reversal.issuerexpiration": "expired" } },
+          "properties": {
+            "transaction_type": "$$.type",
+            "amount": "$$.amount",
+            "currency": "$$.currency_code",
+            "response_code": "$$.response.code"
+          }
+        }
+      },
+      {
+        "name": "Refund",
+        "items": "$.transactions",
+        "match": { "$$.type": ["refund", "refund.authorization", "refund.authorization.clearing"] },
+        "event": {
+          "id": "$$.token",
+          "type": "refund",
+          "ts": "$$.created_time",
+          "entities": {
+            "user": { "lookup": { "property": "marqeta_user_token", "value": "$$.user_token" } },
+            "marqeta_user": "$$.user_token",
+            "card": "$$.card_token"
+          },
+          "universal_id": "$$.original_transaction_token",
+          "status": "refunded",
+          "properties": {
+            "transaction_type": "$$.type",
+            "amount": "$$.amount",
+            "currency": "$$.currency_code",
+            "merchant": "$$.card_acceptor.name",
+            "mcc": "$$.card_acceptor.mcc"
+          }
+        }
+      },
+      {
+        "name": "Cardholder dispute",
+        "items": "$.transactions",
+        "match": { "$$.type": ["authorization.clearing.chargeback", "authorization.clearing.chargeback.completed", "authorization.clearing.chargeback.reversal"] },
+        "event": {
+          "id": "$$.token",
+          "type": "card_dispute",
+          "ts": "$$.created_time",
+          "entities": {
+            "user": { "lookup": { "property": "marqeta_user_token", "value": "$$.user_token" } },
+            "marqeta_user": "$$.user_token",
+            "card": "$$.card_token"
+          },
+          "universal_id": "$$.token",
+          "status": { "path": "$$.type", "values": { "authorization.clearing.chargeback": "opened", "authorization.clearing.chargeback.completed": "won", "authorization.clearing.chargeback.reversal": "lost" } },
+          "properties": {
+            "transaction_type": "$$.type",
+            "dispute_state": "$$.state",
+            "amount": "$$.amount",
+            "currency": "$$.currency_code",
+            "disputed_transaction": "$$.preceding_related_transaction_token",
+            "merchant": "$$.card_acceptor.name",
+            "mcc": "$$.card_acceptor.mcc"
+          }
+        },
+        "label": {
+          "entity": "user",
+          "label": { "path": "$$.type", "values": { "authorization.clearing.chargeback": "cardholder_dispute", "authorization.clearing.chargeback.completed": "cardholder_dispute_won", "authorization.clearing.chargeback.reversal": "cardholder_dispute_lost" } },
+          "properties": { "transaction": "$$.token", "dispute_state": "$$.state" }
+        }
+      }
+    ]
+  },
+  "samples": [
+    {
+      "transactions": [
+        {
+          "type": "authorization",
+          "state": "PENDING",
+          "token": "36d04781-d34f-4e0c-b895-2f1af976b565",
+          "user_token": "99f323d4-298f-4b0c-93b1-19b2d9921eb8",
+          "acting_user_token": "99f323d4-298f-4b0c-93b1-19b2d9921eb8",
+          "card_token": "02cc766c-24a5-4c3b-adcf-0e5e27b09329",
+          "gpa": { "currency_code": "USD", "ledger_balance": 120, "available_balance": 75.5, "credit_balance": 0, "pending_credits": 0, "impacted_amount": -44.5 },
+          "duration": 622,
+          "created_time": "2026-10-14T17:26:29Z",
+          "user_transaction_time": "2026-10-14T17:26:29Z",
+          "settlement_date": "2026-10-14T00:00:00Z",
+          "request_amount": 44.5,
+          "amount": 44.5,
+          "issuer_interchange_amount": 0,
+          "currency_code": "USD",
+          "approval_code": "761515",
+          "response": { "code": "0000", "memo": "Approved or completed successfully" },
+          "network": "VISA",
+          "subnetwork": "VISANET",
+          "acquirer_fee_amount": 0,
+          "acquirer": { "institution_country": "840", "institution_id_code": "428399181", "retrieval_reference_number": "528294182583", "system_trace_audit_number": "656761" },
+          "user": { "metadata": {} },
+          "card": { "metadata": {} },
+          "card_security_code_verification": { "type": "CVV1", "response": { "code": "0000", "memo": "Card security code match" } },
+          "fraud": { "network": { "transaction_risk_score": 7, "account_risk_score": 3 } },
+          "card_acceptor": { "mid": "000000000011111", "mcc": "5812", "name": "Corner Coffee", "street_address": "111 Main St", "city": "Berkeley", "country_code": "USA" },
+          "pos": { "pan_entry_mode": "CONTACTLESS", "pin_entry_mode": "FALSE", "terminal_id": "TR100000", "terminal_attendance": "ATTENDED", "card_holder_presence": true, "card_presence": true, "partial_approval_capable": false, "purchase_amount_only": false, "is_recurring": false },
+          "transaction_metadata": { "payment_channel": "OTHER" }
+        }
+      ]
+    },
+    {
+      "transactions": [
+        {
+          "type": "authorization",
+          "state": "DECLINED",
+          "token": "8b1e4c2a-7d3f-4e9a-b6c5-1a2b3c4d5e6f",
+          "user_token": "99f323d4-298f-4b0c-93b1-19b2d9921eb8",
+          "acting_user_token": "99f323d4-298f-4b0c-93b1-19b2d9921eb8",
+          "card_token": "02cc766c-24a5-4c3b-adcf-0e5e27b09329",
+          "created_time": "2026-10-14T03:12:00Z",
+          "user_transaction_time": "2026-10-14T03:12:00Z",
+          "request_amount": 1250,
+          "amount": 1250,
+          "currency_code": "USD",
+          "response": { "code": "1016", "memo": "Insufficient funds" },
+          "network": "MASTERCARD",
+          "fraud": { "network": { "transaction_risk_score": 91, "account_risk_score": 64 } },
+          "cardholder_authentication_data": { "electronic_commerce_indicator": "authentication_attempted", "verification_result": "not_verified", "verification_value_created_by": "issuer_acs" },
+          "card_acceptor": { "mid": "4445550001", "mcc": "5815", "name": "GIFTCARDS ONLINE", "city": "AMSTERDAM", "country_code": "NLD" },
+          "pos": { "pan_entry_mode": "ECOMMERCE", "pin_entry_mode": "FALSE", "card_holder_presence": false, "card_presence": false, "partial_approval_capable": false, "purchase_amount_only": false, "is_recurring": false },
+          "transaction_metadata": { "payment_channel": "ECOMMERCE" }
+        }
+      ]
+    },
+    {
+      "transactions": [
+        {
+          "type": "authorization.clearing",
+          "state": "COMPLETION",
+          "token": "c4f7a1b2-9e8d-4c3b-a2f1-0e9d8c7b6a50",
+          "user_token": "99f323d4-298f-4b0c-93b1-19b2d9921eb8",
+          "card_token": "02cc766c-24a5-4c3b-adcf-0e5e27b09329",
+          "preceding_related_transaction_token": "36d04781-d34f-4e0c-b895-2f1af976b565",
+          "created_time": "2026-10-15T06:00:00Z",
+          "amount": 44.5,
+          "currency_code": "USD",
+          "response": { "code": "0000", "memo": "Approved or completed successfully" },
+          "network": "VISA",
+          "card_acceptor": { "mid": "000000000011111", "mcc": "5812", "name": "Corner Coffee", "city": "Berkeley", "country_code": "USA" }
+        },
+        {
+          "type": "refund",
+          "state": "COMPLETION",
+          "token": "e2d3c4b5-a6f7-4e8d-9c0b-1a2f3e4d5c6b",
+          "user_token": "99f323d4-298f-4b0c-93b1-19b2d9921eb8",
+          "card_token": "02cc766c-24a5-4c3b-adcf-0e5e27b09329",
+          "original_transaction_token": "36d04781-d34f-4e0c-b895-2f1af976b565",
+          "created_time": "2026-10-15T09:00:00Z",
+          "amount": 4.5,
+          "currency_code": "USD",
+          "response": { "code": "0000", "memo": "Approved or completed successfully" },
+          "network": "VISA",
+          "card_acceptor": { "mid": "000000000011111", "mcc": "5812", "name": "Corner Coffee", "city": "Berkeley", "country_code": "USA" }
+        }
+      ]
+    },
+    {
+      "transactions": [
+        {
+          "type": "authorization.clearing.chargeback",
+          "state": "INITIATED",
+          "token": "f1e2d3c4-b5a6-4978-8a9b-0c1d2e3f4a5b",
+          "user_token": "99f323d4-298f-4b0c-93b1-19b2d9921eb8",
+          "card_token": "02cc766c-24a5-4c3b-adcf-0e5e27b09329",
+          "preceding_related_transaction_token": "c4f7a1b2-9e8d-4c3b-a2f1-0e9d8c7b6a50",
+          "created_time": "2026-10-15T11:00:00Z",
+          "amount": 40,
+          "currency_code": "USD",
+          "card_acceptor": { "mid": "000000000011111", "mcc": "5812", "name": "Corner Coffee", "city": "Berkeley", "country_code": "USA" }
+        }
+      ]
+    },
+    { "pings": [{ "token": "marqeta", "payload": "healthcheck" }] }
+  ]
+}

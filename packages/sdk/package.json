@@ -1,0 +1,44 @@
+{
+  "name": "@finic-ai/kairos",
+  "version": "0.1.0",
+  "description": "Kairos client: track financial events and request decisions.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./middleware": {
+      "types": "./dist/middleware.d.ts",
+      "default": "./dist/middleware.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "sideEffects": false,
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p ."
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "express": "^5.3.0",
+    "hono": "^4.13.13"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/finic-ai/kairos.git",
+    "directory": "packages/sdk"
+  },
+  "homepage": "https://github.com/finic-ai/kairos/tree/main/packages/sdk",
+  "publishConfig": {
+    "access": "public"
+  }
+}

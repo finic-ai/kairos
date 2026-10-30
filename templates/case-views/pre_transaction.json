@@ -1,0 +1,118 @@
+{
+  "name": "pre_transaction",
+  "label": "Pre-transaction approval",
+  "description": "A payment that waits for a person: the amount and the payee first, then the user's recent money and logins.",
+  "view": {
+    "template": "pre_transaction",
+    "header": [
+      { "field": "event.amount", "label": "Amount", "format": "money", "currency": "event.currency" },
+      "decision.risk_score",
+      "case.due"
+    ],
+    "blocks": [
+      {
+        "id": "payment",
+        "type": "fields",
+        "region": "main",
+        "w": 6,
+        "title": "The payment",
+        "fields": [
+          { "field": "event.amount", "label": "Amount", "format": "money", "currency": "event.currency" },
+          { "field": "event.direction", "label": "Direction" },
+          { "field": "event.channel", "label": "Channel" },
+          "decision.action",
+          "decision.outcome"
+        ]
+      },
+      {
+        "id": "before_you_approve",
+        "type": "text",
+        "region": "main",
+        "w": 6,
+        "title": "Before you approve",
+        "text": "Check that the payee is one the customer paid before.\nCall the customer on the number on file when the device is new.\nA new device and a large transfer together is the usual pattern of account takeover."
+      },
+      { "id": "why", "type": "evidence", "region": "main" },
+      { "id": "history", "type": "list", "region": "main", "lists": ["transactions", "logins"], "rows": 5 },
+      { "id": "decisions", "type": "decisions", "region": "main" },
+      {
+        "id": "about",
+        "type": "facts",
+        "region": "side",
+        "facts": ["transactions_30d", "money_out_7d", "failed_logins_24h"]
+      },
+      { "id": "device", "type": "facts", "region": "side", "of": "item.device" },
+      { "id": "details", "type": "details", "region": "side" },
+      { "id": "activity", "type": "activity", "region": "side" }
+    ],
+    "facts": [
+      {
+        "for": "user",
+        "name": "transactions_30d",
+        "label": "Transactions in 30 days",
+        "source": "events",
+        "measure": "count",
+        "filters": { "event_type": "transaction" },
+        "window": "30d"
+      },
+      {
+        "for": "user",
+        "name": "money_out_7d",
+        "label": "Money out this week",
+        "source": "events",
+        "measure": "sum",
+        "field": "amount",
+        "filters": { "event_type": "transaction", "property": { "name": "direction", "value": "out" } },
+        "window": "7d",
+        "usual": "90d"
+      },
+      {
+        "for": "user",
+        "name": "failed_logins_24h",
+        "label": "Failed logins in 24 hours",
+        "source": "events",
+        "measure": "count",
+        "filters": { "event_type": "login_failed" },
+        "window": "24h"
+      },
+      {
+        "for": "device",
+        "name": "users",
+        "label": "Users on this device",
+        "source": "events",
+        "measure": "unique",
+        "field": "user"
+      },
+      { "for": "device", "name": "first_seen", "label": "Device first seen", "source": "events", "measure": "first" }
+    ],
+    "lists": [
+      {
+        "for": "user",
+        "name": "transactions",
+        "label": "Transactions",
+        "source": "events",
+        "filters": { "event_type": "transaction" },
+        "columns": [
+          "ts",
+          "event.direction",
+          { "field": "event.amount", "label": "Amount", "format": "money", "currency": "event.currency" },
+          "event.channel",
+          "decision.outcome"
+        ]
+      },
+      {
+        "for": "user",
+        "name": "logins",
+        "label": "Logins",
+        "source": "events",
+        "filters": { "event_type": ["login", "login_failed"] },
+        "columns": [
+          "ts",
+          "type",
+          { "field": "event.ip_country", "label": "Country", "format": "country" },
+          { "field": "event.method", "label": "Method" }
+        ]
+      }
+    ]
+  }
+}

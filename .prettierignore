@@ -1,0 +1,12 @@
+# Generated, or data: not formatted.
+node_modules/
+dist/
+.vercel/
+.data/
+internal/
+research/
+apps/server/drizzle/
+apps/server/test/fixtures/
+packages/eval/cases/
+packages/eval/cache/
+packages/eval/experiments/cache/

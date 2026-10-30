@@ -1,0 +1,91 @@
+{
+  "cases": "v1.jsonl",
+  "action": "withdrawal@0",
+  "catch_rate": 0.933,
+  "false_action_rate": 0.275,
+  "auc": 0.99,
+  "reason_fact_accuracy": 0.995,
+  "mean_tokens": 4227,
+  "kinds": {
+    "normal_easy": {
+      "n": 10,
+      "mean_probability": 0.019,
+      "held": 0,
+      "step_up": 0,
+      "actioned": 0,
+      "typology_correct": 10
+    },
+    "normal_hard": {
+      "n": 10,
+      "mean_probability": 0.034,
+      "held": 0,
+      "step_up": 0,
+      "actioned": 0,
+      "typology_correct": 10
+    },
+    "normal_pass_through": {
+      "n": 10,
+      "mean_probability": 0.061,
+      "held": 0,
+      "step_up": 5,
+      "actioned": 5,
+      "typology_correct": 10
+    },
+    "normal_new_account": {
+      "n": 10,
+      "mean_probability": 0.115,
+      "held": 0,
+      "step_up": 6,
+      "actioned": 6,
+      "typology_correct": 10
+    },
+    "ato_easy": {
+      "n": 10,
+      "mean_probability": 0.993,
+      "held": 10,
+      "step_up": 0,
+      "actioned": 10,
+      "typology_correct": 10
+    },
+    "ato_hard": {
+      "n": 10,
+      "mean_probability": 0.653,
+      "held": 6,
+      "step_up": 0,
+      "actioned": 6,
+      "typology_correct": 3
+    },
+    "scam_easy": {
+      "n": 10,
+      "mean_probability": 0.996,
+      "held": 10,
+      "step_up": 0,
+      "actioned": 10,
+      "typology_correct": 10
+    },
+    "scam_hard": {
+      "n": 10,
+      "mean_probability": 0.676,
+      "held": 8,
+      "step_up": 2,
+      "actioned": 10,
+      "typology_correct": 8
+    },
+    "ring_one_hop": {
+      "n": 10,
+      "mean_probability": 0.873,
+      "held": 10,
+      "step_up": 0,
+      "actioned": 10,
+      "typology_correct": 3
+    },
+    "ring_two_hop": {
+      "n": 10,
+      "mean_probability": 0.169,
+      "held": 0,
+      "step_up": 10,
+      "actioned": 10,
+      "typology_correct": 0
+    }
+  }
+}

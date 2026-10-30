@@ -1,0 +1,30 @@
+{
+  "type": "beneficiary_added",
+  "description": "A payee, a beneficiary or a withdrawal address was added. \"Added recently\" is one of the most useful signals, and it needs this date.",
+  "entities": {
+    "user": {
+      "description": "Who added it.",
+      "required": true
+    },
+    "beneficiary": {
+      "description": "What was added. Use the entity type you use in payments: beneficiary, payee, destination.",
+      "required": true
+    },
+    "device": {
+      "description": "The device it was added from.",
+      "required": false
+    }
+  },
+  "properties": {
+    "label": {
+      "type": "string",
+      "description": "The name the customer gave it."
+    }
+  },
+  "example": {
+    "userId": "user_123",
+    "beneficiaryId": "ben_77",
+    "deviceId": "dev_9",
+    "label": "landlord"
+  }
+}

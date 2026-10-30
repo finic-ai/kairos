@@ -1,0 +1,156 @@
+{
+  "provider": "intercom",
+  "version": 1,
+  "displayName": "Intercom",
+  "category": "customer_support",
+  "checked": false,
+  "description": "Messages that your users send to support: a new conversation and each reply, with the text.",
+  "verification": { "scheme": "hmac", "header": "X-Hub-Signature", "algorithm": "sha1", "encoding": "hex", "prefix": "sha1=" },
+  "secretHint": "Your Intercom app's client secret, from Basic information",
+  "setup": [
+    "In the Intercom Developer Hub, open your app and go to Webhooks. Set the endpoint URL to the URL below.",
+    "Subscribe to these topics: conversation.user.created, conversation.user.replied.",
+    "Copy the app's client secret from Basic information and paste it here. Intercom signs each notification with it.",
+    "Install the Messenger with your own user id as user_id, so that each contact has it as its external_id."
+  ],
+  "identity": "Kairos reads your user id from the contact's external_id, which is the user_id you give the Intercom Messenger. A visitor or a lead without it is stored on its Intercom contact only.",
+  "events": ["conversation.user.created", "conversation.user.replied"],
+  "mapping": {
+    "rules": [
+      {
+        "name": "New conversation",
+        "match": { "topic": "conversation.user.created" },
+        "event": {
+          "id": "$.id",
+          "type": "support_message",
+          "ts": { "path": "$.created_at", "format": "unix_seconds" },
+          "entities": { "user": "$.data.item.contacts.contacts[0].external_id", "intercom_contact": "$.data.item.contacts.contacts[0].id" },
+          "universal_id": "$.data.item.id",
+          "status": "opened",
+          "properties": {
+            "topic": "$.topic",
+            "subject": "$.data.item.source.subject",
+            "message": "$.data.item.source.body",
+            "channel": "$.data.item.source.delivered_as",
+            "source_type": "$.data.item.source.type",
+            "author_type": "$.data.item.source.author.type",
+            "conversation_state": "$.data.item.state",
+            "priority": "$.data.item.priority"
+          }
+        }
+      },
+      {
+        "name": "Reply",
+        "match": { "topic": "conversation.user.replied" },
+        "event": {
+          "id": "$.id",
+          "type": "support_message",
+          "ts": { "path": "$.created_at", "format": "unix_seconds" },
+          "entities": { "user": "$.data.item.contacts.contacts[0].external_id", "intercom_contact": "$.data.item.contacts.contacts[0].id" },
+          "universal_id": "$.data.item.id",
+          "status": "replied",
+          "properties": {
+            "topic": "$.topic",
+            "message": "$.data.item.conversation_parts.conversation_parts[0].body",
+            "part_type": "$.data.item.conversation_parts.conversation_parts[0].part_type",
+            "author_type": "$.data.item.conversation_parts.conversation_parts[0].author.type",
+            "conversation_state": "$.data.item.state",
+            "priority": "$.data.item.priority"
+          }
+        }
+      }
+    ]
+  },
+  "samples": [
+    {
+      "type": "notification_event",
+      "app_id": "a86dr8yl",
+      "data": {
+        "type": "notification_event_data",
+        "item": {
+          "type": "conversation",
+          "id": "215471284901633",
+          "created_at": 1792065600,
+          "updated_at": 1792065600,
+          "source": {
+            "type": "conversation",
+            "id": "2734981201",
+            "delivered_as": "customer_initiated",
+            "subject": "",
+            "body": "Someone took money out of my account last night. I did not send that transfer.",
+            "author": { "type": "user", "id": "66f2a1b3c4d5e6f7a8b9c0d1", "name": "Ada Lovelace", "email": "ada@example.com" },
+            "url": "https://app.example.com/wallet"
+          },
+          "contacts": { "type": "contact.list", "contacts": [{ "type": "contact", "id": "66f2a1b3c4d5e6f7a8b9c0d1", "external_id": "user_42" }] },
+          "state": "open",
+          "open": true,
+          "read": false,
+          "priority": "not_priority",
+          "conversation_parts": { "type": "conversation_part.list", "conversation_parts": [], "total_count": 0 }
+        }
+      },
+      "links": {},
+      "id": "notif_3c1f2a90-8e1d-4b6a-9d3e-7a2b1c0d9e8f",
+      "topic": "conversation.user.created",
+      "delivery_status": "pending",
+      "delivery_attempts": 1,
+      "delivered_at": 0,
+      "first_sent_at": 1792065601,
+      "created_at": 1792065600,
+      "self": null
+    },
+    {
+      "type": "notification_event",
+      "app_id": "a86dr8yl",
+      "data": {
+        "type": "notification_event_data",
+        "item": {
+          "type": "conversation",
+          "id": "215471284901633",
+          "created_at": 1792065600,
+          "updated_at": 1792066200,
+          "source": {
+            "type": "conversation",
+            "id": "2734981201",
+            "delivered_as": "customer_initiated",
+            "subject": "",
+            "body": "Someone took money out of my account last night. I did not send that transfer.",
+            "author": { "type": "user", "id": "66f2a1b3c4d5e6f7a8b9c0d1", "name": "Ada Lovelace", "email": "ada@example.com" }
+          },
+          "contacts": { "type": "contact.list", "contacts": [{ "type": "contact", "id": "66f2a1b3c4d5e6f7a8b9c0d1", "external_id": "user_42" }] },
+          "state": "open",
+          "open": true,
+          "read": true,
+          "priority": "priority",
+          "conversation_parts": {
+            "type": "conversation_part.list",
+            "conversation_parts": [
+              {
+                "type": "conversation_part",
+                "id": "9876543210",
+                "part_type": "comment",
+                "body": "It was 450 pounds to an account I do not know. Please block my card.",
+                "created_at": 1792066200,
+                "updated_at": 1792066200,
+                "notified_at": 1792066200,
+                "author": { "type": "user", "id": "66f2a1b3c4d5e6f7a8b9c0d1", "name": "Ada Lovelace", "email": "ada@example.com" },
+                "attachments": [],
+                "redacted": false
+              }
+            ],
+            "total_count": 1
+          }
+        }
+      },
+      "links": {},
+      "id": "notif_8d2e4b17-0c3a-4f5e-a1b2-c3d4e5f60718",
+      "topic": "conversation.user.replied",
+      "delivery_status": "pending",
+      "delivery_attempts": 1,
+      "delivered_at": 0,
+      "first_sent_at": 1792066201,
+      "created_at": 1792066200,
+      "self": null
+    }
+  ]
+}

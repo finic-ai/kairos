@@ -1,0 +1,67 @@
+{
+  "name": "fraud_claim",
+  "description": "Pay or hold a customer's fraud claim",
+  "subject": "user",
+  "hold": "Should the pending fraud claim be held for manual review, and not paid automatically, because it shows signs that the customer made or authorised the disputed transactions, or signs of claim abuse?",
+  "typologies": {
+    "third_party_fraud": "Genuine unauthorised use: a criminal used the card details or took over the account",
+    "scam_victim": "Scam victim: the customer made the payment personally because someone deceived them",
+    "first_party_fraud": "First-party fraud: the customer made the transactions and disputes them to get the money back",
+    "claim_abuse": "Claim abuse: a pattern of repeated claims, or claims coordinated with other customers"
+  },
+  "reasons": {
+    "usual_device_or_location": "The disputed transactions came from the customer's usual device, IP address or home city",
+    "known_merchant_or_payee": "The customer paid the same merchant or payee before without a dispute",
+    "late_claim": "The claim was filed weeks after the disputed transactions with no explanation",
+    "prior_claims": "The customer filed other fraud claims in the past year",
+    "prior_abuse_or_red_flag": "The customer has a confirmed red flag or an earlier claim closed as account abuse",
+    "linked_to_abusers": "The device or the payee is shared with other customers who have account-abuse outcomes",
+    "takeover_signs": "A new device, a password reset or a contact change came shortly before the disputed transactions",
+    "merchant_or_payee_reported": "The merchant or the payee carries a fraud, scam or mule-account report",
+    "card_testing": "Small test payments came before larger ones at a merchant the customer never used",
+    "customer_authorised": "The claim description says that the customer made or approved the payment personally"
+  },
+  "policy": {
+    "block": 0.9,
+    "review": 0.5,
+    "rules": [
+      {
+        "id": "known_abuser",
+        "allOf": [
+          "prior_abuse_or_red_flag"
+        ],
+        "outcome": "review"
+      },
+      {
+        "id": "authorised_payment",
+        "allOf": [
+          "customer_authorised"
+        ],
+        "outcome": "review"
+      },
+      {
+        "id": "own_usual_pattern",
+        "allOf": [
+          "usual_device_or_location",
+          "known_merchant_or_payee"
+        ],
+        "outcome": "review"
+      },
+      {
+        "id": "linked_to_abusers_from_own_device",
+        "allOf": [
+          "linked_to_abusers",
+          "usual_device_or_location"
+        ],
+        "outcome": "review"
+      }
+    ]
+  },
+  "context": {
+    "recentEvents": 40,
+    "linkTypes": [
+      "device",
+      "payee"
+    ]
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "type": "login_failed",
+  "description": "A sign-in attempt that did not succeed.",
+  "entities": {
+    "user": {
+      "description": "The account that was tried.",
+      "required": true
+    },
+    "device": {
+      "description": "The device used.",
+      "required": false
+    },
+    "ip": {
+      "description": "The IP address of the attempt.",
+      "required": false
+    }
+  },
+  "properties": {
+    "ip_country": {
+      "type": "string",
+      "description": "Country of the IP address."
+    },
+    "reason": {
+      "type": "string",
+      "description": "Why it failed.",
+      "enum": [
+        "wrong_password",
+        "wrong_code",
+        "locked"
+      ]
+    }
+  },
+  "example": {
+    "userId": "user_123",
+    "deviceId": "dev_41",
+    "ipId": "198.51.100.20",
+    "ip_country": "RO",
+    "reason": "wrong_password"
+  }
+}

@@ -1,0 +1,58 @@
+{
+  "name": "kairos",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "kairos": "tsx apps/cli/src/index.ts",
+    "typecheck": "pnpm -r typecheck",
+    "format": "prettier --write \"**/*.{ts,tsx,js,mjs,cjs}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,mjs,cjs}\"",
+    "test": "vitest run",
+    "test:python": "python3 -m unittest discover -s packages/sdk-python/tests",
+    "eval": "pnpm --filter @kairos/eval run eval",
+    "eval:accept": "pnpm --filter @kairos/eval run eval --accept",
+    "eval:generate": "pnpm --filter @kairos/eval run generate",
+    "build": "pnpm --filter @finic-ai/kairos run build",
+    "build:standalone": "pnpm --filter @kairos/console run build && pnpm --filter @kairos/server run build",
+    "build:vercel": "pnpm --filter @kairos/console run build && pnpm --filter @kairos/server run build --vercel",
+    "api": "pnpm --filter @kairos/server run start",
+    "worker": "pnpm --filter @kairos/server run worker",
+    "db:migrate": "pnpm --filter @kairos/server run db:migrate",
+    "example": "tsx --env-file-if-exists=.env examples/bank-transfer.ts",
+    "eval:replay": "pnpm --filter @kairos/eval run replay",
+    "console": "pnpm --filter @kairos/console run dev",
+    "example:merchants": "tsx --env-file-if-exists=.env examples/merchant-onboarding.ts",
+    "example:claims": "tsx --env-file-if-exists=.env examples/fraud-claims.ts",
+    "example:loans": "tsx --env-file-if-exists=.env examples/loan-applications.ts",
+    "example:loan-experiments": "tsx --env-file-if-exists=.env examples/loan-experiments.ts",
+    "example:insurance": "tsx --env-file-if-exists=.env examples/insurance-claims.ts",
+    "example:medical": "tsx --env-file-if-exists=.env examples/medical-claims.ts",
+    "example:scams": "tsx --env-file-if-exists=.env examples/scam-payments.ts",
+    "example:ticketing": "tsx --env-file-if-exists=.env examples/ticketing.ts",
+    "example:ecommerce": "tsx --env-file-if-exists=.env examples/ecommerce.ts",
+    "example:atm": "tsx --env-file-if-exists=.env examples/mule-atm.ts",
+    "example:overspend": "tsx --env-file-if-exists=.env examples/overspend.ts",
+    "example:recipes": "tsx --env-file-if-exists=.env examples/recipes.ts",
+    "example:session": "tsx --env-file-if-exists=.env examples/session.ts",
+    "example:sessions": "tsx --env-file-if-exists=.env examples/sessions.ts",
+    "example:middleware": "tsx --env-file-if-exists=.env packages/sdk/examples/express.ts",
+    "docs:events": "tsx templates/render.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "prettier": "^3.9.10",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0",
+    "vitest": "^3.0.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@embedded-postgres/darwin-arm64",
+      "@embedded-postgres/darwin-x64",
+      "@embedded-postgres/linux-arm64",
+      "@embedded-postgres/linux-x64",
+      "@embedded-postgres/windows-x64",
+      "esbuild"
+    ]
+  }
+}

@@ -1,0 +1,90 @@
+{
+  "name": "medical_claim",
+  "description": "Pay a provider's health insurance claim, or hold it for pre-payment review",
+  "subject": "provider",
+  "hold": "Should this provider's pending claim be held for pre-payment review because the provider shows signs of billing for services that did not happen, of billing higher-level services than were given, of a kickback or patient-recruitment scheme, or of a provider that was excluded before? Judge fraud, waste and abuse only, not whether the treatment was clinically right.",
+  "typologies": {
+    "phantom_billing": "Phantom billing: claims for patients who were not seen, often from a stolen or bought list of member ids",
+    "upcoding": "Upcoding: real visits billed at a higher level or a more expensive code than the care supports",
+    "kickback_scheme": "Kickback or recruitment scheme: recruited patients, a referring doctor and a lab or supplier that work together to bill expensive services",
+    "excluded_provider": "Returning bad actor: a provider that was excluded or terminated enrols again under a new name",
+    "legit": "Legitimate provider billing for care it gave, including busy, specialist and new practices"
+  },
+  "reasons": {
+    "impossible_volume": "The time or the number of visits billed in one day is more than one clinician can do",
+    "volume_spike": "The claim volume is far above the provider's usual volume, with no reason such as a seasonal outbreak",
+    "level_above_peers": "The share of highest-level visit codes is far above the share for peers of the same specialty",
+    "level_shift": "The provider moved suddenly to higher-level codes compared with its own history",
+    "diagnosis_not_supporting": "The diagnoses are too simple to support the level or the service billed",
+    "distant_patients": "Many patients live far from the practice",
+    "weekend_or_night_services": "The service date and time of office visits fall on weekends or at night, when the practice is closed. When the claim was sent does not count",
+    "member_complaints": "Patients said they did not receive the services billed",
+    "shared_patients_with_fraud": "The patients were also billed by providers that were found to commit fraud",
+    "referral_loop": "The same referring doctor and the same lab appear on most claims, and the referring doctor is linked to fraud findings",
+    "high_cost_tests": "Expensive genetic tests, lab panels or equipment are ordered for most patients with little clinical reason",
+    "linked_to_excluded": "The owner, the bank account, the address or the portal computer is shared with a provider that was excluded or terminated",
+    "new_enrollment": "The provider enrolled recently",
+    "bulk_upload_from_new_device": "Many claims were uploaded at once from a device or a network the provider has not used before, with no eligibility checks",
+    "payment_account_changed": "The account the insurer pays into was changed in the same portal visit as the claims, or shortly before",
+    "resubmitted_at_higher_level": "Denied claims were resubmitted with a higher-level code and no new documentation",
+    "shared_portal_device": "The portal is used from a computer that other providers also sign in from"
+  },
+  "policy": {
+    "block": 0.9,
+    "review": 0.5,
+    "rules": [
+      {
+        "id": "linked_to_excluded",
+        "allOf": [
+          "linked_to_excluded"
+        ],
+        "outcome": "review"
+      },
+      {
+        "id": "high_levels_for_simple_care",
+        "allOf": [
+          "level_above_peers",
+          "diagnosis_not_supporting"
+        ],
+        "outcome": "review"
+      },
+      {
+        "id": "more_than_a_day_billed",
+        "allOf": [],
+        "when": [
+          {
+            "total": "minutes_billed_24h",
+            "op": ">",
+            "value": 1440
+          }
+        ],
+        "outcome": "review"
+      }
+    ]
+  },
+  "context": {
+    "linkTypes": [
+      "owner",
+      "bank_account",
+      "device",
+      "address",
+      "member",
+      "referring_provider"
+    ],
+    "totals": [
+      {
+        "name": "minutes_billed_24h",
+        "event": "claim_submitted",
+        "sum": "minutes",
+        "window": "24h"
+      },
+      {
+        "name": "billed_usd_7d",
+        "event": "claim_submitted",
+        "sum": "billed_usd",
+        "window": "7d",
+        "usual": "42d"
+      }
+    ]
+  }
+}

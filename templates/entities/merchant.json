@@ -1,0 +1,61 @@
+{
+  "type": "merchant",
+  "kind": "business",
+  "description": "A business that takes payments through us",
+  "display": { "icon": "store", "color": "purple" },
+  "facts": [
+    {
+      "name": "claims_90d",
+      "label": "Fraud claims in 90 days",
+      "source": "events",
+      "measure": "count",
+      "filters": { "event_type": "fraud_claim" },
+      "window": "90d"
+    },
+    {
+      "name": "claimed_90d",
+      "label": "Claimed in 90 days",
+      "source": "events",
+      "measure": "sum",
+      "field": "initial_amount_usd",
+      "filters": { "event_type": "fraud_claim" },
+      "window": "90d",
+      "format": "money",
+      "currency": "USD"
+    },
+    { "name": "devices", "label": "Devices used", "source": "events", "measure": "unique", "field": "device" },
+    { "name": "cases", "label": "Cases", "source": "cases", "measure": "count" }
+  ],
+  "lists": [
+    {
+      "name": "claims",
+      "label": "Fraud claims",
+      "source": "events",
+      "filters": { "event_type": "fraud_claim" },
+      "columns": [
+        "ts",
+        { "field": "event.category", "label": "Category" },
+        { "field": "event.initial_amount_usd", "label": "Amount", "format": "money", "currency": "USD" },
+        "decision.outcome"
+      ]
+    },
+    {
+      "name": "applications",
+      "label": "Applications",
+      "source": "events",
+      "filters": { "event_type": "application_submitted" },
+      "columns": [
+        "ts",
+        { "field": "event.minutes_to_complete", "label": "Minutes to complete", "format": "number" },
+        "decision.outcome"
+      ]
+    },
+    {
+      "name": "devices",
+      "label": "Devices",
+      "source": "linked",
+      "entity_type": "device",
+      "columns": ["id", "name", "events", "last_seen"]
+    }
+  ]
+}

@@ -1,0 +1,38 @@
+{
+  "name": "ecommerce_checkout",
+  "description": "Approve an ecommerce order, or hold it for card testing, stolen payment details or account takeover",
+  "subject": "user",
+  "hold": "Should this order be held because the visit shows card testing, use of stolen payment details, or account takeover? Use the customer's purchase history, payment results, current visit and linked customers. A gift address different from billing, a shared household device or a single payment decline is not by itself fraud. Payment authorisation, stock allocation and fulfilment remain the shop's responsibility.",
+  "typologies": {
+    "card_testing": "Many payment methods are tried in a short visit, with repeated authorisation failures",
+    "stolen_payment": "Payment details are being used without the cardholder's permission, supported by verification failures or links to confirmed payment fraud",
+    "account_takeover": "An established customer's account is used from a new device after access and delivery details change",
+    "legit": "A genuine customer, including gift purchases and household members sharing a device or delivery address"
+  },
+  "reasons": {
+    "many_payment_methods": "Several different payment tokens are tried during the same short visit",
+    "repeated_declines": "The current visit contains repeated payment authorisation failures",
+    "verification_failed": "The payment provider reports failed cardholder authentication, security-code or billing-address checks",
+    "linked_to_fraud": "The payment token, device or delivery address is shared with customers whose earlier orders were confirmed as unauthorised payment fraud",
+    "new_device": "The order comes from a device absent from the established customer's earlier visits",
+    "access_changed": "A password reset or contact change occurred shortly before the order",
+    "delivery_changed": "The delivery address was changed to a new destination immediately before ordering",
+    "unusual_basket": "The order is far larger than this customer's normal purchases and contains easily resold goods"
+  },
+  "policy": {
+    "block": 0.9,
+    "review": 0.5,
+    "rules": [
+      { "id": "card_testing", "allOf": ["many_payment_methods", "repeated_declines"], "outcome": "review" },
+      { "id": "linked_payment_fraud", "allOf": ["linked_to_fraud", "verification_failed"], "outcome": "review" },
+      { "id": "takeover", "allOf": ["new_device", "access_changed", "delivery_changed"], "outcome": "step_up" }
+    ]
+  },
+  "context": {
+    "recentEvents": 50,
+    "linkTypes": ["device", "payment_method", "delivery_address"],
+    "totals": [
+      { "name": "declined_payments_this_visit", "event": "payment_attempt", "sum": "usd", "where": { "status": "declined" }, "window": "session" }
+    ]
+  }
+}

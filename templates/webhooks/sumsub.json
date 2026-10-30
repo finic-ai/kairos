@@ -1,0 +1,234 @@
+{
+  "provider": "sumsub",
+  "version": 1,
+  "displayName": "Sumsub",
+  "category": "identity_verification",
+  "checked": false,
+  "description": "Identity checks: each stage of an applicant's verification, and the result. The user gets kyc_status, and a final rejection becomes a label.",
+  "verification": { "scheme": "hmac", "header": "X-Payload-Digest", "algorithm": "sha256", "encoding": "hex" },
+  "secretHint": "The webhook's secret key, from the Webhook manager",
+  "setup": [
+    "In the Sumsub Dashboard, open Dev space › Webhooks › Webhook manager and create a webhook. Set the receiver type to HTTP address and the target to the URL below.",
+    "Select these types: applicantCreated, applicantPending, applicantOnHold, applicantPrechecked, applicantAwaitingUser, applicantAwaitingService, applicantReset, applicantReviewed.",
+    "Set the signature algorithm to SHA256. A webhook made before SHA256 became the default can still sign with SHA1: edit it and choose SHA256.",
+    "Copy the webhook's secret key and paste it here.",
+    "Give your own user id as the externalUserId when you create each applicant or SDK access token."
+  ],
+  "identity": "Kairos reads your user id from externalUserId. Give your own user id (such as user_42) when you create the applicant or the SDK access token. Without it, Sumsub makes an id of its own, and the checks are stored on a user that your decisions do not know.",
+  "events": [
+    "applicantCreated",
+    "applicantPending",
+    "applicantOnHold",
+    "applicantPrechecked",
+    "applicantAwaitingUser",
+    "applicantAwaitingService",
+    "applicantReset",
+    "applicantReviewed"
+  ],
+  "mapping": {
+    "rules": [
+      {
+        "name": "Check status",
+        "match": {
+          "type": ["applicantCreated", "applicantPending", "applicantOnHold", "applicantPrechecked", "applicantAwaitingUser", "applicantAwaitingService", "applicantReset"]
+        },
+        "event": {
+          "id": { "join": ["$.applicantId", "$.type", "$.createdAtMs"] },
+          "type": "identity_check",
+          "ts": "$.createdAtMs",
+          "entities": { "user": "$.externalUserId", "sumsub_applicant": "$.applicantId" },
+          "universal_id": "$.applicantId",
+          "status": {
+            "path": "$.type",
+            "values": { "applicantCreated": "started", "applicantPending": "pending", "applicantOnHold": "on_hold", "applicantPrechecked": "prechecked", "applicantAwaitingUser": "awaiting_user", "applicantAwaitingService": "awaiting_service", "applicantReset": "reset" }
+          },
+          "properties": {
+            "level": "$.levelName",
+            "review_status": "$.reviewStatus",
+            "review_mode": "$.reviewMode",
+            "applicant_type": "$.applicantType",
+            "sandbox": "$.sandboxMode",
+            "test": "$.testMode"
+          },
+          "set": {
+            "user": {
+              "kyc_status": {
+                "path": "$.type",
+                "values": { "applicantCreated": "started", "applicantPending": "pending", "applicantOnHold": "on_hold", "applicantPrechecked": "prechecked", "applicantAwaitingUser": "awaiting_user", "applicantAwaitingService": "awaiting_service", "applicantReset": "reset" }
+              },
+              "kyc_level": "$.levelName"
+            }
+          }
+        }
+      },
+      {
+        "name": "Approved",
+        "match": { "type": "applicantReviewed", "reviewResult.reviewAnswer": "GREEN" },
+        "event": {
+          "id": { "join": ["$.applicantId", "$.type", "$.createdAtMs"] },
+          "type": "identity_check",
+          "ts": "$.createdAtMs",
+          "entities": { "user": "$.externalUserId", "sumsub_applicant": "$.applicantId" },
+          "universal_id": "$.applicantId",
+          "status": "approved",
+          "properties": {
+            "level": "$.levelName",
+            "review_answer": "$.reviewResult.reviewAnswer",
+            "review_mode": "$.reviewMode",
+            "applicant_type": "$.applicantType",
+            "sandbox": "$.sandboxMode",
+            "test": "$.testMode"
+          },
+          "set": { "user": { "kyc_status": "approved", "kyc_level": "$.levelName" } }
+        }
+      },
+      {
+        "name": "Resubmission requested",
+        "match": { "type": "applicantReviewed", "reviewResult.reviewAnswer": "RED", "reviewResult.reviewRejectType": "RETRY" },
+        "event": {
+          "id": { "join": ["$.applicantId", "$.type", "$.createdAtMs"] },
+          "type": "identity_check",
+          "ts": "$.createdAtMs",
+          "entities": { "user": "$.externalUserId", "sumsub_applicant": "$.applicantId" },
+          "universal_id": "$.applicantId",
+          "status": "resubmission_requested",
+          "properties": {
+            "level": "$.levelName",
+            "review_answer": "$.reviewResult.reviewAnswer",
+            "reject_type": "$.reviewResult.reviewRejectType",
+            "reject_label": "$.reviewResult.rejectLabels[0]",
+            "reject_labels": "$.reviewResult.rejectLabels",
+            "applicant_type": "$.applicantType",
+            "sandbox": "$.sandboxMode",
+            "test": "$.testMode"
+          },
+          "set": { "user": { "kyc_status": "resubmission_requested", "kyc_level": "$.levelName" } }
+        }
+      },
+      {
+        "name": "Rejected",
+        "match": { "type": "applicantReviewed", "reviewResult.reviewAnswer": "RED", "reviewResult.reviewRejectType": "FINAL" },
+        "event": {
+          "id": { "join": ["$.applicantId", "$.type", "$.createdAtMs"] },
+          "type": "identity_check",
+          "ts": "$.createdAtMs",
+          "entities": { "user": "$.externalUserId", "sumsub_applicant": "$.applicantId" },
+          "universal_id": "$.applicantId",
+          "status": "rejected",
+          "properties": {
+            "level": "$.levelName",
+            "review_answer": "$.reviewResult.reviewAnswer",
+            "reject_type": "$.reviewResult.reviewRejectType",
+            "reject_label": "$.reviewResult.rejectLabels[0]",
+            "reject_labels": "$.reviewResult.rejectLabels",
+            "applicant_type": "$.applicantType",
+            "sandbox": "$.sandboxMode",
+            "test": "$.testMode"
+          },
+          "set": { "user": { "kyc_status": "rejected", "kyc_level": "$.levelName" } }
+        },
+        "label": {
+          "entity": "user",
+          "label": "kyc_rejected",
+          "properties": { "reject_labels": "$.reviewResult.rejectLabels", "level": "$.levelName" }
+        }
+      }
+    ]
+  },
+  "samples": [
+    {
+      "applicantId": "6a1f3c2e9b7d4e0012a4c5f1",
+      "inspectionId": "6a1f3c2e9b7d4e0012a4c5f2",
+      "applicantType": "individual",
+      "correlationId": "req-1f7d2c90-5b3e-4a8e-9c61-0d2e7b4a9f13",
+      "levelName": "id-and-liveness",
+      "externalUserId": "user_42",
+      "type": "applicantCreated",
+      "sandboxMode": false,
+      "reviewStatus": "init",
+      "createdAtMs": "2026-10-14 09:00:01.120",
+      "clientId": "exampleClient"
+    },
+    {
+      "applicantId": "6a1f3c2e9b7d4e0012a4c5f1",
+      "inspectionId": "6a1f3c2e9b7d4e0012a4c5f2",
+      "applicantType": "individual",
+      "correlationId": "req-8c4b1e27-3d9a-4f6c-b2e0-5a7d9c1e3b48",
+      "levelName": "id-and-liveness",
+      "externalUserId": "user_42",
+      "type": "applicantPending",
+      "sandboxMode": false,
+      "reviewStatus": "pending",
+      "createdAtMs": "2026-10-14 09:04:37.512",
+      "clientId": "exampleClient"
+    },
+    {
+      "applicantId": "6a1f3c2e9b7d4e0012a4c5f1",
+      "inspectionId": "6a1f3c2e9b7d4e0012a4c5f2",
+      "applicantType": "individual",
+      "correlationId": "req-8c4b1e27-3d9a-4f6c-b2e0-5a7d9c1e3b48",
+      "levelName": "id-and-liveness",
+      "externalUserId": "user_42",
+      "type": "applicantReviewed",
+      "sandboxMode": false,
+      "reviewResult": {
+        "moderationComment": "The photo of your document is blurry. Please upload a clear photo.",
+        "reviewAnswer": "RED",
+        "rejectLabels": ["BAD_PROOF_OF_IDENTITY"],
+        "reviewRejectType": "RETRY",
+        "buttonIds": ["badDocument"]
+      },
+      "reviewStatus": "completed",
+      "createdAtMs": "2026-10-14 09:05:02.008",
+      "clientId": "exampleClient"
+    },
+    {
+      "applicantId": "6a1f3c2e9b7d4e0012a4c5f1",
+      "inspectionId": "6a1f3c2e9b7d4e0012a4c5f2",
+      "applicantType": "individual",
+      "correlationId": "req-2e9a7c41-6b0d-4c3f-8a15-7d4b2e9c0f66",
+      "levelName": "id-and-liveness",
+      "externalUserId": "user_42",
+      "type": "applicantReviewed",
+      "sandboxMode": false,
+      "reviewResult": { "reviewAnswer": "GREEN" },
+      "reviewStatus": "completed",
+      "createdAtMs": "2026-10-14 09:21:44.731",
+      "clientId": "exampleClient"
+    },
+    {
+      "applicantId": "6a1f40d79b7d4e0012a4d6e3",
+      "inspectionId": "6a1f40d79b7d4e0012a4d6e4",
+      "applicantType": "individual",
+      "correlationId": "req-5d3c8f12-9e4b-4a7d-b6c0-1f8e3a5d7c29",
+      "levelName": "id-and-liveness",
+      "externalUserId": "user_77",
+      "type": "applicantPending",
+      "sandboxMode": false,
+      "reviewStatus": "pending",
+      "createdAtMs": "2026-10-15 02:13:09.004",
+      "clientId": "exampleClient"
+    },
+    {
+      "applicantId": "6a1f40d79b7d4e0012a4d6e3",
+      "inspectionId": "6a1f40d79b7d4e0012a4d6e4",
+      "applicantType": "individual",
+      "correlationId": "req-5d3c8f12-9e4b-4a7d-b6c0-1f8e3a5d7c29",
+      "levelName": "id-and-liveness",
+      "externalUserId": "user_77",
+      "type": "applicantReviewed",
+      "sandboxMode": false,
+      "reviewResult": {
+        "moderationComment": "We could not verify your profile.",
+        "clientComment": "The document shows signs of editing, and the selfie does not match it.",
+        "reviewAnswer": "RED",
+        "rejectLabels": ["FORGERY", "SELFIE_MISMATCH"],
+        "reviewRejectType": "FINAL",
+        "buttonIds": ["fake", "selfieMismatch"]
+      },
+      "reviewStatus": "completed",
+      "createdAtMs": "2026-10-15 02:14:51.377",
+      "clientId": "exampleClient"
+    }
+  ]
+}

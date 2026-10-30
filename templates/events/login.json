@@ -1,0 +1,46 @@
+{
+  "type": "login",
+  "description": "A user signed in.",
+  "entities": {
+    "user": {
+      "description": "Who signed in.",
+      "required": true
+    },
+    "device": {
+      "description": "The device used. A new device is visible only against a history that names the usual one.",
+      "required": false
+    },
+    "ip": {
+      "description": "The IP address of the session.",
+      "required": false
+    }
+  },
+  "properties": {
+    "ip_country": {
+      "type": "string",
+      "description": "Country of the IP address, as a two-letter code."
+    },
+    "ip_city": {
+      "type": "string",
+      "description": "City of the IP address."
+    },
+    "method": {
+      "type": "string",
+      "description": "How the user signed in.",
+      "enum": [
+        "password",
+        "passkey",
+        "sso",
+        "magic_link"
+      ]
+    }
+  },
+  "example": {
+    "userId": "user_123",
+    "deviceId": "dev_9",
+    "ipId": "203.0.113.7",
+    "ip_country": "GB",
+    "ip_city": "Leeds",
+    "method": "password"
+  }
+}

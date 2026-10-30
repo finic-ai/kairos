@@ -1,0 +1,296 @@
+{
+  "provider": "checkout",
+  "version": 1,
+  "displayName": "Checkout.com",
+  "category": "payments",
+  "checked": false,
+  "description": "Card payments, refunds and disputes. A dispute becomes a chargeback label on the user who paid.",
+  "verification": { "scheme": "hmac", "header": "Cko-Signature", "algorithm": "sha256", "encoding": "hex" },
+  "secretHint": "The workflow's signature key, from its webhook action",
+  "setup": [
+    "In the Checkout.com Dashboard, open Developers › Workflows and add a workflow with a webhook action that sends to the URL below.",
+    "Set its signature key (or copy the one that the Dashboard made) and paste it here.",
+    "Add these event types to the workflow: payment_approved, payment_declined, payment_pending, payment_captured, payment_voided, payment_canceled, payment_expired, payment_refunded, dispute_received, dispute_won, dispute_lost, dispute_accepted, dispute_expired.",
+    "Put your own user id in the metadata of each payment you request: \"metadata\": { \"user_id\": \"user_42\" }. Refunds and disputes do not carry it; Kairos finds their user from the payment they belong to."
+  ],
+  "identity": "Kairos reads your user id from data.metadata.user_id on the payment. Without it, a payment is stored on its Checkout.com customer, card and IP only, and a refund or a dispute of that payment has no user to go to.",
+  "events": [
+    "payment_approved",
+    "payment_declined",
+    "payment_pending",
+    "payment_captured",
+    "payment_voided",
+    "payment_canceled",
+    "payment_expired",
+    "payment_refunded",
+    "dispute_received",
+    "dispute_won",
+    "dispute_lost",
+    "dispute_accepted",
+    "dispute_expired"
+  ],
+  "mapping": {
+    "rules": [
+      {
+        "name": "Payment",
+        "match": { "type": ["payment_approved", "payment_declined", "payment_pending"] },
+        "event": {
+          "id": "$.id",
+          "type": "payment",
+          "ts": "$.created_on",
+          "entities": { "user": "$.data.metadata.user_id", "checkout_customer": "$.data.customer.id", "card": "$.data.source.fingerprint", "ip": "$.data.payment_ip" },
+          "universal_id": "$.data.id",
+          "status": { "path": "$.type", "values": { "payment_approved": "approved", "payment_declined": "declined", "payment_pending": "pending" } },
+          "properties": {
+            "amount_minor": "$.data.amount",
+            "currency": "$.data.currency",
+            "reference": "$.data.reference",
+            "payment_type": "$.data.payment_type",
+            "response_code": "$.data.response_code",
+            "response_summary": "$.data.response_summary",
+            "risk_flagged": "$.data.risk.flagged",
+            "risk_score": "$.data.risk.score",
+            "source_type": "$.data.source.type",
+            "wallet": "$.data.source.card_wallet_type",
+            "card_scheme": "$.data.source.scheme",
+            "card_bin": "$.data.source.bin",
+            "card_last4": "$.data.source.last_4",
+            "card_type": "$.data.source.card_type",
+            "card_category": "$.data.source.card_category",
+            "issuer": "$.data.source.issuer",
+            "issuer_country": "$.data.source.issuer_country",
+            "avs_check": "$.data.source.avs_check",
+            "cvv_check": "$.data.source.cvv_check",
+            "three_ds_challenged": "$.data['3ds'].challenged",
+            "three_ds_downgraded": "$.data['3ds'].downgraded",
+            "three_ds_eci": "$.data['3ds'].eci"
+          }
+        }
+      },
+      {
+        "name": "Payment update",
+        "match": { "type": ["payment_captured", "payment_voided", "payment_canceled", "payment_expired"] },
+        "event": {
+          "id": "$.id",
+          "type": "payment",
+          "ts": "$.created_on",
+          "entities": { "user": { "record": "$.data.id" } },
+          "universal_id": "$.data.id",
+          "status": { "path": "$.type", "values": { "payment_captured": "completed", "payment_voided": "voided", "payment_canceled": "canceled", "payment_expired": "expired" } },
+          "properties": {
+            "amount_minor": "$.data.amount",
+            "currency": "$.data.currency",
+            "reference": "$.data.reference",
+            "response_code": "$.data.response_code",
+            "response_summary": "$.data.response_summary"
+          }
+        }
+      },
+      {
+        "name": "Refund",
+        "match": { "type": "payment_refunded" },
+        "event": {
+          "id": "$.id",
+          "type": "refund",
+          "ts": "$.created_on",
+          "entities": { "user": { "record": "$.data.id" } },
+          "universal_id": "$.data.id",
+          "status": "refunded",
+          "properties": {
+            "amount_refunded_minor": "$.data.amount",
+            "currency": "$.data.currency",
+            "total_refunded_minor": "$.data.balances.total_refunded",
+            "available_to_refund_minor": "$.data.balances.available_to_refund"
+          }
+        }
+      },
+      {
+        "name": "Dispute opened",
+        "match": { "type": "dispute_received" },
+        "event": {
+          "id": "$.id",
+          "type": "dispute_opened",
+          "ts": "$.created_on",
+          "entities": { "user": { "record": "$.data.payment_id" } },
+          "universal_id": "$.data.payment_id",
+          "status": "disputed",
+          "properties": {
+            "dispute_id": "$.data.id",
+            "category": "$.data.category",
+            "reason_code": "$.data.reason_code",
+            "amount_minor": "$.data.amount",
+            "currency": "$.data.currency"
+          }
+        },
+        "label": { "entity": "user", "label": "chargeback", "properties": { "dispute_id": "$.data.id", "category": "$.data.category" } }
+      },
+      {
+        "name": "Dispute closed",
+        "match": { "type": ["dispute_won", "dispute_lost", "dispute_accepted", "dispute_expired"] },
+        "event": {
+          "id": "$.id",
+          "type": "dispute_closed",
+          "ts": "$.created_on",
+          "entities": { "user": { "record": "$.data.payment_id" } },
+          "universal_id": "$.data.payment_id",
+          "status": { "path": "$.type", "values": { "dispute_won": "dispute_won", "dispute_lost": "dispute_lost", "dispute_accepted": "dispute_lost", "dispute_expired": "dispute_lost" } },
+          "properties": {
+            "dispute_id": "$.data.id",
+            "outcome": "$.type",
+            "category": "$.data.category",
+            "amount_minor": "$.data.amount",
+            "currency": "$.data.currency"
+          }
+        },
+        "label": {
+          "entity": "user",
+          "label": { "path": "$.type", "values": { "dispute_won": "dispute_won", "dispute_lost": "chargeback_lost", "dispute_accepted": "chargeback_lost", "dispute_expired": "chargeback_lost" } },
+          "properties": { "dispute_id": "$.data.id", "outcome": "$.type" }
+        }
+      }
+    ]
+  },
+  "samples": [
+    {
+      "id": "evt_caxmnvuvbe4elkbdx2imwbnjxu",
+      "type": "payment_approved",
+      "version": "1.0.29",
+      "created_on": "2026-10-14T12:00:04.8821546Z",
+      "data": {
+        "id": "pay_griq7wyqkggu7mnk7ecm6ysrl4",
+        "action_id": "act_gl5cpqgccxeulozrvaassd4lta",
+        "reference": "ORD-5023-4E89",
+        "amount": 9500,
+        "auth_code": "528709",
+        "currency": "GBP",
+        "customer": { "id": "cus_m3cixs4slzcelfjmdcodlgyvkq", "email": "ada@example.com" },
+        "payment_ip": "81.2.69.160",
+        "metadata": { "user_id": "user_42" },
+        "payment_type": "Regular",
+        "processed_on": "2026-10-14T12:00:01.1299682Z",
+        "3ds": { "downgraded": false, "enrolled": "Y", "authentication_response": "Y", "eci": "05", "version": "2.2.0", "exemption": "none", "challenged": false },
+        "response_code": "10000",
+        "response_summary": "Approved",
+        "risk": { "flagged": false, "score": 12 },
+        "source": {
+          "id": "src_r54q37yundoubpkiux5g4ocuha",
+          "type": "card",
+          "card_wallet_type": "applepay",
+          "scheme": "VISA",
+          "last_4": "6635",
+          "fingerprint": "E4AEAAB4AC2F55761E20D5DEDEA3B5AD6DFD5511CEFDA8A922AB78DBF5F8E0AC",
+          "bin": "464859",
+          "card_type": "CREDIT",
+          "card_category": "CONSUMER",
+          "issuer": "BARCLAYS BANK",
+          "issuer_country": "GB",
+          "avs_check": "G",
+          "cvv_check": "Y"
+        },
+        "balances": { "total_authorized": 9500, "total_voided": 0, "available_to_void": 9500, "total_captured": 0, "available_to_capture": 9500, "total_refunded": 0, "available_to_refund": 0 }
+      }
+    },
+    {
+      "id": "evt_dw4p2w6bnr5uzm7wlcq3bxgdgy",
+      "type": "payment_declined",
+      "version": "1.0.29",
+      "created_on": "2026-10-14T12:01:10.5520114Z",
+      "data": {
+        "id": "pay_k7zt6d4fcjxe3ou2y5wsvqlb3m",
+        "action_id": "act_y3oqhf46pyzuxjocqakyqeljve",
+        "reference": "ORD-5024-1A02",
+        "amount": 120000,
+        "currency": "GBP",
+        "customer": { "id": "cus_m3cixs4slzcelfjmdcodlgyvkq", "email": "ada@example.com" },
+        "payment_ip": "185.220.101.4",
+        "metadata": { "user_id": "user_42" },
+        "payment_type": "Regular",
+        "response_code": "20059",
+        "response_summary": "Suspected fraud",
+        "risk": { "flagged": true, "score": 87 },
+        "retry": { "max_attempts": 5, "ends_on": "2026-10-28T12:01:10Z" },
+        "source": {
+          "id": "src_wmlfc3zyhqzehihu7giusaaawu",
+          "type": "card",
+          "scheme": "MASTERCARD",
+          "last_4": "4242",
+          "fingerprint": "9F3BAD2E48C6C8579F2F5DC0710B7C11A8ACD5072C3363A72579A6FB227D64BE",
+          "bin": "535522",
+          "card_type": "DEBIT",
+          "card_category": "CONSUMER",
+          "issuer": "BANK OF EXAMPLE",
+          "issuer_country": "NG",
+          "avs_check": "N",
+          "cvv_check": "Y"
+        },
+        "balances": { "total_authorized": 0, "total_voided": 0, "available_to_void": 0, "total_captured": 0, "available_to_capture": 0, "total_refunded": 0, "available_to_refund": 0 }
+      }
+    },
+    {
+      "id": "evt_hsfxtjwidv6ulah5ualbaq3r5e",
+      "type": "payment_captured",
+      "version": "1.0.29",
+      "created_on": "2026-10-14T12:10:00.1000000Z",
+      "data": {
+        "id": "pay_griq7wyqkggu7mnk7ecm6ysrl4",
+        "action_id": "act_qrvmxxz2t4cuxmtgnb3x5aidgi",
+        "reference": "ORD-5023-4E89",
+        "amount": 9500,
+        "currency": "GBP",
+        "response_code": "10000",
+        "response_summary": "Approved",
+        "balances": { "total_authorized": 9500, "total_voided": 0, "available_to_void": 0, "total_captured": 9500, "available_to_capture": 0, "total_refunded": 0, "available_to_refund": 9500 },
+        "metadata": { "user_id": "user_42" }
+      }
+    },
+    {
+      "id": "evt_6a6jl3b2ucgezdghzwdxyjdomi",
+      "type": "payment_refunded",
+      "version": "1.0.29",
+      "created_on": "2026-10-15T09:00:00.0000000Z",
+      "data": {
+        "id": "pay_griq7wyqkggu7mnk7ecm6ysrl4",
+        "action_id": "act_2kn6xh5czx4evnkbbezo7wo3be",
+        "reference": "ORD-5023-4E89",
+        "amount": 2500,
+        "currency": "GBP",
+        "response_code": "10000",
+        "response_summary": "Approved",
+        "balances": { "total_authorized": 9500, "total_voided": 0, "available_to_void": 0, "total_captured": 9500, "available_to_capture": 0, "total_refunded": 2500, "available_to_refund": 7000 },
+        "metadata": { "user_id": "user_42" }
+      }
+    },
+    {
+      "id": "evt_ptrcbwuwhwbedkbcbtxqylmpqm",
+      "type": "dispute_received",
+      "version": "1.0.0",
+      "created_on": "2026-10-18T08:00:00.0000000Z",
+      "data": {
+        "id": "dsp_rbhwd2qrg13uhrp2newf",
+        "category": "fraudulent",
+        "amount": 7000,
+        "currency": "GBP",
+        "reason_code": "10.4",
+        "payment_id": "pay_griq7wyqkggu7mnk7ecm6ysrl4",
+        "payment_reference": "ORD-5023-4E89",
+        "payment_method": "VISA",
+        "evidence_required_by": "2026-11-01T08:00:00Z"
+      }
+    },
+    {
+      "id": "evt_zwd5fmgr4moe5f4quc6ygsm3pa",
+      "type": "dispute_lost",
+      "version": "1.0.0",
+      "created_on": "2026-11-05T08:00:00.0000000Z",
+      "data": {
+        "id": "dsp_rbhwd2qrg13uhrp2newf",
+        "category": "fraudulent",
+        "amount": 7000,
+        "currency": "GBP",
+        "reason_code": "10.4",
+        "payment_id": "pay_griq7wyqkggu7mnk7ecm6ysrl4",
+        "payment_reference": "ORD-5023-4E89"
+      }
+    }
+  ]
+}

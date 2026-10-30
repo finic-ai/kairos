@@ -1,0 +1,278 @@
+{
+  "provider": "lithic",
+  "version": 1,
+  "displayName": "Lithic",
+  "category": "transaction_intelligence",
+  "checked": false,
+  "description": "Card transactions on the cards you issue: each authorization, clearing, decline and reversal, with the merchant and how the card was used.",
+  "verification": {
+    "scheme": "standard"
+  },
+  "secretHint": "The event subscription's secret, whsec_…",
+  "setup": [
+    "In the Lithic Dashboard, open Webhooks (or call POST /v1/event_subscriptions) and add a subscription with the URL below.",
+    "Select the event type card_transaction.updated.",
+    "Copy the subscription's secret (whsec_…) and paste it here.",
+    "Lithic does not know your user id. Give each user the token of their Lithic account as a property: PUT /v1/objects with { \"type\": \"user\", \"id\": \"user_42\", \"properties\": { \"lithic_account_token\": \"…\" } }. Kairos finds the user from it."
+  ],
+  "identity": "Kairos finds the user whose lithic_account_token property is the transaction's account_token. Without that property, a transaction is stored on its Lithic account and card only.",
+  "events": [
+    "card_transaction.updated"
+  ],
+  "mapping": {
+    "rules": [
+      {
+        "name": "Card transaction",
+        "match": {
+          "event_type": "card_transaction.updated"
+        },
+        "event": {
+          "id": "$.events[-1].token",
+          "type": "card_transaction",
+          "ts": "$.updated",
+          "entities": {
+            "user": {
+              "lookup": {
+                "property": "lithic_account_token",
+                "value": "$.account_token"
+              }
+            },
+            "lithic_account": "$.account_token",
+            "card": "$.card_token"
+          },
+          "universal_id": "$.token",
+          "status": {
+            "path": "$.status",
+            "values": {
+              "PENDING": "pending",
+              "SETTLED": "completed",
+              "DECLINED": "declined",
+              "VOIDED": "voided",
+              "EXPIRED": "expired"
+            }
+          },
+          "properties": {
+            "result": "$.result",
+            "amount_minor": "$.amounts.cardholder.amount",
+            "currency": "$.amounts.cardholder.currency",
+            "merchant_amount_minor": "$.amounts.merchant.amount",
+            "merchant_currency": "$.amounts.merchant.currency",
+            "hold_minor": "$.amounts.hold.amount",
+            "merchant": "$.merchant.descriptor",
+            "merchant_id": "$.merchant.acceptor_id",
+            "mcc": "$.merchant.mcc",
+            "merchant_city": "$.merchant.city",
+            "merchant_country": "$.merchant.country",
+            "network": "$.network",
+            "network_risk_score": "$.network_risk_score",
+            "card_present": "$.pos.entry_mode.card",
+            "cardholder_present": "$.pos.entry_mode.cardholder",
+            "pan_entry": "$.pos.entry_mode.pan",
+            "pin_entered": "$.pos.entry_mode.pin_entered",
+            "wallet": "$.token_info.wallet_type",
+            "three_ds_result": "$.cardholder_authentication.authentication_result",
+            "liability_shift": "$.cardholder_authentication.liability_shift",
+            "latest_event": "$.events[-1].type",
+            "latest_event_result": "$.events[-1].result",
+            "latest_event_amount_minor": "$.events[-1].amounts.cardholder.amount"
+          }
+        }
+      }
+    ]
+  },
+  "samples": [
+    {
+      "event_type": "card_transaction.updated",
+      "token": "c3ce4ba5-7f2d-4c1e-9b5a-1f0e2d3c4b5a",
+      "account_token": "bd5e5649-1be8-4117-9bc5-3268258d1417",
+      "card_token": "19c22c47-7a75-43ee-9891-595419830f7e",
+      "created": "2026-10-14T12:00:00.000Z",
+      "updated": "2026-10-14T12:00:00.000Z",
+      "status": "PENDING",
+      "result": "APPROVED",
+      "network": "VISA",
+      "network_risk_score": 120,
+      "acquirer_fee": 0,
+      "authorization_code": "123456",
+      "amounts": {
+        "cardholder": {
+          "amount": 0,
+          "conversion_rate": "1.000000",
+          "currency": "USD"
+        },
+        "hold": {
+          "amount": 4500,
+          "currency": "USD"
+        },
+        "merchant": {
+          "amount": 0,
+          "currency": "USD"
+        },
+        "settlement": {
+          "amount": 0,
+          "currency": "USD"
+        }
+      },
+      "merchant": {
+        "acceptor_id": "333301802529120",
+        "acquiring_institution_id": "191231",
+        "city": "NEW YORK",
+        "country": "USA",
+        "descriptor": "COFFEE SHOP",
+        "mcc": "5812",
+        "state": "NY",
+        "postal_code": "10001",
+        "street_address": "123 MAIN ST",
+        "phone_number": null
+      },
+      "pos": {
+        "entry_mode": {
+          "card": "PRESENT",
+          "cardholder": "PRESENT",
+          "pan": "CONTACTLESS",
+          "pin_entered": false
+        },
+        "terminal": {
+          "attended": true,
+          "card_retention_capable": false,
+          "on_premise": true,
+          "operator": "ADMINISTRATIVE",
+          "partial_approval_capable": false,
+          "pin_capability": "CAPABLE",
+          "type": "UNKNOWN"
+        }
+      },
+      "token_info": {
+        "wallet_type": "APPLE_PAY"
+      },
+      "cardholder_authentication": null,
+      "avs": null,
+      "tags": {},
+      "events": [
+        {
+          "token": "0c2adae9-f535-4505-8c35-421dad9bd0b6",
+          "type": "AUTHORIZATION",
+          "result": "APPROVED",
+          "created": "2026-10-14T12:00:00.000Z",
+          "amount": 4500,
+          "amounts": {
+            "cardholder": {
+              "amount": 4500,
+              "conversion_rate": "1.000000",
+              "currency": "USD"
+            },
+            "merchant": {
+              "amount": 4500,
+              "currency": "USD"
+            },
+            "settlement": null
+          },
+          "effective_polarity": "DEBIT",
+          "detailed_results": [
+            "APPROVED"
+          ],
+          "rule_results": [],
+          "network_info": null
+        }
+      ]
+    },
+    {
+      "event_type": "card_transaction.updated",
+      "token": "7a1d9e3f-2b4c-4d5e-8f6a-0b1c2d3e4f50",
+      "account_token": "bd5e5649-1be8-4117-9bc5-3268258d1417",
+      "card_token": "19c22c47-7a75-43ee-9891-595419830f7e",
+      "created": "2026-10-14T03:12:00.000Z",
+      "updated": "2026-10-14T03:12:00.000Z",
+      "status": "DECLINED",
+      "result": "SUSPECTED_FRAUD",
+      "network": "MASTERCARD",
+      "network_risk_score": 910,
+      "acquirer_fee": 0,
+      "authorization_code": null,
+      "amounts": {
+        "cardholder": {
+          "amount": 0,
+          "conversion_rate": "0.921300",
+          "currency": "USD"
+        },
+        "hold": {
+          "amount": 0,
+          "currency": "USD"
+        },
+        "merchant": {
+          "amount": 0,
+          "currency": "EUR"
+        },
+        "settlement": {
+          "amount": 0,
+          "currency": "USD"
+        }
+      },
+      "merchant": {
+        "acceptor_id": "4445550001",
+        "acquiring_institution_id": "552210",
+        "city": "AMSTERDAM",
+        "country": "NLD",
+        "descriptor": "GIFTCARDS ONLINE",
+        "mcc": "5815",
+        "state": "",
+        "postal_code": null,
+        "street_address": null,
+        "phone_number": null
+      },
+      "pos": {
+        "entry_mode": {
+          "card": "NOT_PRESENT",
+          "cardholder": "ELECTRONIC_ORDER",
+          "pan": "ECOMMERCE",
+          "pin_entered": false
+        },
+        "terminal": {
+          "attended": false,
+          "card_retention_capable": false,
+          "on_premise": false,
+          "operator": "UNKNOWN",
+          "partial_approval_capable": false,
+          "pin_capability": "NOT_CAPABLE",
+          "type": "UNKNOWN"
+        }
+      },
+      "token_info": null,
+      "cardholder_authentication": {
+        "authentication_result": "DECLINE",
+        "authentication_method": "CHALLENGE",
+        "decision_made_by": "LITHIC_RULES",
+        "liability_shift": "NONE"
+      },
+      "avs": null,
+      "tags": {},
+      "events": [
+        {
+          "token": "5f1c2d3e-4a5b-4c6d-8e7f-9a0b1c2d3e4f",
+          "type": "AUTHORIZATION",
+          "result": "SUSPECTED_FRAUD",
+          "created": "2026-10-14T03:12:00.000Z",
+          "amount": 125000,
+          "amounts": {
+            "cardholder": {
+              "amount": 125000,
+              "conversion_rate": "0.921300",
+              "currency": "USD"
+            },
+            "merchant": {
+              "amount": 115163,
+              "currency": "EUR"
+            },
+            "settlement": null
+          },
+          "effective_polarity": "DEBIT",
+          "detailed_results": [
+            "SUSPECTED_FRAUD"
+          ],
+          "rule_results": [],
+          "network_info": null
+        }
+      ]
+    }
+  ]
+}

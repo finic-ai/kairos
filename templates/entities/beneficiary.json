@@ -1,0 +1,49 @@
+{
+  "type": "beneficiary",
+  "kind": "account",
+  "description": "An account that receives bank transfers",
+  "display": { "icon": "bank", "color": "green" },
+  "facts": [
+    { "name": "senders", "label": "People who send to it", "source": "events", "measure": "unique", "field": "user" },
+    {
+      "name": "transfers_30d",
+      "label": "Transfers in 30 days",
+      "source": "events",
+      "measure": "count",
+      "filters": { "event_type": "bank_transfer_requested" },
+      "window": "30d"
+    },
+    {
+      "name": "money_in_7d",
+      "label": "Money in this week",
+      "source": "events",
+      "measure": "sum",
+      "field": "amount",
+      "filters": { "event_type": "bank_transfer_requested" },
+      "window": "7d",
+      "usual": "90d"
+    },
+    { "name": "first_seen", "label": "First seen", "source": "events", "measure": "first" }
+  ],
+  "lists": [
+    {
+      "name": "transfers",
+      "label": "Transfers",
+      "source": "events",
+      "filters": { "event_type": "bank_transfer_requested" },
+      "columns": [
+        "ts",
+        { "field": "event.amount", "label": "Amount", "format": "money", "currency": "event.currency" },
+        "decision.outcome"
+      ]
+    },
+    {
+      "name": "senders",
+      "label": "Senders",
+      "source": "linked",
+      "entity_type": "user",
+      "filters": { "event_type": "bank_transfer_requested" },
+      "columns": ["id", "name", "events", "last_seen"]
+    }
+  ]
+}

@@ -1,0 +1,72 @@
+{
+  "type": "transaction",
+  "description": "Money moved, or is about to. One transaction is one record: send every stage with the same universalId.",
+  "entities": {
+    "user": {
+      "description": "Whose money.",
+      "required": true
+    },
+    "payee": {
+      "description": "The other side, as an entity: a payee, a merchant, a destination address. This is what links two customers who pay the same account.",
+      "required": false
+    },
+    "device": {
+      "description": "The device the transaction was made from.",
+      "required": false
+    }
+  },
+  "properties": {
+    "direction": {
+      "type": "string",
+      "description": "Whether money came in or went out.",
+      "enum": [
+        "in",
+        "out"
+      ]
+    },
+    "amount": {
+      "type": "number",
+      "description": "The amount, in one unit throughout. Do not mix cents and whole units."
+    },
+    "currency": {
+      "type": "string",
+      "description": "Three-letter currency code."
+    },
+    "channel": {
+      "type": "string",
+      "description": "How it was made.",
+      "enum": [
+        "card_present",
+        "online",
+        "bank_transfer",
+        "p2p",
+        "atm",
+        "wire"
+      ]
+    },
+    "memo": {
+      "type": "string",
+      "description": "Free text from the customer. Send it as written."
+    }
+  },
+  "record": {
+    "statuses": [
+      "pending",
+      "completed",
+      "returned",
+      "disputed"
+    ],
+    "description": "A later stage needs only what changed."
+  },
+  "example": {
+    "userId": "user_123",
+    "universalId": "txn_8812",
+    "status": "pending",
+    "direction": "out",
+    "amount": 500,
+    "currency": "USD",
+    "payeeId": "payee_31",
+    "channel": "p2p",
+    "memo": "rent"
+  }
+}

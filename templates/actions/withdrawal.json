@@ -1,0 +1,53 @@
+{
+  "name": "withdrawal",
+  "description": "Crypto withdrawal from an exchange account",
+  "subject": "user",
+  "hold": "Should the pending withdrawal be held for manual review because the account shows signs of account takeover, of money mule activity, or of the customer being a scam victim?",
+  "typologies": {
+    "ato": "Account takeover: a person other than the account holder controls the account",
+    "scam": "Scam victim: the account holder makes the withdrawal personally but a scammer directs it",
+    "mule": "Money mule or fraud ring: the account exists to receive illicit funds and move them on",
+    "legit": "Legitimate withdrawal by the account holder for their own purposes"
+  },
+  "reasons": {
+    "new_device": "The current session uses a device that the account did not use before",
+    "new_location": "The current login is from a country or city that is unusual for the account",
+    "new_destination": "The withdrawal goes to a destination address that was added recently",
+    "unusual_hour": "The activity occurs at a time of day that is unusual for the account",
+    "security_change": "A password reset, a two-factor change or a notification change occurred shortly before the withdrawal",
+    "full_balance": "The withdrawal takes most or all of the account balance",
+    "rapid_liquidation": "Assets were sold quickly and immediately before the withdrawal",
+    "deposit_spike": "Recent bank deposits are much larger than the usual deposits of the account",
+    "pass_through": "Recently deposited funds are sent out again shortly after they arrive",
+    "third_party_direction": "A message from the customer suggests that another person directs the transfer",
+    "risky_device_links": "The device is linked to other accounts that have fraud or takeover reports",
+    "risky_destination_links": "The destination address also receives funds from other customers who have scam or fraud reports"
+  },
+  "policy": {
+    "block": 0.9,
+    "review": 0.5,
+    "rules": [
+      {
+        "id": "pass_through_to_new_destination",
+        "allOf": [
+          "deposit_spike",
+          "pass_through",
+          "new_destination"
+        ],
+        "outcome": "step_up"
+      }
+    ]
+  },
+  "context": {
+    "totals": [
+      {
+        "name": "money_in",
+        "event": "deposit_bank",
+        "sum": "usd",
+        "window": "7d",
+        "usual": "90d",
+        "covers": "usd"
+      }
+    ]
+  }
+}

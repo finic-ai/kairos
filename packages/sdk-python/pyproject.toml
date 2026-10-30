@@ -1,0 +1,33 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "kairos-sdk"
+version = "0.1.0"
+description = "Kairos client: track financial events and request decisions."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "Proprietary" }
+keywords = ["kairos", "fraud", "risk", "decisioning"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Typing :: Typed",
+]
+# No dependencies: the client uses the standard library only.
+dependencies = []
+
+[project.optional-dependencies]
+train = ["xgboost>=1.7"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/kairos"]
+
+[tool.mypy]
+strict = true
+files = ["src"]
+
+[tool.ruff]
+line-length = 140
+target-version = "py39"

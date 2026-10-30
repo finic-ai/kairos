@@ -1,0 +1,47 @@
+{
+  "type": "device",
+  "kind": "device",
+  "description": "A phone, a computer or a browser",
+  "display": { "icon": "device", "color": "teal" },
+  "facts": [
+    { "name": "users", "label": "Users on this device", "source": "events", "measure": "unique", "field": "user" },
+    {
+      "name": "logins_24h",
+      "label": "Logins in 24 hours",
+      "source": "events",
+      "measure": "count",
+      "filters": { "event_type": "login" },
+      "window": "24h"
+    },
+    {
+      "name": "failed_logins_24h",
+      "label": "Failed logins in 24 hours",
+      "source": "events",
+      "measure": "count",
+      "filters": { "event_type": "login_failed" },
+      "window": "24h"
+    },
+    { "name": "first_seen", "label": "First seen", "source": "events", "measure": "first" }
+  ],
+  "lists": [
+    {
+      "name": "users",
+      "label": "Users",
+      "source": "linked",
+      "entity_type": "user",
+      "columns": ["id", "name", "events", "first_seen", "last_seen"]
+    },
+    {
+      "name": "logins",
+      "label": "Logins",
+      "source": "events",
+      "filters": { "event_type": ["login", "login_failed"] },
+      "columns": [
+        "ts",
+        "type",
+        { "field": "event.ip_country", "label": "Country", "format": "country" },
+        { "field": "event.method", "label": "Method" }
+      ]
+    }
+  ]
+}

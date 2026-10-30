@@ -1,0 +1,40 @@
+{
+  "name": "merchant_onboarding",
+  "description": "Approve a merchant application",
+  "subject": "merchant",
+  "hold": "Should the pending merchant application be held for manual review because it shows signs of a fraudulent merchant, of a stolen business identity, of a merchant that was terminated before, or of a business that hides what it really sells?",
+  "typologies": {
+    "merchant_farm": "Merchant farm: one operator opens many merchant accounts from the same network, device or details",
+    "stolen_identity": "Stolen business identity: a real business's details are used by someone who does not control it",
+    "reapplication": "Returning bad actor: a merchant that was terminated or rejected before applies again under new details",
+    "laundering_front": "Transaction laundering: the declared business hides a different, restricted line of business",
+    "legit": "Legitimate business applying for itself"
+  },
+  "reasons": {
+    "linked_to_bad_merchant": "The IP address, device, owner or bank account is shared with a merchant that was rejected or terminated",
+    "datacenter_or_vpn_ip": "The application comes from a datacenter, VPN or proxy network and not from a business or home connection",
+    "shared_device": "The device is shared with other merchant applications",
+    "application_burst": "Several merchant applications came from the same IP address or device within a short time",
+    "shared_bank_account": "The payout bank account is also used by another merchant",
+    "ip_country_mismatch": "The application IP address is in a different country from the business",
+    "email_domain_mismatch": "The contact email is on a free or throwaway domain that does not match the business website",
+    "new_or_thin_website": "The website was registered very recently or has little real content",
+    "business_mismatch": "The website describes a different business from the one declared",
+    "bank_name_mismatch": "The bank account holder name does not match the business",
+    "rushed_application": "The form was completed unusually fast or with most fields pasted",
+    "document_problem": "An identity or business document failed verification"
+  },
+  "policy": {
+    "block": 0.9,
+    "review": 0.5,
+    "rules": [
+      {
+        "id": "linked_to_bad_merchant",
+        "allOf": [
+          "linked_to_bad_merchant"
+        ],
+        "outcome": "review"
+      }
+    ]
+  }
+}

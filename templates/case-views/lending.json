@@ -1,0 +1,174 @@
+{
+  "name": "lending",
+  "label": "Lending",
+  "description": "A loan application: the applicant and their documents, their history with you, and the people they share details with.",
+  "view": {
+    "template": "lending",
+    "header": [
+      {
+        "field": "request.amount",
+        "label": "Amount",
+        "format": "money",
+        "currency": "request.currency"
+      },
+      {
+        "field": "request.term_months",
+        "label": "Term, months"
+      },
+      "decision.risk_score"
+    ],
+    "blocks": [
+      {
+        "id": "loan",
+        "type": "fields",
+        "region": "main",
+        "w": 6,
+        "title": "The application",
+        "fields": [
+          {
+            "field": "request.amount",
+            "label": "Amount",
+            "format": "money",
+            "currency": "request.currency"
+          },
+          {
+            "field": "request.term_months",
+            "label": "Term, months"
+          },
+          {
+            "field": "request.purpose",
+            "label": "Purpose"
+          },
+          {
+            "field": "subject.employer",
+            "label": "Employer"
+          },
+          {
+            "field": "subject.income",
+            "label": "Yearly income",
+            "format": "money",
+            "currency": "request.currency"
+          }
+        ]
+      },
+      {
+        "id": "checks",
+        "type": "checklist",
+        "region": "main",
+        "w": 6,
+        "title": "Before you approve",
+        "points": [
+          "The income matches the bank statement",
+          "The employer exists and employs the applicant",
+          "The disbursement account is in the applicant's name"
+        ]
+      },
+      {
+        "id": "why",
+        "type": "evidence",
+        "region": "main"
+      },
+      {
+        "id": "history",
+        "type": "list",
+        "region": "main",
+        "lists": ["applications", "devices"],
+        "rows": 5
+      },
+      {
+        "id": "decisions",
+        "type": "decisions",
+        "region": "main"
+      },
+      {
+        "id": "documents",
+        "type": "documents",
+        "region": "side",
+        "title": "Documents",
+        "fields": [
+          {
+            "field": "subject.bank_statement_url",
+            "label": "Bank statement"
+          },
+          {
+            "field": "subject.payslip_url",
+            "label": "Payslip"
+          },
+          {
+            "field": "subject.id_front_url",
+            "label": "Identity document"
+          }
+        ]
+      },
+      {
+        "id": "about",
+        "type": "facts",
+        "region": "side",
+        "facts": ["applications_90d", "first_seen", "devices"]
+      },
+      {
+        "id": "details",
+        "type": "details",
+        "region": "side"
+      },
+      {
+        "id": "activity",
+        "type": "activity",
+        "region": "side"
+      }
+    ],
+    "facts": [
+      {
+        "for": "user",
+        "name": "applications_90d",
+        "label": "Applications in 90 days",
+        "source": "decisions",
+        "measure": "count",
+        "window": "90d"
+      },
+      {
+        "for": "user",
+        "name": "first_seen",
+        "label": "First seen",
+        "source": "events",
+        "measure": "first"
+      },
+      {
+        "for": "user",
+        "name": "devices",
+        "label": "Devices shared",
+        "source": "events",
+        "measure": "unique",
+        "field": "device"
+      }
+    ],
+    "lists": [
+      {
+        "for": "user",
+        "name": "applications",
+        "label": "Applications",
+        "source": "decisions",
+        "columns": [
+          "ts",
+          "action",
+          "decision.outcome",
+          "decision.risk_score",
+          {
+            "field": "request.amount",
+            "label": "Amount",
+            "format": "money",
+            "currency": "request.currency"
+          }
+        ]
+      },
+      {
+        "for": "user",
+        "name": "devices",
+        "label": "Devices",
+        "source": "linked",
+        "entity_type": "device",
+        "columns": ["id", "name", "events", "last_seen"]
+      }
+    ]
+  }
+}

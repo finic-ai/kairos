@@ -1,0 +1,67 @@
+{
+  "name": "loan_application",
+  "description": "Approve a consumer loan application, or hold it for fraud",
+  "subject": "user",
+  "hold": "Should the pending loan application be held for manual review because it shows signs of a synthetic identity, of a stolen identity, or of an applicant who does not intend to repay? Judge only the fraud risk, not whether the applicant can afford the loan.",
+  "typologies": {
+    "synthetic_identity": "Synthetic identity: an identity built from a real or invented SSN with a new name, often made in batches that share a phone, an address, a device or a bank account",
+    "identity_theft": "Stolen identity: a real person's established identity is used by someone else, who changes the contact details and the account the money goes to",
+    "first_party_fraud": "First-party fraud: the real applicant applies to many lenders at once, or overstates income, with no intention to repay",
+    "legit": "Legitimate applicant applying for themselves, including people with a thin or new credit file"
+  },
+  "reasons": {
+    "identity_mismatch": "The name, date of birth and SSN do not agree with each other or with the credit bureau, or the SSN was issued long after the date of birth",
+    "thin_file_with_piggybacking": "The credit file is new or thin, and most of its history comes from authorised-user tradelines on other people's cards",
+    "shared_identity_elements": "The SSN, phone, address, device or bank account is also used by other applicants with different names",
+    "linked_to_fraud": "The phone, address, device or bank account is shared with applicants who defaulted on the first payment or were confirmed as fraud",
+    "contact_not_on_file": "The phone number and email are new and are not the ones the credit bureau holds for this person",
+    "new_disbursement_account": "The bank account for the loan money was opened recently, or its holder name does not match the applicant",
+    "risky_network": "The application comes from a VPN, a datacenter, or a country different from the applicant's address",
+    "rushed_application": "The form was completed unusually fast or with most fields pasted",
+    "recent_account_changes": "An existing customer's password, phone or email changed shortly before the application",
+    "loan_stacking": "The applicant has many recent credit inquiries or applications at other lenders",
+    "income_not_supported": "The stated income is much higher than the income seen in deposits or in verification",
+    "scripted_visit": "The visit went straight to the application form with no browsing, or an automation tool or a browser that claims to be another was detected",
+    "several_people_in_visit": "The same visit applied for more than one person",
+    "income_raised_to_qualify": "The applicant raised the stated income after being shown how much they could borrow"
+  },
+  "policy": {
+    "block": 0.9,
+    "review": 0.5,
+    "rules": [
+      {
+        "id": "linked_to_fraud",
+        "allOf": [
+          "linked_to_fraud"
+        ],
+        "outcome": "review"
+      },
+      {
+        "id": "takeover_with_new_disbursement_account",
+        "allOf": [
+          "contact_not_on_file",
+          "new_disbursement_account"
+        ],
+        "outcome": "review"
+      },
+      {
+        "id": "stacking_on_overstated_income",
+        "allOf": [
+          "loan_stacking",
+          "income_not_supported"
+        ],
+        "outcome": "review"
+      }
+    ]
+  },
+  "context": {
+    "linkTypes": [
+      "device",
+      "ip",
+      "phone",
+      "address",
+      "ssn",
+      "bank_account"
+    ]
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "type": "contact_changed",
+  "description": "A phone number or an email address on the account was changed.",
+  "entities": {
+    "user": {
+      "description": "Whose contact details.",
+      "required": true
+    },
+    "device": {
+      "description": "The device the change came from.",
+      "required": false
+    }
+  },
+  "properties": {
+    "what": {
+      "type": "string",
+      "description": "Which detail changed.",
+      "enum": [
+        "phone",
+        "email"
+      ]
+    }
+  },
+  "example": {
+    "userId": "user_123",
+    "deviceId": "dev_41",
+    "what": "phone"
+  }
+}

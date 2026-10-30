@@ -1,0 +1,35 @@
+{
+  "type": "application_submitted",
+  "description": "An application was completed: for an account, a loan, a merchant account.",
+  "entities": {
+    "merchant": {
+      "description": "The applicant. Use your own subject type: merchant, user, business.",
+      "required": true
+    },
+    "device": {
+      "description": "The device the form was filled in on.",
+      "required": false
+    },
+    "ip": {
+      "description": "The IP address it came from.",
+      "required": false
+    }
+  },
+  "properties": {
+    "minutes_to_complete": {
+      "type": "number",
+      "description": "How long the form took."
+    },
+    "pasted_fields": {
+      "type": "number",
+      "description": "How many fields were pasted and not typed."
+    }
+  },
+  "example": {
+    "merchantId": "mer_0155",
+    "deviceId": "dev_0121",
+    "ipId": "185.220.219.66",
+    "minutes_to_complete": 4,
+    "pasted_fields": 11
+  }
+}

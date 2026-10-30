@@ -1,0 +1,35 @@
+{
+  "type": "bank_transfer_requested",
+  "description": "A request that needs a decision. Send it with trackAndDecide: the event is stored and decided in one call, by the action that has this event as its trigger.",
+  "entities": {
+    "user": {
+      "description": "Who asked.",
+      "required": true
+    },
+    "beneficiary": {
+      "description": "Where the money goes.",
+      "required": false
+    },
+    "device": {
+      "description": "The device the request came from.",
+      "required": false
+    }
+  },
+  "properties": {
+    "amount": {
+      "type": "number",
+      "description": "The amount."
+    },
+    "currency": {
+      "type": "string",
+      "description": "Three-letter currency code."
+    }
+  },
+  "example": {
+    "userId": "user_123",
+    "beneficiaryId": "ben_77",
+    "deviceId": "dev_9",
+    "amount": 9500,
+    "currency": "USD"
+  }
+}

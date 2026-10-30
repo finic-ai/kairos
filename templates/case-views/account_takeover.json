@@ -1,0 +1,177 @@
+{
+  "name": "account_takeover",
+  "label": "Account takeover",
+  "description": "A login or a change that may not be the account holder: the device, the place, and the session, against the account's usual logins.",
+  "view": {
+    "template": "account_takeover",
+    "header": [
+      {
+        "field": "event.ip_country",
+        "label": "Country",
+        "format": "country"
+      },
+      {
+        "field": "item.device.os",
+        "label": "Device"
+      },
+      "decision.risk_score"
+    ],
+    "blocks": [
+      {
+        "id": "why",
+        "type": "evidence",
+        "region": "main",
+        "w": 7
+      },
+      {
+        "id": "checks",
+        "type": "checklist",
+        "region": "main",
+        "w": 5,
+        "title": "Before you clear it",
+        "points": [
+          "The customer confirmed the login on a known contact",
+          "The device or the place was used before",
+          "No contact details changed in the session"
+        ]
+      },
+      {
+        "id": "logins",
+        "type": "list",
+        "region": "main",
+        "lists": ["logins", "changes"],
+        "rows": 8
+      },
+      {
+        "id": "timeline",
+        "type": "timeline",
+        "region": "main"
+      },
+      {
+        "id": "about",
+        "type": "facts",
+        "region": "side",
+        "facts": ["failed_logins_24h", "countries_30d", "devices"]
+      },
+      {
+        "id": "device",
+        "type": "facts",
+        "region": "side",
+        "of": "item.device"
+      },
+      {
+        "id": "objects",
+        "type": "objects",
+        "region": "side"
+      },
+      {
+        "id": "details",
+        "type": "details",
+        "region": "side"
+      },
+      {
+        "id": "activity",
+        "type": "activity",
+        "region": "side"
+      }
+    ],
+    "facts": [
+      {
+        "for": "user",
+        "name": "failed_logins_24h",
+        "label": "Failed logins in 24 hours",
+        "source": "events",
+        "measure": "count",
+        "filters": {
+          "event_type": "login_failed"
+        },
+        "window": "24h",
+        "usual": "30d"
+      },
+      {
+        "for": "user",
+        "name": "countries_30d",
+        "label": "Login places in 30 days",
+        "source": "events",
+        "measure": "unique",
+        "field": "ip",
+        "filters": {
+          "event_type": "login"
+        },
+        "window": "30d"
+      },
+      {
+        "for": "user",
+        "name": "devices",
+        "label": "Devices used",
+        "source": "events",
+        "measure": "unique",
+        "field": "device"
+      },
+      {
+        "for": "device",
+        "name": "users",
+        "label": "Accounts on this device",
+        "source": "events",
+        "measure": "unique",
+        "field": "user"
+      },
+      {
+        "for": "device",
+        "name": "first_seen",
+        "label": "Device first seen",
+        "source": "events",
+        "measure": "first"
+      }
+    ],
+    "lists": [
+      {
+        "for": "user",
+        "name": "logins",
+        "label": "Logins",
+        "source": "events",
+        "filters": {
+          "event_type": ["login", "login_failed"]
+        },
+        "columns": [
+          "ts",
+          "type",
+          {
+            "field": "event.ip_country",
+            "label": "Country",
+            "format": "country"
+          },
+          {
+            "field": "event.ip_city",
+            "label": "City"
+          },
+          {
+            "field": "event.method",
+            "label": "Method"
+          }
+        ]
+      },
+      {
+        "for": "user",
+        "name": "changes",
+        "label": "Changes",
+        "source": "events",
+        "filters": {
+          "event_type": ["contact_changed", "password_reset", "beneficiary_added"]
+        },
+        "columns": [
+          "ts",
+          "type",
+          {
+            "field": "event.what",
+            "label": "What"
+          },
+          {
+            "field": "event.channel",
+            "label": "Channel"
+          }
+        ]
+      }
+    ]
+  }
+}

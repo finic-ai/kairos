@@ -1,0 +1,16 @@
+.git
+.env
+.dev-login
+.claude
+.vercel
+**/node_modules
+**/dist
+**/.data
+**/*.db
+**/*.db-shm
+**/*.db-wal
+**/*.log
+.DS_Store
+research
+packages/eval/cache
+packages/eval/experiments

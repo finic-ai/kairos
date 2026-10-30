@@ -1,0 +1,89 @@
+:root {
+  --chrome: #efefeb;
+  --bg: #fafaf8;
+  --surface: #ffffff;
+  --surface-2: #fafaf9;
+  --ink: #1a1a19;
+  --ink-2: #55554f;
+  --ink-3: #8c8c85;
+  --line: #e4e4e0;
+  --line-2: #efefec;
+  --hover: #efefec;
+  --accent: #3d4fd6;
+  --accent-soft: #eceefb;
+  /* Links: the accent here; a style whose accent is the colour of text gives them their own. */
+  --link: var(--accent);
+  --link-soft: var(--accent-soft);
+  --link-line: var(--accent-soft);
+  --approve: #149060;
+  --approve-soft: #e2f4eb;
+  --step_up: #3b73d9;
+  --step_up-soft: #e6eefc;
+  --review: #cf8a00;
+  --review-soft: #fbf0d4;
+  --block: #c93a2e;
+  --block-soft: #fbe5e2;
+  --block-text: #a12a21;
+  --approve-text: #0e6b47;
+  --shadow: 0 1px 0 rgba(0, 0, 0, 0.02);
+  --radius: 8px;
+  --sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --chrome: #0c0c0d;
+    --bg: #111112;
+    --surface: #18181a;
+    --surface-2: #1c1c1e;
+    --ink: #ededea;
+    --ink-2: #b0b0aa;
+    --ink-3: #77776f;
+    --line: #29292c;
+    --line-2: #212124;
+    --hover: #212124;
+    --accent: #98a5ff;
+    --accent-soft: rgba(152, 165, 255, 0.13);
+    --approve: #2f9e6b;
+    --approve-soft: rgba(47, 158, 107, 0.16);
+    --step_up: #4a86e0;
+    --step_up-soft: rgba(74, 134, 224, 0.16);
+    --review: #b88a14;
+    --review-soft: rgba(184, 138, 20, 0.18);
+    --block: #d6453d;
+    --block-soft: rgba(214, 69, 61, 0.16);
+    --block-text: #f08f87;
+    --approve-text: #6fd3a3;
+    --shadow: none;
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  --chrome: #0c0c0d;
+  --bg: #111112;
+  --surface: #18181a;
+  --surface-2: #1c1c1e;
+  --ink: #ededea;
+  --ink-2: #b0b0aa;
+  --ink-3: #77776f;
+  --line: #29292c;
+  --line-2: #212124;
+  --hover: #212124;
+  --accent: #98a5ff;
+  --accent-soft: rgba(152, 165, 255, 0.13);
+  --approve: #2f9e6b;
+  --approve-soft: rgba(47, 158, 107, 0.16);
+  --step_up: #4a86e0;
+  --step_up-soft: rgba(74, 134, 224, 0.16);
+  --review: #b88a14;
+  --review-soft: rgba(184, 138, 20, 0.18);
+  --block: #d6453d;
+  --block-soft: rgba(214, 69, 61, 0.16);
+  --block-text: #f08f87;
+  --approve-text: #6fd3a3;
+  --shadow: none;
+  color-scheme: dark;
+}

@@ -1,0 +1,23 @@
+{
+  "name": "bank_transfer",
+  "description": "Outbound bank transfer to a beneficiary",
+  "subject": "user",
+  "trigger": "bank_transfer_requested",
+  "hold": "Should the pending bank transfer be held for manual review because the account shows signs of fraud, of account takeover or of money mule activity?",
+  "typologies": {
+    "ato": "Account takeover: a person other than the account holder controls the account",
+    "mule": "Money mule or fraud ring: the account exists to receive illicit funds and move them on",
+    "legit": "Legitimate transfer by the account holder"
+  },
+  "reasons": {
+    "new_account": "The account was opened very recently",
+    "new_device": "The current session uses a device that the account did not use before",
+    "new_beneficiary": "The transfer goes to a beneficiary that was added recently",
+    "high_velocity": "Money moved through the account unusually fast in the last hours",
+    "device_linked_to_risky_accounts": "The device is shared with other users who have fraud reports"
+  },
+  "policy": {
+    "block": 0.95,
+    "review": 0.5
+  }
+}

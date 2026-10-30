@@ -1,0 +1,173 @@
+/* The optional visual treatment changes fonts and colors only. Existing layout,
+   sizing, density, responsive rules, and semantic outcome tones stay in styles.css. */
+:root[data-appearance="navy"] {
+  --chrome: #f2f5f9;
+  --bg: #f8fafc;
+  --surface: #ffffff;
+  --surface-2: #f8fafc;
+  --ink: #172b4d;
+  --ink-2: #52657f;
+  --ink-3: #64748b;
+  --line: #dfe6ef;
+  --line-2: #edf1f6;
+  --hover: #eff3f8;
+  --accent: #172b4d;
+  --accent-soft: #eff3f8;
+  /* Links are a deeper navy than text; their underline, weight and chips set them apart. */
+  --link: #0f2f6e;
+  --link-soft: #e6ecf6;
+  --link-line: #bccbe3;
+  --brand-orange: #ff6700;
+  --selection-accent: #e85e00;
+  --selection-soft: #fff1e8;
+  --selection-ink: #9a3e00;
+  --selection-border: #f0cfb8;
+  --sans: "DM Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: var(--sans);
+}
+
+/* Respect both an explicit dark preference and the device's dark appearance. */
+@media (prefers-color-scheme: dark) {
+  :root[data-appearance="navy"]:not([data-theme="light"]) {
+    --chrome: #101b2d;
+    --bg: #142238;
+    --surface: #192a43;
+    --surface-2: #1e304a;
+    --ink: #e7eef8;
+    --ink-2: #b9c7db;
+    --ink-3: #94a6c0;
+    --line: #2d405c;
+    --line-2: #233750;
+    --hover: #213650;
+    --accent: #b0c4e2;
+    --accent-soft: #263e5d;
+    --link: #c3d4f0;
+    --link-soft: #263e5d;
+    --link-line: #3c5a82;
+    --brand-orange: #ff8a3d;
+    --selection-accent: #ff8a3d;
+    --selection-soft: #362a29;
+    --selection-ink: #ffd1af;
+    --selection-border: #69452f;
+  }
+}
+
+:root[data-appearance="navy"][data-theme="dark"] {
+  --chrome: #101b2d;
+  --bg: #142238;
+  --surface: #192a43;
+  --surface-2: #1e304a;
+  --ink: #e7eef8;
+  --ink-2: #b9c7db;
+  --ink-3: #94a6c0;
+  --line: #2d405c;
+  --line-2: #233750;
+  --hover: #213650;
+  --accent: #b0c4e2;
+  --accent-soft: #263e5d;
+  --link: #c3d4f0;
+  --link-soft: #263e5d;
+  --link-line: #3c5a82;
+  --brand-orange: #ff8a3d;
+  --selection-accent: #ff8a3d;
+  --selection-soft: #362a29;
+  --selection-ink: #ffd1af;
+  --selection-border: #69452f;
+}
+
+:root[data-appearance="navy"] .sidebar .nav a.active {
+  background: var(--selection-soft);
+  border-color: var(--selection-border);
+  color: var(--ink);
+}
+
+:root[data-appearance="navy"] .nav a.active svg {
+  color: var(--brand-orange);
+  stroke: var(--brand-orange);
+}
+
+:root[data-appearance="navy"] .nav .count.mine {
+  background: var(--selection-soft);
+  color: var(--selection-ink);
+}
+
+:root[data-appearance="navy"] .seg button.on,
+:root[data-appearance="navy"] .view-picker button.on {
+  background: var(--selection-soft);
+  border-color: var(--selection-accent);
+  box-shadow: inset 0 0 0 1px var(--selection-accent);
+  color: var(--ink);
+}
+
+:root[data-appearance="navy"] .seg.tight button.on,
+:root[data-appearance="navy"] .mode-tabs button.on {
+  background: var(--selection-soft);
+  box-shadow: inset 0 -2px 0 var(--selection-accent);
+  color: var(--ink);
+}
+
+:root[data-appearance="navy"] .tabs a.on {
+  border-bottom-color: var(--brand-orange);
+  color: var(--ink);
+}
+
+:root[data-appearance="navy"] .tile.on {
+  box-shadow: inset 0 -2px 0 var(--selection-accent);
+}
+
+:root[data-appearance="navy"] .toggle-list button.on,
+:root[data-appearance="navy"] select.input.filter.in-use,
+:root[data-appearance="navy"] .check.on {
+  background: var(--selection-soft);
+  border-color: var(--selection-accent);
+  color: var(--ink);
+}
+
+:root[data-appearance="navy"] a.linkish,
+:root[data-appearance="navy"] a.chip.to {
+  font-weight: 500;
+}
+
+:root[data-appearance="navy"] a.linkish {
+  text-decoration-color: color-mix(in srgb, var(--link) 45%, transparent);
+}
+
+:root[data-appearance="navy"] .chip.accent {
+  background: var(--selection-soft);
+  color: var(--selection-ink);
+}
+
+:root[data-appearance="navy"] .icon-choice.on,
+:root[data-appearance="navy"] .color-choice.on {
+  border-color: var(--selection-accent);
+}
+
+:root[data-appearance="navy"] input[type="checkbox"],
+:root[data-appearance="navy"] input[type="radio"] {
+  accent-color: var(--selection-accent);
+}
+
+:root[data-appearance="navy"] .switch.on .track {
+  background: var(--selection-accent);
+}
+
+:root[data-appearance="navy"] .wf-node.selected:not(.has-problem):not(.run-failed):not(.run-done) {
+  border-color: var(--selection-accent);
+  box-shadow: 0 0 0 3px var(--selection-soft);
+}
+
+:root[data-appearance="navy"] .dash .bar-rows:has(.single) .bar-row:first-child .single span,
+:root[data-appearance="navy"] .bar-row:hover .single span,
+:root[data-appearance="navy"] .histogram div:hover,
+:root[data-appearance="navy"] .histogram div.on {
+  background: var(--brand-orange);
+}
+
+:root[data-appearance="navy"] :is(.mono, .value, .score, .count, .counts) {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Source code and editable JSON retain a monospace face. */
+:root[data-appearance="navy"] :is(pre, code, textarea.mono) {
+  font-family: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}

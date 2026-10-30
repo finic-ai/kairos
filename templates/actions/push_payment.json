@@ -1,0 +1,91 @@
+{
+  "name": "push_payment",
+  "description": "Release an outbound payment, or hold it because the customer may be sending it to a scammer",
+  "subject": "user",
+  "trigger": "payment_requested",
+  "hold": "Should this payment be held, and the customer spoken to, because the customer may be sending it under the direction or deception of a scammer, or because someone other than the customer is making it?",
+  "typologies": {
+    "investment_scam": "Investment or pig-butchering scam: a contact met online builds trust over weeks, shows fake profits, and the customer sends larger and larger amounts to an investment platform or a crypto account",
+    "romance_scam": "Romance scam: an online partner the customer has never met asks for money again and again, for travel, a medical bill or a visa",
+    "impersonation_scam": "Impersonation scam: a caller who claims to be the bank, the police or a government office tells the customer to move money to a safe account",
+    "purchase_scam": "Purchase scam: the customer pays a stranger by bank transfer for goods that will not arrive, often from an online marketplace",
+    "invoice_redirection": "Invoice redirection: a fake message from a real supplier, builder or solicitor gives new bank details for a payment the customer expects to make",
+    "account_takeover": "Account takeover: someone other than the customer is using the account",
+    "legit": "Legitimate payment by the customer for their own purposes"
+  },
+  "reasons": {
+    "new_payee": "The payee was added recently, in this visit or in the last few weeks",
+    "payee_name_mismatch": "The name check on the payee account did not match, or only nearly matched, the name the customer typed",
+    "payee_reported": "The payee also receives money from other customers who reported a scam, at a share above normal. A large exchange or business that many customers pay is not this unless that share is high.",
+    "escalating_payments": "Payments to the same new payee or platform grew over the last weeks",
+    "money_came_back_first": "A small amount came back from the payee or the platform before the larger payments, as a fake profit",
+    "funds_gathered_first": "Savings, a new loan or money from other accounts was moved in shortly before the payment",
+    "call_during_visit": "A phone call was active while the customer used the app",
+    "remote_access": "A remote access or screen sharing app was running during the visit",
+    "details_pasted": "The payee's details were pasted, not typed, often after switching to another app",
+    "warning_overridden": "The customer answered a scam warning in a way that does not fit the payment, or stayed on it a long time and went on",
+    "answer_changed": "The customer answered the same scam warning differently in an earlier visit",
+    "purpose_does_not_fit": "The payment purpose the customer chose does not fit the payee or the history",
+    "limit_raised": "The customer raised the payment limit in the visit or shortly before",
+    "coached_messages": "Messages from the customer suggest that another person tells them what to do or what to say",
+    "unusual_amount": "The amount is far above what the customer usually sends",
+    "takeover_signs": "A new device, a password reset or a contact change came shortly before the payment. Reads by an app the customer linked earlier through a data aggregator are not a new device; a new app linked right after a password reset or a contact change is this"
+  },
+  "policy": {
+    "block": 0.9,
+    "review": 0.5,
+    "rules": [
+      {
+        "id": "call_and_new_payee",
+        "allOf": [
+          "call_during_visit",
+          "new_payee"
+        ],
+        "outcome": "review"
+      },
+      {
+        "id": "remote_access",
+        "allOf": [
+          "remote_access"
+        ],
+        "outcome": "review"
+      },
+      {
+        "id": "new_payee_reported",
+        "allOf": [
+          "payee_reported",
+          "new_payee"
+        ],
+        "outcome": "review"
+      }
+    ]
+  },
+  "context": {
+    "recentEvents": 60,
+    "linkTypes": [
+      "payee",
+      "device"
+    ],
+    "totals": [
+      {
+        "name": "sent_to_crypto_and_investments_30d",
+        "event": "payment_sent",
+        "sum": "usd",
+        "where": {
+          "payee_kind": [
+            "crypto_exchange",
+            "investment_platform"
+          ]
+        },
+        "window": "30d",
+        "usual": "180d"
+      },
+      {
+        "name": "moved_in_this_visit",
+        "event": "savings_transfer",
+        "sum": "usd",
+        "window": "session"
+      }
+    ]
+  }
+}

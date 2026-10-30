@@ -1,0 +1,68 @@
+{
+  "name": "insurance_claim",
+  "description": "Pay a motor insurance claim automatically, or hold it for an investigator",
+  "subject": "policyholder",
+  "hold": "Should the pending motor insurance claim be held for a claims investigator, and not paid automatically, because it shows signs of a staged accident, of an inflated claim, or of a loss that happened before the cover started?",
+  "typologies": {
+    "staged_accident": "Staged accident: the collision was arranged, usually by a ring that reuses the same other drivers, passengers, repair shops, clinics or lawyers across claims",
+    "inflated_claim": "Inflated claim: a real loss, but the damage, the repairs or the injuries are exaggerated, or old damage is included",
+    "pre_existing_loss": "Misrepresentation: the damage happened before the policy or the extra cover started, and the cover was bought to claim for it",
+    "legit": "Legitimate claim for a real loss, reported honestly"
+  },
+  "reasons": {
+    "new_policy": "The loss happened within a few weeks of the policy start, with no continuous cover from an earlier insurer",
+    "cover_increased_before_loss": "Cover was added or increased shortly before the loss",
+    "linked_to_fraud_claims": "The clinic, lawyer, other driver, phone or device also appears in claims that were found to be fraud",
+    "repeat_other_party": "The other driver or a passenger also appears in other recent claims",
+    "early_lawyer": "A lawyer represented the claimant within days of a minor collision",
+    "injury_after_minor_impact": "Injury claims followed a low-speed impact with little damage to the vehicles",
+    "estimate_above_norm": "The repair estimate is far above the usual cost for this damage and this vehicle",
+    "old_damage": "An inspection or a photograph shows damage that is older than the loss",
+    "evidence_predates_cover": "A photograph or a document is dated before the policy or the extra cover started",
+    "inconsistent_account": "The policyholder's description does not agree with the police report, the telematics or the other evidence",
+    "late_report": "The loss was reported long after it happened, with no explanation",
+    "prior_claims": "The policyholder made several claims in the past few years",
+    "missed_premiums": "Premium payments were missed or the policy was about to lapse before the loss",
+    "filed_by_someone_else": "The sign-in that reported the claim came from a device that other policyholders also sign in from, or the same visit reported claims for other policyholders. A shared clinic, lawyer or repair shop is not this",
+    "claim_planned_at_purchase": "The visit that bought or upgraded the cover also looked up how to make a claim",
+    "photos_not_taken_at_report": "The photos were uploaded from the phone's gallery, not taken with the app when the loss was reported"
+  },
+  "policy": {
+    "block": 0.9,
+    "review": 0.5,
+    "rules": [
+      {
+        "id": "linked_to_fraud_claims",
+        "allOf": [
+          "linked_to_fraud_claims"
+        ],
+        "outcome": "review"
+      },
+      {
+        "id": "evidence_predates_cover",
+        "allOf": [
+          "evidence_predates_cover"
+        ],
+        "outcome": "review"
+      },
+      {
+        "id": "upgraded_for_old_damage",
+        "allOf": [
+          "cover_increased_before_loss",
+          "old_damage"
+        ],
+        "outcome": "review"
+      }
+    ]
+  },
+  "context": {
+    "recentEvents": 40,
+    "linkTypes": [
+      "other_party",
+      "clinic",
+      "lawyer",
+      "phone",
+      "device"
+    ]
+  }
+}

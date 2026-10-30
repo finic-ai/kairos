@@ -1,0 +1,36 @@
+{
+  "name": "red_flag",
+  "description": "Confirm or clear a suspected red flag",
+  "subject": "user",
+  "hold": "Should the suspected red flag be confirmed and escalated for immediate action because the activity is likely account takeover or fraud, and not the customer's own legitimate activity?",
+  "typologies": {
+    "account_takeover": "Account takeover: a person other than the customer controls the account",
+    "card_compromise": "Card compromise: the card details are being tested or used by a criminal",
+    "legitimate": "Legitimate: the customer's own activity, unusual but explained"
+  },
+  "reasons": {
+    "new_device": "The activity came from a device the customer did not use before",
+    "unusual_location": "The activity came from a country or city that is unusual for the customer",
+    "credential_or_contact_change": "A password reset or a change of phone number came shortly before the activity",
+    "rapid_outflow_to_new_payee": "Money left quickly to a payee the customer never paid before",
+    "card_testing": "Many small payments at unfamiliar merchants in a short time",
+    "customer_explained_in_advance": "An earlier message from the customer explains the activity",
+    "usual_device": "The activity came from the customer's usual device"
+  },
+  "policy": {
+    "block": 0.9,
+    "review": 0.5,
+    "rules": [
+      {
+        "id": "card_testing",
+        "allOf": [
+          "card_testing"
+        ],
+        "outcome": "review"
+      }
+    ]
+  },
+  "context": {
+    "recentEvents": 40
+  }
+}

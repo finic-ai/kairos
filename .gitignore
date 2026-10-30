@@ -1,0 +1,39 @@
+node_modules/
+dist/
+.env
+*.log
+.DS_Store
+packages/eval/last-run.json
+*.db
+*.db-shm
+*.db-wal
+packages/eval/experiments/cache
+packages/eval/cases
+packages/eval/cache
+.dev-login
+
+# The embedded Postgres keeps its files here.
+.data/
+
+# What `pnpm build:vercel` writes, and the link to a Vercel project.
+.vercel/
+
+.claude/*
+!.claude/settings.json
+.ref
+
+research/*
+# Python
+__pycache__/
+*.egg-info/
+.venv/
+.mypy_cache/
+.ruff_cache/
+
+internal/
+
+ref/
+
+kairosjs/
+.old/
+.pnpm-store/

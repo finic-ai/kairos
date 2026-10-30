@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en" data-appearance="navy">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!--docs:head-->
+    <script>
+      // The keys of src/theme.ts, read before the first paint so that the page does not change colour.
+      try {
+        var root = document.documentElement;
+        if (localStorage.getItem("kairos.appearance") === "classic") root.dataset.appearance = "classic";
+        var theme = localStorage.getItem("kairos.theme");
+        if (theme === "light" || theme === "dark") root.dataset.theme = theme;
+      } catch (e) {}
+    </script>
+    <script type="speculationrules">
+      { "prefetch": [{ "where": { "href_matches": "/docs/*" }, "eagerness": "moderate" }] }
+    </script>
+    <link rel="stylesheet" href="/docs/docs.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;450;500;550;600;650;700&family=Inter:wght@400;450;500;600&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <script type="module" src="/docs/client.ts"></script>
+  </head>
+  <body class="docs">
+    <!--docs:body-->
+  </body>
+</html>

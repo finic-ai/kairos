@@ -1,0 +1,161 @@
+{
+  "name": "onboarding_identity",
+  "label": "Onboarding (identity)",
+  "description": "A new account held for an identity check: the document and the selfie, what to check, the device and who else used it.",
+  "view": {
+    "template": "onboarding_identity",
+    "header": ["subject.country", "decision.risk_score", "case.due"],
+    "blocks": [
+      {
+        "id": "what_to_check",
+        "type": "checklist",
+        "region": "main",
+        "w": 6,
+        "title": "What to check",
+        "points": [
+          "The name, date of birth and address match the document",
+          "The document is not expired",
+          "The selfie is the person on the document",
+          "The device is not shared with other applicants"
+        ]
+      },
+      {
+        "id": "applicant",
+        "type": "fields",
+        "region": "main",
+        "w": 6,
+        "title": "The applicant",
+        "fields": [
+          "subject.first_name",
+          "subject.last_name",
+          "subject.date_of_birth",
+          "subject.country",
+          {
+            "field": "event.channel",
+            "label": "Channel"
+          },
+          {
+            "field": "event.product",
+            "label": "Product"
+          }
+        ]
+      },
+      {
+        "id": "why",
+        "type": "evidence",
+        "region": "main"
+      },
+      {
+        "id": "decisions",
+        "type": "decisions",
+        "region": "main"
+      },
+      {
+        "id": "device_users",
+        "type": "list",
+        "region": "main",
+        "of": "item.device",
+        "lists": ["users"],
+        "rows": 5
+      },
+      {
+        "id": "timeline",
+        "type": "timeline",
+        "region": "main"
+      },
+      {
+        "id": "identity",
+        "type": "images",
+        "region": "side",
+        "title": "Identity documents",
+        "fields": [
+          {
+            "field": "subject.id_front_url",
+            "label": "Document, front"
+          },
+          {
+            "field": "subject.id_back_url",
+            "label": "Document, back"
+          },
+          {
+            "field": "subject.selfie_url",
+            "label": "Selfie"
+          }
+        ]
+      },
+      {
+        "id": "about",
+        "type": "facts",
+        "region": "side",
+        "facts": ["devices", "first_seen"]
+      },
+      {
+        "id": "device",
+        "type": "facts",
+        "region": "side",
+        "of": "item.device"
+      },
+      {
+        "id": "objects",
+        "type": "objects",
+        "region": "side"
+      },
+      {
+        "id": "details",
+        "type": "details",
+        "region": "side"
+      },
+      {
+        "id": "activity",
+        "type": "activity",
+        "region": "side"
+      }
+    ],
+    "facts": [
+      {
+        "for": "user",
+        "name": "devices",
+        "label": "Devices used",
+        "source": "events",
+        "measure": "unique",
+        "field": "device"
+      },
+      {
+        "for": "user",
+        "name": "first_seen",
+        "label": "First seen",
+        "source": "events",
+        "measure": "first"
+      },
+      {
+        "for": "device",
+        "name": "users",
+        "label": "People on this device",
+        "source": "events",
+        "measure": "unique",
+        "field": "user"
+      },
+      {
+        "for": "device",
+        "name": "openings_30d",
+        "label": "Accounts opened on it in 30 days",
+        "source": "events",
+        "measure": "count",
+        "filters": {
+          "event_type": "account_opened"
+        },
+        "window": "30d"
+      }
+    ],
+    "lists": [
+      {
+        "for": "device",
+        "name": "users",
+        "label": "People on this device",
+        "source": "linked",
+        "entity_type": "user",
+        "columns": ["id", "name", "events", "first_seen", "last_seen"]
+      }
+    ]
+  }
+}

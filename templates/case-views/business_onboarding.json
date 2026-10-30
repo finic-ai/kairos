@@ -1,0 +1,183 @@
+{
+  "name": "business_onboarding",
+  "label": "Business onboarding",
+  "description": "A business that applies to take payments: its registration and owners, its documents, and the merchants it shares details with.",
+  "view": {
+    "template": "business_onboarding",
+    "header": [
+      {
+        "field": "subject.country",
+        "label": "Country",
+        "format": "country"
+      },
+      {
+        "field": "subject.category",
+        "label": "Category"
+      },
+      "decision.risk_score"
+    ],
+    "blocks": [
+      {
+        "id": "business",
+        "type": "fields",
+        "region": "main",
+        "w": 6,
+        "title": "The business",
+        "fields": [
+          {
+            "field": "subject.legal_name",
+            "label": "Legal name"
+          },
+          {
+            "field": "subject.registration_number",
+            "label": "Registration number"
+          },
+          {
+            "field": "subject.country",
+            "label": "Country",
+            "format": "country"
+          },
+          {
+            "field": "subject.website",
+            "label": "Website"
+          },
+          {
+            "field": "event.minutes_to_complete",
+            "label": "Minutes to apply",
+            "format": "number"
+          }
+        ]
+      },
+      {
+        "id": "checks",
+        "type": "checklist",
+        "region": "main",
+        "w": 6,
+        "title": "What to check",
+        "points": [
+          "The registration matches the company register",
+          "The owners are named in the registration",
+          "The website sells what the application says",
+          "The bank account is in the business's name"
+        ]
+      },
+      {
+        "id": "why",
+        "type": "evidence",
+        "region": "main"
+      },
+      {
+        "id": "shared",
+        "type": "list",
+        "region": "main",
+        "lists": ["devices", "applications"],
+        "rows": 5
+      },
+      {
+        "id": "documents",
+        "type": "documents",
+        "region": "side",
+        "title": "Registration documents",
+        "fields": [
+          {
+            "field": "subject.registration_document_url",
+            "label": "Registration"
+          },
+          {
+            "field": "subject.owner_id_url",
+            "label": "Owner's identity document"
+          },
+          {
+            "field": "subject.bank_letter_url",
+            "label": "Bank letter"
+          }
+        ]
+      },
+      {
+        "id": "about",
+        "type": "facts",
+        "region": "side",
+        "facts": ["applications_30d", "devices", "claims_90d"]
+      },
+      {
+        "id": "objects",
+        "type": "objects",
+        "region": "side"
+      },
+      {
+        "id": "details",
+        "type": "details",
+        "region": "side"
+      },
+      {
+        "id": "activity",
+        "type": "activity",
+        "region": "side"
+      }
+    ],
+    "facts": [
+      {
+        "for": "merchant",
+        "name": "applications_30d",
+        "label": "Applications in 30 days",
+        "source": "events",
+        "measure": "count",
+        "filters": {
+          "event_type": "application_submitted"
+        },
+        "window": "30d"
+      },
+      {
+        "for": "merchant",
+        "name": "devices",
+        "label": "Devices used",
+        "source": "events",
+        "measure": "unique",
+        "field": "device"
+      },
+      {
+        "for": "merchant",
+        "name": "claims_90d",
+        "label": "Fraud claims in 90 days",
+        "source": "events",
+        "measure": "count",
+        "filters": {
+          "event_type": "fraud_claim"
+        },
+        "window": "90d"
+      }
+    ],
+    "lists": [
+      {
+        "for": "merchant",
+        "name": "devices",
+        "label": "Devices",
+        "source": "linked",
+        "entity_type": "device",
+        "columns": ["id", "name", "events", "last_seen"]
+      },
+      {
+        "for": "merchant",
+        "name": "applications",
+        "label": "Applications",
+        "source": "events",
+        "filters": {
+          "event_type": "application_submitted"
+        },
+        "columns": [
+          "ts",
+          {
+            "field": "event.minutes_to_complete",
+            "label": "Minutes",
+            "format": "number"
+          },
+          {
+            "field": "event.pasted_fields",
+            "label": "Pasted fields"
+          },
+          "decision.outcome"
+        ]
+      }
+    ]
+  }
+}

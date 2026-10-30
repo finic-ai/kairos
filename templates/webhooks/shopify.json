@@ -1,0 +1,330 @@
+{
+  "provider": "shopify",
+  "version": 1,
+  "displayName": "Shopify",
+  "category": "commerce",
+  "checked": true,
+  "description": "Orders, refunds and Shopify Payments disputes. A chargeback becomes a label on the customer who ordered.",
+  "verification": { "scheme": "hmac", "header": "X-Shopify-Hmac-Sha256", "algorithm": "sha256", "encoding": "base64" },
+  "secretHint": "The key from Settings › Notifications › Webhooks, or your app's client secret",
+  "setup": [
+    "In the Shopify admin, open Settings › Notifications › Webhooks. Create a webhook for each event below, with the format JSON, the URL below and the newest API version. For an app, subscribe to the same topics in shopify.app.toml or with webhookSubscriptionCreate.",
+    "Paste the signing secret here. For webhooks made in the admin, it is the key that the Webhooks section shows (\"Your webhooks will be signed with …\"). For an app, it is the app's client secret.",
+    "For an app, request access to protected customer data. Without it, Shopify leaves the customer, the email and the addresses out of the payload, and an order has no user.",
+    "Disputes come from Shopify Payments only. With another payment provider, connect that provider for its disputes."
+  ],
+  "identity": "Kairos uses the Shopify customer id (customer.id, such as 7389154082937) as your user id: use the same id when your code asks Kairos for a decision. Refunds and disputes find their user from the order. An order with no customer (a guest checkout) is stored on its IP address only, and a dispute of it waits as No entity. If your users have their own id, change the user to a lookup: {\"lookup\": {\"property\": \"shopify_customer_id\", \"value\": \"$.customer.id\"}}.",
+  "events": ["orders/create", "orders/paid", "orders/cancelled", "refunds/create", "disputes/create", "disputes/update"],
+  "mapping": {
+    "rules": [
+      {
+        "name": "Order",
+        "match_headers": { "x-shopify-topic": ["orders/create", "orders/paid", "orders/cancelled"] },
+        "event": {
+          "id": { "path": "$.x-shopify-webhook-id", "headers": true },
+          "type": "order",
+          "ts": "$.updated_at",
+          "entities": { "user": "$.customer.id", "ip": "$.browser_ip" },
+          "universal_id": "$.id",
+          "status": { "path": "$.x-shopify-topic", "headers": true, "values": { "orders/create": "created", "orders/paid": "paid", "orders/cancelled": "canceled" } },
+          "properties": {
+            "order_name": "$.name",
+            "amount": { "path": "$.total_price", "format": "number" },
+            "subtotal": { "path": "$.subtotal_price", "format": "number" },
+            "discounts": { "path": "$.total_discounts", "format": "number" },
+            "currency": "$.currency",
+            "financial_status": "$.financial_status",
+            "fulfillment_status": "$.fulfillment_status",
+            "cancel_reason": "$.cancel_reason",
+            "source_name": "$.source_name",
+            "gateway": "$.payment_gateway_names[0]",
+            "discount_code": "$.discount_codes[0].code",
+            "customer_created_at": { "path": "$.customer.created_at", "format": "iso" },
+            "customer_verified_email": "$.customer.verified_email",
+            "customer_state": "$.customer.state",
+            "user_agent": "$.client_details.user_agent",
+            "accept_language": "$.client_details.accept_language",
+            "billing_country": "$.billing_address.country_code",
+            "billing_zip": "$.billing_address.zip",
+            "shipping_country": "$.shipping_address.country_code",
+            "shipping_zip": "$.shipping_address.zip",
+            "landing_site": "$.landing_site",
+            "referring_site": "$.referring_site",
+            "test": "$.test",
+            "shop": { "path": "$.x-shopify-shop-domain", "headers": true }
+          }
+        }
+      },
+      {
+        "name": "Refund",
+        "match_headers": { "x-shopify-topic": "refunds/create" },
+        "event": {
+          "id": { "path": "$.x-shopify-webhook-id", "headers": true },
+          "type": "refund",
+          "ts": "$.created_at",
+          "entities": { "user": { "record": "$.order_id" } },
+          "universal_id": "$.order_id",
+          "status": "refunded",
+          "properties": {
+            "refund_id": "$.id",
+            "amount": { "path": "$.transactions[0].amount", "format": "number" },
+            "gateway": "$.transactions[0].gateway",
+            "transaction_status": "$.transactions[0].status",
+            "note": "$.note",
+            "restock": "$.restock"
+          }
+        }
+      },
+      {
+        "name": "Dispute opened",
+        "match_headers": { "x-shopify-topic": "disputes/create" },
+        "event": {
+          "id": { "path": "$.x-shopify-webhook-id", "headers": true },
+          "type": "dispute_opened",
+          "ts": "$.initiated_at",
+          "entities": { "user": { "record": "$.order_id" } },
+          "universal_id": "$.order_id",
+          "status": "disputed",
+          "properties": {
+            "dispute_id": "$.id",
+            "dispute_type": "$.type",
+            "reason": "$.reason",
+            "network_reason_code": "$.network_reason_code",
+            "amount": { "path": "$.amount", "format": "number" },
+            "currency": "$.currency",
+            "evidence_due_by": "$.evidence_due_by"
+          }
+        }
+      },
+      {
+        "name": "Chargeback",
+        "match_headers": { "x-shopify-topic": "disputes/create" },
+        "match": { "type": "chargeback" },
+        "label": {
+          "entity": "user",
+          "id": { "record": "$.order_id" },
+          "label": "chargeback",
+          "ts": "$.initiated_at",
+          "properties": { "dispute_id": "$.id", "reason": "$.reason" }
+        }
+      },
+      {
+        "name": "Dispute closed",
+        "match_headers": { "x-shopify-topic": "disputes/update" },
+        "match": { "status": ["won", "lost", "accepted", "charge_refunded"] },
+        "event": {
+          "id": { "path": "$.x-shopify-webhook-id", "headers": true },
+          "type": "dispute_closed",
+          "ts": { "path": "$.finalized_on" },
+          "entities": { "user": { "record": "$.order_id" } },
+          "universal_id": "$.order_id",
+          "status": { "path": "$.status", "values": { "won": "dispute_won", "lost": "dispute_lost", "accepted": "dispute_lost", "charge_refunded": "dispute_lost" } },
+          "properties": {
+            "dispute_id": "$.id",
+            "dispute_type": "$.type",
+            "outcome": "$.status",
+            "reason": "$.reason",
+            "amount": { "path": "$.amount", "format": "number" },
+            "currency": "$.currency"
+          }
+        }
+      },
+      {
+        "name": "Chargeback closed",
+        "match_headers": { "x-shopify-topic": "disputes/update" },
+        "match": { "type": "chargeback", "status": ["won", "lost", "accepted", "charge_refunded"] },
+        "label": {
+          "entity": "user",
+          "id": { "record": "$.order_id" },
+          "label": { "path": "$.status", "values": { "won": "dispute_won", "lost": "chargeback_lost", "accepted": "chargeback_lost", "charge_refunded": "chargeback_lost" } },
+          "ts": { "path": "$.finalized_on" },
+          "properties": { "dispute_id": "$.id", "outcome": "$.status" }
+        }
+      }
+    ]
+  },
+  "samples": [
+    {
+      "id": 5690451296477,
+      "admin_graphql_api_id": "gid://shopify/Order/5690451296477",
+      "browser_ip": "81.2.69.160",
+      "cancel_reason": null,
+      "cancelled_at": null,
+      "client_details": { "accept_language": "en-GB,en;q=0.9", "browser_ip": "81.2.69.160", "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Safari/605.1.15" },
+      "contact_email": "ada@example.com",
+      "created_at": "2026-10-14T08:00:04-04:00",
+      "currency": "USD",
+      "discount_codes": [],
+      "email": "ada@example.com",
+      "financial_status": "pending",
+      "fulfillment_status": null,
+      "landing_site": "/products/aviator-sunglasses",
+      "name": "#1023",
+      "order_number": 1023,
+      "payment_gateway_names": ["shopify_payments"],
+      "processed_at": "2026-10-14T08:00:03-04:00",
+      "referring_site": "https://www.google.com/",
+      "source_name": "web",
+      "subtotal_price": "394.95",
+      "test": false,
+      "total_discounts": "0.00",
+      "total_price": "404.95",
+      "updated_at": "2026-10-14T08:00:05-04:00",
+      "billing_address": { "city": "Shippington", "country_code": "US", "province_code": "KY", "zip": "40003" },
+      "shipping_address": { "city": "Shippington", "country_code": "US", "province_code": "KY", "zip": "40003" },
+      "customer": {
+        "id": 7389154082937,
+        "admin_graphql_api_id": "gid://shopify/Customer/7389154082937",
+        "created_at": "2025-03-02T10:12:00-05:00",
+        "email": "ada@example.com",
+        "state": "enabled",
+        "verified_email": true
+      },
+      "line_items": [
+        { "id": 14212345678901, "name": "Aviator sunglasses", "price": "89.99", "quantity": 1, "sku": "SKU2006-001" },
+        { "id": 14212345678902, "name": "Mid-century lounger", "price": "304.96", "quantity": 1, "sku": "SKU2006-020" }
+      ],
+      "shipping_lines": [{ "id": 4512345678901, "price": "10.00", "title": "Standard" }]
+    },
+    {
+      "id": 5690451296477,
+      "admin_graphql_api_id": "gid://shopify/Order/5690451296477",
+      "browser_ip": "81.2.69.160",
+      "cancel_reason": null,
+      "cancelled_at": null,
+      "client_details": { "accept_language": "en-GB,en;q=0.9", "browser_ip": "81.2.69.160", "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Safari/605.1.15" },
+      "created_at": "2026-10-14T08:00:04-04:00",
+      "currency": "USD",
+      "discount_codes": [],
+      "email": "ada@example.com",
+      "financial_status": "paid",
+      "fulfillment_status": null,
+      "name": "#1023",
+      "order_number": 1023,
+      "payment_gateway_names": ["shopify_payments"],
+      "source_name": "web",
+      "subtotal_price": "394.95",
+      "test": false,
+      "total_discounts": "0.00",
+      "total_price": "404.95",
+      "updated_at": "2026-10-14T08:01:10-04:00",
+      "billing_address": { "city": "Shippington", "country_code": "US", "province_code": "KY", "zip": "40003" },
+      "shipping_address": { "city": "Shippington", "country_code": "US", "province_code": "KY", "zip": "40003" },
+      "customer": { "id": 7389154082937, "created_at": "2025-03-02T10:12:00-05:00", "email": "ada@example.com", "state": "enabled", "verified_email": true }
+    },
+    {
+      "id": 935412345678,
+      "admin_graphql_api_id": "gid://shopify/Refund/935412345678",
+      "order_id": 5690451296477,
+      "created_at": "2026-10-16T09:30:00-04:00",
+      "processed_at": "2026-10-16T09:30:00-04:00",
+      "note": "Things were damaged",
+      "restock": false,
+      "user_id": 548380009,
+      "refund_line_items": [
+        { "id": 61234567890, "line_item_id": 14212345678901, "quantity": 1, "restock_type": "no_restock", "subtotal": 89.99, "total_tax": 0.0 }
+      ],
+      "transactions": [
+        {
+          "id": 7012345678901,
+          "admin_graphql_api_id": "gid://shopify/OrderTransaction/7012345678901",
+          "order_id": 5690451296477,
+          "kind": "refund",
+          "gateway": "shopify_payments",
+          "status": "success",
+          "amount": "89.99",
+          "currency": "USD",
+          "created_at": "2026-10-16T09:30:00-04:00"
+        }
+      ]
+    },
+    {
+      "id": 11234567890,
+      "order_id": 5690451296477,
+      "type": "chargeback",
+      "amount": "315.00",
+      "currency": "USD",
+      "reason": "fraudulent",
+      "network_reason_code": "10.4",
+      "status": "needs_response",
+      "evidence_due_by": "2026-11-01T19:00:00-04:00",
+      "evidence_sent_on": null,
+      "finalized_on": null,
+      "initiated_at": "2026-10-20T08:00:00-04:00"
+    },
+    {
+      "id": 11234567890,
+      "order_id": 5690451296477,
+      "type": "chargeback",
+      "amount": "315.00",
+      "currency": "USD",
+      "reason": "fraudulent",
+      "network_reason_code": "10.4",
+      "status": "lost",
+      "evidence_due_by": "2026-11-01T19:00:00-04:00",
+      "evidence_sent_on": "2026-10-25T12:00:00-04:00",
+      "finalized_on": "2026-11-05T08:00:00-05:00",
+      "initiated_at": "2026-10-20T08:00:00-04:00"
+    },
+    {
+      "id": 5690451329245,
+      "admin_graphql_api_id": "gid://shopify/Order/5690451329245",
+      "browser_ip": "185.220.101.4",
+      "cancel_reason": null,
+      "cancelled_at": null,
+      "client_details": { "accept_language": "en-US", "browser_ip": "185.220.101.4", "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:128.0) Gecko/20100101 Firefox/128.0" },
+      "created_at": "2026-10-15T02:14:40-04:00",
+      "currency": "USD",
+      "discount_codes": [{ "code": "WELCOME20", "amount": "324.75", "type": "percentage" }],
+      "email": "quick.buyer.8812@example.net",
+      "financial_status": "authorized",
+      "fulfillment_status": null,
+      "name": "#1024",
+      "order_number": 1024,
+      "payment_gateway_names": ["shopify_payments"],
+      "source_name": "web",
+      "subtotal_price": "1299.00",
+      "test": false,
+      "total_discounts": "324.75",
+      "total_price": "974.25",
+      "updated_at": "2026-10-15T02:14:41-04:00",
+      "billing_address": { "city": "London", "country_code": "GB", "zip": "EC1A 1BB" },
+      "shipping_address": { "city": "Lagos", "country_code": "NG", "zip": "100001" },
+      "customer": { "id": 7389154099321, "created_at": "2026-10-15T02:11:02-04:00", "email": "quick.buyer.8812@example.net", "state": "disabled", "verified_email": false },
+      "line_items": [{ "id": 14212345679100, "name": "Laptop 15-inch", "price": "1299.00", "quantity": 1, "sku": "LAP-15-PRO" }]
+    },
+    {
+      "id": 5690451329245,
+      "admin_graphql_api_id": "gid://shopify/Order/5690451329245",
+      "browser_ip": "185.220.101.4",
+      "cancel_reason": "fraud",
+      "cancelled_at": "2026-10-15T03:02:00-04:00",
+      "created_at": "2026-10-15T02:14:40-04:00",
+      "currency": "USD",
+      "email": "quick.buyer.8812@example.net",
+      "financial_status": "voided",
+      "fulfillment_status": null,
+      "name": "#1024",
+      "order_number": 1024,
+      "payment_gateway_names": ["shopify_payments"],
+      "source_name": "web",
+      "subtotal_price": "1299.00",
+      "test": false,
+      "total_discounts": "324.75",
+      "total_price": "974.25",
+      "updated_at": "2026-10-15T03:02:00-04:00",
+      "billing_address": { "city": "London", "country_code": "GB", "zip": "EC1A 1BB" },
+      "shipping_address": { "city": "Lagos", "country_code": "NG", "zip": "100001" },
+      "customer": { "id": 7389154099321, "created_at": "2026-10-15T02:11:02-04:00", "email": "quick.buyer.8812@example.net", "state": "disabled", "verified_email": false }
+    }
+  ],
+  "sampleHeaders": [
+    { "X-Shopify-Topic": "orders/create", "X-Shopify-Webhook-Id": "b54557e4-bdd9-4b37-8a5f-bf7d70bcd043", "X-Shopify-Event-Id": "98880550-7158-44d4-b7cd-2c97c8a091b5", "X-Shopify-Shop-Domain": "example-store.myshopify.com", "X-Shopify-API-Version": "2026-10", "X-Shopify-Triggered-At": "2026-10-14T12:00:05.000000Z" },
+    { "X-Shopify-Topic": "orders/paid", "X-Shopify-Webhook-Id": "0f2d8d6e-1c3b-4f0e-9a63-3c8f1d9b7a21", "X-Shopify-Event-Id": "2c4a7b10-6c1e-4e8f-8b0a-5d2e9f3c1a47", "X-Shopify-Shop-Domain": "example-store.myshopify.com", "X-Shopify-API-Version": "2026-10", "X-Shopify-Triggered-At": "2026-10-14T12:01:10.000000Z" },
+    { "X-Shopify-Topic": "refunds/create", "X-Shopify-Webhook-Id": "7d1e5c3a-9b2f-4a6d-8e0c-1f4b7a9d2c58", "X-Shopify-Event-Id": "e3b9c1d7-2a4f-4c8e-9d6b-7f0a1e5c3b92", "X-Shopify-Shop-Domain": "example-store.myshopify.com", "X-Shopify-API-Version": "2026-10", "X-Shopify-Triggered-At": "2026-10-16T13:30:00.000000Z" },
+    { "X-Shopify-Topic": "disputes/create", "X-Shopify-Webhook-Id": "4a8c2e6f-0b3d-4f7a-9c1e-5d8b2f6a0c34", "X-Shopify-Event-Id": "c7e1a3b5-9d2f-4b6c-8a0e-3f5d7b9c1e26", "X-Shopify-Shop-Domain": "example-store.myshopify.com", "X-Shopify-API-Version": "2026-10", "X-Shopify-Triggered-At": "2026-10-20T12:00:00.000000Z" },
+    { "X-Shopify-Topic": "disputes/update", "X-Shopify-Webhook-Id": "9e3f7b1d-5c2a-4e8b-a06d-2b4f8c1e7a95", "X-Shopify-Event-Id": "1b5d9f3a-7e2c-4a6b-8d0f-4c6e8a2b0d17", "X-Shopify-Shop-Domain": "example-store.myshopify.com", "X-Shopify-API-Version": "2026-10", "X-Shopify-Triggered-At": "2026-11-05T13:00:00.000000Z" },
+    { "X-Shopify-Topic": "orders/create", "X-Shopify-Webhook-Id": "2f6b0d4e-8a1c-4e5f-9b3d-7c1a5e9f3b60", "X-Shopify-Event-Id": "5a9c3e7b-1d4f-4b8a-8c2e-6f0b4d8a2c71", "X-Shopify-Shop-Domain": "example-store.myshopify.com", "X-Shopify-API-Version": "2026-10", "X-Shopify-Triggered-At": "2026-10-15T06:14:41.000000Z" },
+    { "X-Shopify-Topic": "orders/cancelled", "X-Shopify-Webhook-Id": "6c0e4a8b-2d5f-4a9c-8e1b-3d7f1b5c9e02", "X-Shopify-Event-Id": "8d2f6b0c-4e7a-4c1e-9a3f-5b9d3f7a1c84", "X-Shopify-Shop-Domain": "example-store.myshopify.com", "X-Shopify-API-Version": "2026-10", "X-Shopify-Triggered-At": "2026-10-15T07:02:00.000000Z" }
+  ]
+}

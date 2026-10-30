@@ -1,0 +1,19 @@
+{
+  "name": "atm_withdrawal",
+  "description": "Release or hold a cash withdrawal at an ATM",
+  "subject": "user",
+  "hold": "Should the pending cash withdrawal be held because the account shows signs of being a money mule account, which receives money from other people and takes it out as cash?",
+  "typologies": {
+    "mule": "Money mule: the account receives money from other people and passes it on as cash",
+    "legit": "Legitimate: the customer takes out their own money"
+  },
+  "reasons": {
+    "new_account": "The account was opened very recently",
+    "funds_in_then_cash_out": "Money arrived from another person shortly before and is now taken out as cash",
+    "maximum_withdrawal": "The withdrawal is at the daily limit",
+    "atm_flagged_concentration": "The share of recent users of this ATM who carry a mule label is far above the normal share",
+    "atm_burst_of_new_accounts": "Several new accounts used this ATM in the minutes before this withdrawal",
+    "customer_explained_in_advance": "An earlier message from the customer explains the withdrawal",
+    "usual_pattern": "The amount and the place match what the customer usually does"
+  }
+}

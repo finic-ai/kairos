@@ -1,0 +1,249 @@
+{
+  "provider": "stripe",
+  "version": 1,
+  "displayName": "Stripe",
+  "category": "payments",
+  "checked": false,
+  "description": "Payments, refunds and disputes. A dispute becomes a chargeback label on the user who paid.",
+  "verification": { "scheme": "stripe" },
+  "secretHint": "The endpoint's signing secret, whsec_…",
+  "setup": [
+    "In Stripe, open Developers › Webhooks (or Workbench › Webhooks) and add an endpoint with the URL below.",
+    "Select these events: payment_intent.succeeded, payment_intent.payment_failed, payment_intent.processing, payment_intent.canceled, charge.refunded, charge.dispute.created, charge.dispute.closed.",
+    "Reveal the endpoint's signing secret (whsec_…) and paste it here.",
+    "Put your own user id in the metadata of each PaymentIntent you create: metadata: { user_id: \"user_42\" }. Refunds and disputes do not carry it; Kairos finds their user from the payment they belong to."
+  ],
+  "identity": "Kairos reads your user id from metadata.user_id on the PaymentIntent. Without it, a payment is stored on its Stripe customer only, and a refund or a dispute of that payment has no user to go to.",
+  "events": [
+    "payment_intent.succeeded",
+    "payment_intent.payment_failed",
+    "payment_intent.processing",
+    "payment_intent.canceled",
+    "charge.refunded",
+    "charge.dispute.created",
+    "charge.dispute.closed"
+  ],
+  "mapping": {
+    "rules": [
+      {
+        "name": "Payment",
+        "match": { "type": ["payment_intent.succeeded", "payment_intent.payment_failed", "payment_intent.processing", "payment_intent.canceled"] },
+        "event": {
+          "id": "$.id",
+          "type": "payment",
+          "ts": { "path": "$.created", "format": "unix_seconds" },
+          "entities": { "user": "$.data.object.metadata.user_id", "stripe_customer": "$.data.object.customer" },
+          "universal_id": "$.data.object.id",
+          "status": {
+            "path": "$.type",
+            "values": {
+              "payment_intent.succeeded": "completed",
+              "payment_intent.payment_failed": "failed",
+              "payment_intent.processing": "pending",
+              "payment_intent.canceled": "canceled"
+            }
+          },
+          "properties": {
+            "amount_minor": "$.data.object.amount",
+            "currency": "$.data.object.currency",
+            "payment_method_type": "$.data.object.payment_method_types[0]",
+            "decline_code": "$.data.object.last_payment_error.decline_code",
+            "failure_code": "$.data.object.last_payment_error.code",
+            "description": "$.data.object.description"
+          }
+        }
+      },
+      {
+        "name": "Refund",
+        "match": { "type": "charge.refunded" },
+        "event": {
+          "id": "$.id",
+          "type": "refund",
+          "ts": { "path": "$.created", "format": "unix_seconds" },
+          "entities": { "user": { "record": "$.data.object.payment_intent" }, "stripe_customer": "$.data.object.customer" },
+          "universal_id": "$.data.object.payment_intent",
+          "status": "refunded",
+          "properties": {
+            "amount_refunded_minor": "$.data.object.amount_refunded",
+            "amount_minor": "$.data.object.amount",
+            "currency": "$.data.object.currency",
+            "fully_refunded": "$.data.object.refunded"
+          }
+        }
+      },
+      {
+        "name": "Dispute opened",
+        "match": { "type": "charge.dispute.created" },
+        "event": {
+          "id": "$.id",
+          "type": "dispute_opened",
+          "ts": { "path": "$.created", "format": "unix_seconds" },
+          "entities": { "user": { "record": "$.data.object.payment_intent" } },
+          "universal_id": "$.data.object.payment_intent",
+          "status": "disputed",
+          "properties": {
+            "dispute_id": "$.data.object.id",
+            "reason": "$.data.object.reason",
+            "amount_minor": "$.data.object.amount",
+            "currency": "$.data.object.currency"
+          }
+        },
+        "label": { "entity": "user", "label": "chargeback", "properties": { "dispute_id": "$.data.object.id", "reason": "$.data.object.reason" } }
+      },
+      {
+        "name": "Dispute closed",
+        "match": { "type": "charge.dispute.closed" },
+        "event": {
+          "id": "$.id",
+          "type": "dispute_closed",
+          "ts": { "path": "$.created", "format": "unix_seconds" },
+          "entities": { "user": { "record": "$.data.object.payment_intent" } },
+          "universal_id": "$.data.object.payment_intent",
+          "status": { "path": "$.data.object.status", "values": { "won": "dispute_won", "lost": "dispute_lost" }, "default": "dispute_closed" },
+          "properties": {
+            "dispute_id": "$.data.object.id",
+            "reason": "$.data.object.reason",
+            "dispute_status": "$.data.object.status",
+            "amount_minor": "$.data.object.amount",
+            "currency": "$.data.object.currency"
+          }
+        },
+        "label": {
+          "entity": "user",
+          "label": { "path": "$.data.object.status", "values": { "won": "dispute_won", "lost": "chargeback_lost" }, "default": "dispute_closed" },
+          "properties": { "dispute_id": "$.data.object.id", "reason": "$.data.object.reason" }
+        }
+      }
+    ]
+  },
+  "samples": [
+    {
+      "id": "evt_3QaS1L2eZvKYlo2C0rM8vUqk",
+      "object": "event",
+      "api_version": "2024-06-20",
+      "created": 1792065600,
+      "livemode": false,
+      "pending_webhooks": 1,
+      "request": { "id": "req_9sEJbUbdyY4dqa", "idempotency_key": "6b6f8a4e-6c5d-4a8e-9f2a-1b2c3d4e5f60" },
+      "type": "payment_intent.succeeded",
+      "data": {
+        "object": {
+          "id": "pi_3QaS1L2eZvKYlo2C0Tz5p7Rb",
+          "object": "payment_intent",
+          "amount": 9500,
+          "amount_received": 9500,
+          "currency": "usd",
+          "customer": "cus_R3mVQx8k2LcN1a",
+          "description": "Wallet top-up",
+          "last_payment_error": null,
+          "latest_charge": "ch_3QaS1L2eZvKYlo2C0aZ4b5Cd",
+          "livemode": false,
+          "metadata": { "user_id": "user_42" },
+          "payment_method": "pm_1QaS1J2eZvKYlo2CfK3l4M5n",
+          "payment_method_types": ["card"],
+          "status": "succeeded"
+        }
+      }
+    },
+    {
+      "id": "evt_3QaS2M2eZvKYlo2C1pQ9wErt",
+      "object": "event",
+      "api_version": "2024-06-20",
+      "created": 1792065660,
+      "livemode": false,
+      "pending_webhooks": 1,
+      "request": { "id": "req_Lm3nO4pQ5rS6tU", "idempotency_key": null },
+      "type": "payment_intent.payment_failed",
+      "data": {
+        "object": {
+          "id": "pi_3QaS2M2eZvKYlo2C1Xy8z9Ab",
+          "object": "payment_intent",
+          "amount": 120000,
+          "currency": "usd",
+          "customer": "cus_R3mVQx8k2LcN1a",
+          "description": "Wallet top-up",
+          "last_payment_error": { "code": "card_declined", "decline_code": "stolen_card", "message": "Your card was declined.", "type": "card_error" },
+          "livemode": false,
+          "metadata": { "user_id": "user_42" },
+          "payment_method_types": ["card"],
+          "status": "requires_payment_method"
+        }
+      }
+    },
+    {
+      "id": "evt_3QaS3N2eZvKYlo2C2bV7cXyz",
+      "object": "event",
+      "api_version": "2024-06-20",
+      "created": 1792152000,
+      "livemode": false,
+      "pending_webhooks": 1,
+      "request": { "id": "req_Vw7xY8zA9bC0dE", "idempotency_key": null },
+      "type": "charge.refunded",
+      "data": {
+        "object": {
+          "id": "ch_3QaS1L2eZvKYlo2C0aZ4b5Cd",
+          "object": "charge",
+          "amount": 9500,
+          "amount_refunded": 2500,
+          "currency": "usd",
+          "customer": "cus_R3mVQx8k2LcN1a",
+          "livemode": false,
+          "metadata": {},
+          "paid": true,
+          "payment_intent": "pi_3QaS1L2eZvKYlo2C0Tz5p7Rb",
+          "refunded": false,
+          "status": "succeeded"
+        }
+      }
+    },
+    {
+      "id": "evt_1QaS4O2eZvKYlo2C3fG8hIjk",
+      "object": "event",
+      "api_version": "2024-06-20",
+      "created": 1792411200,
+      "livemode": false,
+      "pending_webhooks": 1,
+      "request": { "id": null, "idempotency_key": null },
+      "type": "charge.dispute.created",
+      "data": {
+        "object": {
+          "id": "dp_1QaS4O2eZvKYlo2CmN0oPqRs",
+          "object": "dispute",
+          "amount": 9500,
+          "charge": "ch_3QaS1L2eZvKYlo2C0aZ4b5Cd",
+          "currency": "usd",
+          "is_charge_refundable": false,
+          "livemode": false,
+          "metadata": {},
+          "payment_intent": "pi_3QaS1L2eZvKYlo2C0Tz5p7Rb",
+          "reason": "fraudulent",
+          "status": "needs_response"
+        }
+      }
+    },
+    {
+      "id": "evt_1QaS5P2eZvKYlo2C4tU9vWxy",
+      "object": "event",
+      "api_version": "2024-06-20",
+      "created": 1793620800,
+      "livemode": false,
+      "pending_webhooks": 1,
+      "request": { "id": null, "idempotency_key": null },
+      "type": "charge.dispute.closed",
+      "data": {
+        "object": {
+          "id": "dp_1QaS4O2eZvKYlo2CmN0oPqRs",
+          "object": "dispute",
+          "amount": 9500,
+          "charge": "ch_3QaS1L2eZvKYlo2C0aZ4b5Cd",
+          "currency": "usd",
+          "livemode": false,
+          "metadata": {},
+          "payment_intent": "pi_3QaS1L2eZvKYlo2C0Tz5p7Rb",
+          "reason": "fraudulent",
+          "status": "lost"
+        }
+      }
+    }
+  ]
+}

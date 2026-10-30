@@ -1,0 +1,229 @@
+{
+  "provider": "zendesk",
+  "version": 1,
+  "displayName": "Zendesk",
+  "category": "customer_support",
+  "checked": false,
+  "description": "Support tickets: each new ticket, each message from the requester, and each status change. Zendesk users are linked to your users by their external id.",
+  "verification": { "scheme": "timestamped", "header": "X-Zendesk-Webhook-Signature", "timestampHeader": "X-Zendesk-Webhook-Signature-Timestamp", "join": "", "algorithm": "sha256", "encoding": "base64" },
+  "secretHint": "The webhook's signing secret, from Reveal secret",
+  "setup": [
+    "In Zendesk Admin Center, open Apps and integrations › Webhooks › Webhooks and create a webhook. Choose Zendesk events as the way to connect.",
+    "Subscribe to these events: Ticket created, Comment added, Status changed, User created, User external ID changed. Set the endpoint URL to the URL below, the method to POST and the format to JSON.",
+    "After you create the webhook, open it, click Reveal secret, and paste the signing secret here.",
+    "Give each Zendesk user your own user id as their external_id (Zendesk's single sign-on and the Users API both set it)."
+  ],
+  "identity": "A ticket names its requester by Zendesk user id only. When a Zendesk user is created or their external_id changes, Kairos stores their Zendesk id on your user (zendesk_user_id), and finds the user of each later ticket from it. A ticket from a Zendesk user with no external_id is stored on the Zendesk user only.",
+  "events": [
+    "zen:event-type:ticket.created",
+    "zen:event-type:ticket.comment_added",
+    "zen:event-type:ticket.status_changed",
+    "zen:event-type:user.created",
+    "zen:event-type:user.external_id_changed"
+  ],
+  "mapping": {
+    "rules": [
+      {
+        "name": "Zendesk user",
+        "match": { "type": ["zen:event-type:user.created", "zen:event-type:user.external_id_changed"] },
+        "event": {
+          "id": "$.id",
+          "type": "support_user_linked",
+          "ts": "$.time",
+          "entities": { "user": "$.detail.external_id", "zendesk_user": "$.detail.id" },
+          "properties": { "role": "$.detail.role" },
+          "set": { "user": { "zendesk_user_id": "$.detail.id" } }
+        }
+      },
+      {
+        "name": "Ticket created",
+        "match": { "type": "zen:event-type:ticket.created" },
+        "event": {
+          "id": "$.id",
+          "type": "support_ticket",
+          "ts": "$.time",
+          "entities": {
+            "user": { "lookup": { "property": "zendesk_user_id", "value": "$.detail.requester_id" } },
+            "zendesk_user": "$.detail.requester_id"
+          },
+          "universal_id": "$.detail.id",
+          "status": "opened",
+          "properties": {
+            "subject": "$.detail.subject",
+            "message": "$.detail.description",
+            "channel": "$.detail.via.channel",
+            "priority": "$.detail.priority",
+            "ticket_type": "$.detail.type"
+          }
+        }
+      },
+      {
+        "name": "Message from the requester",
+        "match": { "type": "zen:event-type:ticket.comment_added", "event.comment.author.is_staff": false },
+        "event": {
+          "id": "$.id",
+          "type": "support_message",
+          "ts": "$.time",
+          "entities": {
+            "user": { "lookup": { "property": "zendesk_user_id", "value": "$.event.comment.author.id" } },
+            "zendesk_user": "$.event.comment.author.id"
+          },
+          "universal_id": "$.detail.id",
+          "status": "replied",
+          "properties": {
+            "message": "$.event.comment.body",
+            "public": "$.event.comment.is_public",
+            "channel": "$.detail.via.channel",
+            "subject": "$.detail.subject"
+          }
+        }
+      },
+      {
+        "name": "Status changed",
+        "match": { "type": "zen:event-type:ticket.status_changed" },
+        "event": {
+          "id": "$.id",
+          "type": "support_ticket",
+          "ts": "$.time",
+          "entities": {
+            "user": { "lookup": { "property": "zendesk_user_id", "value": "$.detail.requester_id" } },
+            "zendesk_user": "$.detail.requester_id"
+          },
+          "universal_id": "$.detail.id",
+          "status": { "path": "$.event.current", "values": { "NEW": "new", "OPEN": "open", "PENDING": "pending", "HOLD": "on_hold", "SOLVED": "solved", "CLOSED": "closed" } },
+          "properties": {
+            "previous_status": "$.event.previous",
+            "priority": "$.detail.priority",
+            "ticket_type": "$.detail.type"
+          }
+        }
+      }
+    ]
+  },
+  "samples": [
+    {
+      "type": "zen:event-type:user.created",
+      "account_id": 12514403,
+      "id": "6b9bbadf-5725-4e92-bebe-7b71011bf5f1",
+      "subject": "zen:user:6596848315901",
+      "time": "2026-10-14T09:00:00Z",
+      "zendesk_event_version": "2022-06-20",
+      "detail": {
+        "created_at": "2026-10-14T09:00:00Z",
+        "default_group_id": "0",
+        "email": "ada@example.com",
+        "external_id": "user_42",
+        "id": "6596848315901",
+        "organization_id": "0",
+        "role": "end-user",
+        "updated_at": "2026-10-14T09:00:00Z"
+      },
+      "event": {}
+    },
+    {
+      "account_id": 12514403,
+      "detail": {
+        "actor_id": "6596848315901",
+        "assignee_id": null,
+        "brand_id": "8447346621310",
+        "created_at": "2026-10-15T08:12:07Z",
+        "custom_status": "8447320465790",
+        "description": "Someone took money out of my account last night. I did not send that transfer.",
+        "external_id": null,
+        "form_id": "8646151517822",
+        "group_id": "8447320466430",
+        "id": "5158",
+        "is_public": true,
+        "organization_id": null,
+        "priority": "HIGH",
+        "requester_id": "6596848315901",
+        "status": "NEW",
+        "subject": "Transfer I did not make",
+        "submitter_id": "6596848315901",
+        "tags": ["account_security"],
+        "type": "INCIDENT",
+        "updated_at": "2026-10-15T08:12:07Z",
+        "via": { "channel": "web_form" }
+      },
+      "event": { "meta": { "sequence": { "id": "7f1d2c3b", "position": 1 } } },
+      "id": "cbe4028c-7239-495d-b020-f22348516046",
+      "subject": "zen:ticket:5158",
+      "time": "2026-10-15T08:12:07.672717030Z",
+      "type": "zen:event-type:ticket.created",
+      "zendesk_event_version": "2022-11-06"
+    },
+    {
+      "account_id": 12514403,
+      "detail": {
+        "actor_id": "6596848315901",
+        "assignee_id": "7489421176190",
+        "brand_id": "8447346621310",
+        "created_at": "2026-10-15T08:12:07Z",
+        "custom_status": "8447320465790",
+        "description": "Someone took money out of my account last night. I did not send that transfer.",
+        "external_id": null,
+        "form_id": "8646151517822",
+        "group_id": "8447320466430",
+        "id": "5158",
+        "is_public": true,
+        "organization_id": null,
+        "priority": "HIGH",
+        "requester_id": "6596848315901",
+        "status": "OPEN",
+        "subject": "Transfer I did not make",
+        "submitter_id": "6596848315901",
+        "tags": ["account_security"],
+        "type": "INCIDENT",
+        "updated_at": "2026-10-15T08:40:26Z",
+        "via": { "channel": "web_form" }
+      },
+      "event": {
+        "comment": {
+          "author": { "id": "6596848315901", "is_staff": false, "name": "Ada Lovelace" },
+          "body": "It was 450 pounds to an account I do not know. Please block my card.",
+          "html_body": "<div class=\"zd-comment\" dir=\"auto\"><p dir=\"auto\">It was 450 pounds to an account I do not know. Please block my card.</p></div>",
+          "id": "8659716087550",
+          "is_public": true
+        },
+        "meta": { "sequence": { "id": "7f1d2c3b", "position": 2 } }
+      },
+      "id": "2ba2a985-7d94-4a3f-92be-cd330679b6fa",
+      "subject": "zen:ticket:5158",
+      "time": "2026-10-15T08:40:26.962242814Z",
+      "type": "zen:event-type:ticket.comment_added",
+      "zendesk_event_version": "2022-11-06"
+    },
+    {
+      "account_id": 12514403,
+      "detail": {
+        "actor_id": "7489421176190",
+        "assignee_id": "7489421176190",
+        "brand_id": "8447346621310",
+        "created_at": "2026-10-15T08:12:07Z",
+        "custom_status": null,
+        "description": "Someone took money out of my account last night. I did not send that transfer.",
+        "external_id": null,
+        "form_id": "8646151517822",
+        "group_id": "8447320466430",
+        "id": "5158",
+        "is_public": true,
+        "organization_id": null,
+        "priority": "HIGH",
+        "requester_id": "6596848315901",
+        "status": "SOLVED",
+        "subject": "Transfer I did not make",
+        "submitter_id": "6596848315901",
+        "tags": ["account_security"],
+        "type": "INCIDENT",
+        "updated_at": "2026-10-15T10:27:48Z",
+        "via": { "channel": "web_form" }
+      },
+      "event": { "current": "SOLVED", "meta": { "sequence": { "id": "7f1d2c3b", "position": 3 } }, "previous": "OPEN" },
+      "id": "ca74d97a-ae8c-40e9-b8a8-37e3ae0afedf",
+      "subject": "zen:ticket:5158",
+      "time": "2026-10-15T10:27:48.105316520Z",
+      "type": "zen:event-type:ticket.status_changed",
+      "zendesk_event_version": "2022-11-06"
+    }
+  ]
+}

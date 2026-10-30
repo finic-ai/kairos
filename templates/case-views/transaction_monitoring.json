@@ -1,0 +1,93 @@
+{
+  "name": "transaction_monitoring",
+  "label": "Transaction monitoring",
+  "description": "A pattern over many transactions: the money in and out against the usual, the payees, and every transaction.",
+  "view": {
+    "template": "transaction_monitoring",
+    "header": ["case.priority", "decision.risk_score", "case.age"],
+    "blocks": [
+      { "id": "why", "type": "evidence", "region": "main" },
+      { "id": "transactions", "type": "list", "region": "main", "lists": ["transactions", "payees"], "rows": 10 },
+      { "id": "timeline", "type": "timeline", "region": "main" },
+      {
+        "id": "money",
+        "type": "facts",
+        "region": "side",
+        "title": "Money",
+        "facts": ["money_in_7d", "money_out_7d", "transactions_30d", "payees_30d"]
+      },
+      { "id": "objects", "type": "objects", "region": "side" },
+      { "id": "details", "type": "details", "region": "side" },
+      { "id": "activity", "type": "activity", "region": "side" }
+    ],
+    "facts": [
+      {
+        "for": "user",
+        "name": "money_in_7d",
+        "label": "Money in this week",
+        "source": "events",
+        "measure": "sum",
+        "field": "amount",
+        "filters": { "event_type": "transaction", "property": { "name": "direction", "value": "in" } },
+        "window": "7d",
+        "usual": "90d"
+      },
+      {
+        "for": "user",
+        "name": "money_out_7d",
+        "label": "Money out this week",
+        "source": "events",
+        "measure": "sum",
+        "field": "amount",
+        "filters": { "event_type": "transaction", "property": { "name": "direction", "value": "out" } },
+        "window": "7d",
+        "usual": "90d"
+      },
+      {
+        "for": "user",
+        "name": "transactions_30d",
+        "label": "Transactions in 30 days",
+        "source": "events",
+        "measure": "count",
+        "filters": { "event_type": "transaction" },
+        "window": "30d"
+      },
+      {
+        "for": "user",
+        "name": "payees_30d",
+        "label": "Payees in 30 days",
+        "source": "events",
+        "measure": "unique",
+        "field": "payee",
+        "filters": { "event_type": "transaction" },
+        "window": "30d"
+      }
+    ],
+    "lists": [
+      {
+        "for": "user",
+        "name": "transactions",
+        "label": "Transactions",
+        "source": "events",
+        "filters": { "event_type": "transaction" },
+        "columns": [
+          "ts",
+          "event.direction",
+          { "field": "event.amount", "label": "Amount", "format": "money", "currency": "event.currency" },
+          "event.channel",
+          "event.memo",
+          "decision.outcome"
+        ]
+      },
+      {
+        "for": "user",
+        "name": "payees",
+        "label": "Payees",
+        "source": "linked",
+        "entity_type": "payee",
+        "filters": { "event_type": "transaction" },
+        "columns": ["id", "name", "events", "first_seen", "last_seen"]
+      }
+    ]
+  }
+}

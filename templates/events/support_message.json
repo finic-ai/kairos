@@ -1,0 +1,30 @@
+{
+  "type": "support_message",
+  "description": "Something the customer wrote. Send the text as it is: do not summarise it or reduce it to a category.",
+  "entities": {
+    "user": {
+      "description": "Who wrote it.",
+      "required": true
+    }
+  },
+  "properties": {
+    "text": {
+      "type": "string",
+      "description": "The message."
+    },
+    "channel": {
+      "type": "string",
+      "description": "Where it was written.",
+      "enum": [
+        "chat",
+        "email",
+        "phone_note"
+      ]
+    }
+  },
+  "example": {
+    "userId": "user_123",
+    "text": "I am flying to Lisbon on Friday for two weeks. Will my card work there?",
+    "channel": "chat"
+  }
+}

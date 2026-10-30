@@ -1,0 +1,51 @@
+{
+  "type": "fraud_claim",
+  "description": "A customer says a transaction was not theirs. A claim is one record: filed, then closed with an outcome.",
+  "entities": {
+    "user": {
+      "description": "Who filed the claim.",
+      "required": true
+    },
+    "merchant": {
+      "description": "The merchant or the payee the claim is about.",
+      "required": false
+    }
+  },
+  "properties": {
+    "category": {
+      "type": "string",
+      "description": "What kind of claim.",
+      "enum": [
+        "UNAUTHORIZED_CARD",
+        "ACCOUNT_TAKEOVER",
+        "SCAM"
+      ]
+    },
+    "initial_amount_usd": {
+      "type": "number",
+      "description": "The amount claimed."
+    },
+    "description": {
+      "type": "string",
+      "description": "The customer's own words."
+    }
+  },
+  "record": {
+    "statuses": [
+      "PENDING",
+      "CONFIRMED",
+      "ACCOUNT_ABUSE",
+      "DENIED"
+    ],
+    "description": "When it closes, also put a label on whatever the outcome is about: the customer for account abuse, the merchant for confirmed fraud."
+  },
+  "example": {
+    "userId": "user_123",
+    "universalId": "claim_0300",
+    "status": "PENDING",
+    "merchantId": "lumatech_outlet",
+    "category": "UNAUTHORIZED_CARD",
+    "initial_amount_usd": 1262.5,
+    "description": "I still have my card with me. I do not recognise these online purchases."
+  }
+}
