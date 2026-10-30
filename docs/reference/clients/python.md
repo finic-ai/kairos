@@ -2,7 +2,7 @@
 
 Each API key belongs to one workspace and environment. Use the appropriate key for Production or a sandbox; the SDK needs no additional scope parameters. Separate clients with different keys can target different environments.
 
-The Python client, `kairos-sdk`. It does what the [TypeScript SDK](typescript.md) does, with Python names.
+The Python client, `finic-kairos`. It does what the [TypeScript SDK](typescript.md) does, with Python names.
 
 This page covers every call. For the ideas behind them (how to write a hold question, where a label belongs, how links work, how to get good decisions) read the [TypeScript guide](typescript.md): the advice there is about Kairos, not about a language. For the HTTP API underneath, see the [API reference](../api.md).
 
@@ -30,7 +30,7 @@ Python 3.9 or later. The client has no dependencies: it uses the standard librar
 Install it from PyPI:
 
 ```bash
-pip install kairos-sdk
+pip install finic-kairos
 ```
 
 ## Create the client
@@ -329,7 +329,7 @@ The SDK also loads history from CSV and JSON-lines files: `python -m kairos impo
 `python -m kairos train` trains an XGBoost model on the runs of a workflow and the labels that came after them, and uploads it as the next version of a model. XGBoost is an optional extra, so the client itself still needs nothing but the standard library:
 
 ```bash
-pip install "kairos-sdk[train]"
+pip install "finic-kairos[train]"
 python -m kairos train model.json            # train, and upload
 python -m kairos train model.json --out ./m  # also write model.json and upload.json
 python -m kairos train model.json --out ./m --no-upload

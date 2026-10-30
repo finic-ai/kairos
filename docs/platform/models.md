@@ -63,7 +63,7 @@ A row is positive when its subject got one of your labels, such as `charged_off`
 Install the training extra, and write a config file:
 
 ```bash
-pip install "kairos-sdk[train]"
+pip install "finic-kairos[train]"
 ```
 
 ```json

@@ -2,7 +2,7 @@
 
     python -m kairos train model.json [--out DIR] [--no-upload]
 
-Needs ``pip install "kairos-sdk[train]"``.
+Needs ``pip install "finic-kairos[train]"``.
 """
 
 from __future__ import annotations
@@ -209,7 +209,7 @@ def _xgboost() -> Any:
     try:
         import xgboost  # type: ignore[import-not-found]
     except ImportError:
-        raise KairosError('train needs XGBoost: pip install "kairos-sdk[train]"') from None
+        raise KairosError('train needs XGBoost: pip install "finic-kairos[train]"') from None
     return xgboost
 
 

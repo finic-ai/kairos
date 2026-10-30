@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "kairos-sdk"
+name = "finic-kairos"
 version = "0.1.0"
 description = "Kairos client: track financial events and request decisions."
 readme = "README.md"

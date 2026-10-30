@@ -17,7 +17,7 @@ npm install @finic-ai/kairos
 ```
 
 ```bash
-pip install kairos-sdk
+pip install finic-kairos
 ```
 
 Or use any HTTP client: the [API reference](../reference/api.md) has every endpoint.

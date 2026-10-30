@@ -11,7 +11,7 @@ For people who change Kairos itself: where things are, how to run and test them,
 | `apps/cli` | `kairos`, the CLI: starts Kairos, connects to a server, and calls its API. |
 | `packages/core` | The decision path as a library: generic baseline and context builder, action definitions, Grayson client, policy. No I/O besides the model call, and no knowledge of any one product. |
 | `packages/sdk` | `@finic-ai/kairos`, the TypeScript client. Start with the [SDK guide](../reference/clients/typescript.md). |
-| `packages/sdk-python` | `kairos-sdk`, the Python client. Standard library only. See the [Python SDK guide](../reference/clients/python.md). |
+| `packages/sdk-python` | `finic-kairos`, the Python client. Standard library only. See the [Python SDK guide](../reference/clients/python.md). |
 | `packages/kairosjs` | `kairosjs`, the browser library: visitor identifier, browser detection and bot detection. It does not use the server. Not in the repository: `.gitignore` leaves it out. |
 | `packages/eval` | The evaluation suite: 100 synthetic cases, a cached runner, and an accepted baseline to compare against. |
 | `templates/` | Action definitions used by the examples and evaluation suite, and recommended event shapes with a schema and an example. One JSON file each. See [Templates](../templates/overview.md). |

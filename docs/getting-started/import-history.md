@@ -33,7 +33,7 @@ With the [Kairos CLI](../reference/clients/cli.md) (`npm install -g @kairos/cli`
 
 With Python:
 
-- Python 3.9 or later, and the SDK: `pip install kairos-sdk`
+- Python 3.9 or later, and the SDK: `pip install finic-kairos`
 - A **secret** key (`ksk_…`) for the workspace, from **Settings › API keys**
 
 ```bash
