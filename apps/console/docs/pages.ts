@@ -224,7 +224,7 @@ export const groups: DocGroup[] = [
           {
             slug: "reference/clients/python",
             title: "Python SDK",
-            blurb: "kairos-sdk: the same client, with Python names.",
+            blurb: "finic-kairos: the same client, with Python names.",
           },
           {
             slug: "reference/clients/cli",
