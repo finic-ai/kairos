@@ -51,6 +51,7 @@ export function WorkflowExperimentPage({ name, id }: { name: string; id: string 
   });
   const [open, setOpen] = useState<string | null>(null);
   const [applying, setApplying] = useState<ExperimentResult | null>(null);
+  const [renaming, setRenaming] = useState<ExperimentResult | null>(null);
   const [applied, setApplied] = useState<{ variant: string; workflow: WorkflowDefinition; published: boolean } | null>(
     null,
   );
@@ -113,6 +114,17 @@ export function WorkflowExperimentPage({ name, id }: { name: string; id: string 
             : `${nameOf(applied.variant)} is saved as the draft of ${title}. `}
           <a href={href("workflows", applied.workflow.name)}>Open the builder</a>
         </div>
+      )}
+      {renaming && (
+        <RenameModal
+          experiment={experiment}
+          variant={renaming}
+          onClose={() => setRenaming(null)}
+          onRenamed={() => {
+            setRenaming(null);
+            void refetch();
+          }}
+        />
       )}
       {applying && (
         <ApplyModal
@@ -268,6 +280,16 @@ export function WorkflowExperimentPage({ name, id }: { name: string; id: string 
                             {rateText(v.metrics.at_review.precision, v.metrics.at_review.recall)}
                           </td>
                           <td style={num}>
+                            <button
+                              type="button"
+                              className="btn ghost"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setRenaming(v);
+                              }}
+                            >
+                              Rename
+                            </button>{" "}
                             {!isApplied && experiment.status === "done" && (
                               <button
                                 type="button"
@@ -548,6 +570,65 @@ function ApplyModal({
           </button>
         </div>
       </div>
+    </Modal>
+  );
+}
+
+function RenameModal({
+  experiment,
+  variant,
+  onClose,
+  onRenamed,
+}: {
+  experiment: Experiment;
+  variant: ExperimentResult;
+  onClose: () => void;
+  onRenamed: () => void;
+}) {
+  const [name, setName] = useState(variant.name);
+  const [busy, setBusy] = useState(false);
+  const [problem, setProblem] = useState<string | null>(null);
+  const save = async () => {
+    setBusy(true);
+    setProblem(null);
+    try {
+      await experiments.rename(experiment.id, { variants: { [variant.key]: name.trim() } });
+      onRenamed();
+    } catch (e) {
+      setProblem((e as Error).message);
+      setBusy(false);
+    }
+  };
+  return (
+    <Modal title="Rename the variant" onClose={() => !busy && onClose()}>
+      <form
+        className="modal-body"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void save();
+        }}
+      >
+        {problem && <div className="banner">{problem}</div>}
+        <label className="field">
+          <span>Name</span>
+          <input
+            className="input"
+            value={name}
+            maxLength={80}
+            autoFocus
+            onChange={(e) => setName(e.target.value)}
+            disabled={busy}
+          />
+        </label>
+        <div className="modal-foot">
+          <button type="button" className="btn" onClick={onClose} disabled={busy}>
+            Cancel
+          </button>
+          <button type="submit" className="btn primary" disabled={busy || !name.trim() || name.trim() === variant.name}>
+            {busy ? "Saving…" : "Save"}
+          </button>
+        </div>
+      </form>
     </Modal>
   );
 }

@@ -404,4 +404,28 @@ describe("an experiment", { timeout: 60_000 }, () => {
     const apply = await call("POST", `/v1/workflow-experiments/${made.body.id}/apply`, { variant: "score" });
     expect(apply.status).toBe(400);
   });
+
+  it("renames itself and its variants, and keeps their keys", async () => {
+    await history(700);
+    const made = await call("POST", "/v1/workflows/loan_review/experiments", experiment);
+    await runExperiment(database.db, await scopeOf(), made.body.id, () => NOW);
+    const path = `/v1/workflow-experiments/${made.body.id}`;
+
+    const renamed = await call("PATCH", path, {
+      name: "Loans, round 2",
+      variants: { stacked: "Trees + logistic regression" },
+    });
+    expect(renamed.status).toBe(200);
+    expect(renamed.body.config.name).toBe("Loans, round 2");
+    const stacked = (e: any, part: "config" | "results") =>
+      (part === "config" ? e.config.variants : e.results).find((v: any) => v.key === "stacked");
+    for (const part of ["config", "results"] as const)
+      expect(stacked(renamed.body, part).name).toBe("Trees + logistic regression");
+    const read = (await call("GET", path)).body;
+    expect(stacked(read, "results")).toMatchObject({ name: "Trees + logistic regression", problems: [] });
+    expect(read.results.find((v: any) => v.key === "score").name).toBe(made.body.config.variants[0].name);
+
+    expect((await call("PATCH", path, { variants: { nope: "X" } })).status).toBe(400);
+    expect((await call("PATCH", path, {})).status).toBe(400);
+  });
 });

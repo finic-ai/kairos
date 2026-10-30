@@ -98,7 +98,7 @@ def _parser() -> argparse.ArgumentParser:
     labels.add_argument("--ts", help="The column with the time the outcome became known. Default: now.")
     labels.add_argument("--ts-format", default="iso", help="As for events.")
 
-    trainer = commands.add_parser("train", help="Train an XGBoost model on a workflow's runs, and upload it.", description='Train an XGBoost scoring model on the runs of a workflow, and upload it as the next version of a model. Needs pip install "kairos-sdk[train]".')
+    trainer = commands.add_parser("train", help="Train an XGBoost model on a workflow's runs, and upload it.", description='Train an XGBoost scoring model on the runs of a workflow, and upload it as the next version of a model. Needs pip install "finic-kairos[train]".')
     trainer.add_argument("config", type=Path, help="A JSON file: model, workflow, labels, window, features, and the options of the training.")
     trainer.add_argument("--out", type=Path, help="Also write model.json and upload.json to this folder.")
     trainer.add_argument("--no-upload", action="store_true", help="Train, and upload nothing. Use it with --out to look at the model first.")

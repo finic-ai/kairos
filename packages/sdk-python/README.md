@@ -1,4 +1,4 @@
-# kairos-sdk
+# finic-kairos
 
 Python client for Kairos. Track financial events, then ask for a decision at the moment of action.
 
@@ -13,7 +13,7 @@ This page is the short version. The full [Python SDK guide](https://kairos.finic
 Install it from PyPI:
 
 ```bash
-pip install kairos-sdk
+pip install finic-kairos
 ```
 
 ## Use

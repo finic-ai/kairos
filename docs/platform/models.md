@@ -63,7 +63,7 @@ A row is positive when its subject got one of your labels, such as `charged_off`
 Install the training extra, and write a config file:
 
 ```bash
-pip install "kairos-sdk[train]"
+pip install "finic-kairos[train]"
 ```
 
 ```json
@@ -222,6 +222,8 @@ How the server runs it:
 An experiment is `queued`, then `running`, then `done` or `failed` with its `error`. It needs at least 100 labeled runs, with both outcomes in each part. After an error that can pass, such as a lost database connection, it is `queued` again with its `error` until the retry. A variant that cannot be trained is left out of the results and listed in `dataset.failed`; the others still run.
 
 **Choose and apply.** `POST /v1/workflow-experiments/:id/apply` with `{ "variant", "reason", "publish" }` writes the variant's steps as the workflow's draft, or with `publish` as its next version, and records who chose it and why. The best on validation is a suggestion: weigh the test metrics and the gain's interval. An experiment is applied once. Apply answers 409 when a variant was applied already, when the workflow has a newer version than the one the experiment ran on, or, without `publish`, when the workflow has a draft.
+
+**Rename.** `PATCH /v1/workflow-experiments/:id` with `{ "name", "variants": { "<key>": "<name>" } }` renames the experiment or its variants, at any time. In the console, **Rename** on a variant does the same.
 
 In the console, a workflow's **Experiments** tab, beside **Builder** and **Runs**, lists its experiments; the count on the tab shows in colour while one runs. The **⋯** menu has **Experiments** too. Each experiment shows its variants, their accuracy, the best, the one chosen and why, and **Apply**.
 

@@ -1,7 +1,7 @@
 import type { ModelSummary, UploadedModel, WorkflowDefinition, WorkflowStep } from "../types/interfaces";
 import { walk } from "./workflowTree";
 
-export const TRAIN_SNIPPET = `pip install "kairos-sdk[train]"
+export const TRAIN_SNIPPET = `pip install "finic-kairos[train]"
 python -m kairos train model.json`;
 
 export const KIND_LABEL = { question: "Question model", scoring: "Scoring model" } as const;

@@ -128,3 +128,13 @@ export const applyBody = z
     by: z.string().trim().min(1).max(200).optional(),
   })
   .strict();
+
+export const renameBody = z
+  .object({
+    name: z.string().trim().min(1).max(120).optional(),
+    /** Variant key → its new name. */
+    variants: z.record(z.string().trim().min(1).max(80)).optional(),
+  })
+  .strict()
+  .refine((b) => b.name !== undefined || Object.keys(b.variants ?? {}).length > 0, "a name or variants to rename");
+export type RenameBody = z.infer<typeof renameBody>;
