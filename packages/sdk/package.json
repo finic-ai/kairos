@@ -1,6 +1,7 @@
 {
   "name": "@finic-ai/kairos",
   "version": "0.1.0",
+  "license": "Apache-2.0",
   "description": "Kairos client: track financial events and request decisions.",
   "type": "module",
   "main": "./dist/index.js",
