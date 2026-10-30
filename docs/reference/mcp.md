@@ -140,6 +140,7 @@ An admin turns the groups on and off in **Settings › MCP**, for the whole work
 | `save_workflow_draft`, `publish_workflow`                  | Build  | `PUT /v1/workflows/:name/draft`, `POST /v1/workflows/:name/publish`              |
 | `create_workflow_experiment`                               | Build  | `POST /v1/workflows/:name/experiments`                                           |
 | `apply_workflow_experiment`                                | Build  | `POST /v1/workflow-experiments/:id/apply`                                        |
+| `rename_workflow_experiment`                               | Build  | `PATCH /v1/workflow-experiments/:id`                                             |
 
 Each tool has the MCP annotations `readOnlyHint` and `destructiveHint`. A client uses them to ask the person before a write. `resolve_decision` and `resolve_case` are destructive.
 

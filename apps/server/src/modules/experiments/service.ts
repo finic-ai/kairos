@@ -30,7 +30,7 @@ import {
   transform,
   variantSteps,
 } from "./libs";
-import type { ExperimentBody, ExperimentVariant } from "./schema";
+import type { ExperimentBody, ExperimentVariant, RenameBody } from "./schema";
 
 type Scope = { workspaceId: string; environmentId: string };
 
@@ -85,6 +85,35 @@ export async function getExperiment(db: Executor, scope: Scope, id: string) {
   const row = await new WorkflowExperimentsService(db, scope).findFirst({ where: { id } });
   if (!row) throw notFound(`No experiment "${id}"`);
   return row;
+}
+
+/** Renames the experiment or its variants. Names are labels: the keys, models and steps stay. */
+export async function renameExperiment(db: Executor, scope: Scope, id: string, body: RenameBody, now: Date) {
+  return db.transaction(async (tx) => {
+    const experiments = new WorkflowExperimentsService(tx, scope);
+    await experiments.lock(id);
+    const row = await getExperiment(tx, scope, id);
+    const names = body.variants ?? {};
+    const variants = (row.config.variants ?? []) as { key: string; name: string }[];
+    const unknown = Object.keys(names).filter((key) => !variants.some((v) => v.key === key));
+    if (unknown.length)
+      throw invalid(`variants: the experiment has no variant ${unknown.map((k) => `"${k}"`).join(", ")}`);
+    const renamed = <T extends Record<string, unknown>>(v: T) =>
+      typeof v.key === "string" && names[v.key] !== undefined ? { ...v, name: names[v.key] } : v;
+    const [saved] = await experiments.updateMany(
+      { id },
+      {
+        config: {
+          ...row.config,
+          ...(body.name !== undefined ? { name: body.name } : {}),
+          variants: variants.map(renamed),
+        },
+        ...(row.results ? { results: row.results.map(renamed) } : {}),
+      },
+      now,
+    );
+    return toExperimentView(saved!);
+  });
 }
 
 interface Split {

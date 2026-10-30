@@ -1,8 +1,8 @@
 import { Hono, type Context } from "hono";
 import { checked, type Env } from "../../platform/http";
 import { toExperimentView } from "../../services/workflow_experiment.service";
-import { applyBody, experimentBody } from "./schema";
-import { applyExperiment, createExperiment, getExperiment, listExperiments } from "./service";
+import { applyBody, experimentBody, renameBody } from "./schema";
+import { applyExperiment, createExperiment, getExperiment, listExperiments, renameExperiment } from "./service";
 import type { ExperimentsDeps } from "./types";
 
 const scopeOf = (c: Context<Env>) => ({ workspaceId: c.get("workspaceId"), environmentId: c.get("environmentId") });
@@ -33,6 +33,10 @@ export function experimentRoutes({ db, now, wake }: ExperimentsDeps) {
 
   app.get("/workflow-experiments/:id", async (c) =>
     c.json(toExperimentView(await getExperiment(db, scopeOf(c), c.req.param("id")))),
+  );
+
+  app.patch("/workflow-experiments/:id", async (c) =>
+    c.json(await renameExperiment(db, scopeOf(c), c.req.param("id"), checked(renameBody, await json(c)), now())),
   );
 
   app.post("/workflow-experiments/:id/apply", async (c) => {

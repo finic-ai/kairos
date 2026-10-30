@@ -7,7 +7,7 @@ import { metricRequest } from "../../observe/schema";
 import type { McpGroup, McpToolInfo } from "../types";
 
 export interface RouteRequest {
-  method: "GET" | "POST" | "PUT";
+  method: "GET" | "POST" | "PUT" | "PATCH";
   path: string;
   query?: Record<string, string | number | boolean | undefined>;
   body?: unknown;
@@ -564,6 +564,20 @@ const tools: Tool[] = [
       path: at("workflow-experiments", id, "apply"),
       body: { ...body, by: actor },
     }),
+  },
+  {
+    name: "rename_workflow_experiment",
+    title: "Rename an experiment or its variants",
+    group: "build",
+    description:
+      'Rename an experiment, or some of its variants, so people reading it see what each one is, such as "Logistic regression + Grayson\'s answers". Names only: the keys, models, steps and results stay as they are.',
+    input: z.object({
+      id: z.string().min(1).describe('The experiment id, "wfx_…".'),
+      name: z.string().min(1).max(120).optional().describe("The experiment's new name."),
+      variants: z.record(z.string().min(1).max(80)).optional().describe("Variant key → its new name."),
+    }),
+    annotations: write(),
+    request: ({ id, ...body }) => ({ method: "PATCH", path: at("workflow-experiments", id), body }),
   },
 ];
 
