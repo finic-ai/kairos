@@ -67,6 +67,16 @@ const tools: Tool[] = [
     request: (a) => ({ method: "GET", path: at("actions", a.name) }),
   },
   {
+    name: "get_client_settings",
+    title: "Get the client settings",
+    group: "read",
+    description:
+      "Get what the website script, the mobile SDKs, the edge and the SDK middleware collect in this key's environment: consent, the personal data that is never sent, the route mode (off, monitor or active), the pages and screens that are tracked, and the routes that send events or ask for decisions. `version` goes up by one on each save.",
+    input: z.object({}),
+    annotations: read,
+    request: () => ({ method: "GET", path: "/v1/client-settings" }),
+  },
+  {
     name: "list_decisions",
     title: "List decisions",
     group: "read",
@@ -498,6 +508,18 @@ const tools: Tool[] = [
     input: z.object({ name: z.string().min(1), definition: z.record(z.unknown()) }),
     annotations: write({ idempotentHint: true }),
     request: (a) => ({ method: "PUT", path: at("actions", a.name), body: a.definition }),
+  },
+  {
+    name: "save_client_settings",
+    title: "Save the client settings",
+    group: "build",
+    description: [
+      "Save what the website script, the mobile SDKs, the edge and the SDK middleware collect in this key's environment: `consent`, `defaults` (`country`, `off`, `sessionCookie`), `routing` (`mode`, `other`), `pages`, `screens` and `routes`. The body is the route's: see PUT /v1/client-settings.",
+      "It replaces all of them, so read them first with get_client_settings and send them back with your change. A route's mode is track, decide_request or decide_response (the edge only); one that decides needs a `fallback`. The routes are run by the edge, and by the SDK middleware when it opts in. Leave `enforce` off, and `routing.mode` at monitor, until the decisions were checked: only `routing.mode` active lets a route block.",
+    ].join(" "),
+    input: z.object({ settings: z.record(z.unknown()) }),
+    annotations: write({ idempotentHint: true }),
+    request: (a) => ({ method: "PUT", path: "/v1/client-settings", body: a.settings }),
   },
   {
     name: "save_workflow_draft",

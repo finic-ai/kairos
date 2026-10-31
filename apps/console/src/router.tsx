@@ -23,6 +23,7 @@ import { OverviewPage } from "./pages/overview/OverviewPage";
 import { SessionPage } from "./pages/sessions/SessionPage";
 import { SessionsPage } from "./pages/sessions/SessionsPage";
 import { ActivityPage } from "./pages/settings/ActivityPage";
+import { IntegrationsPage } from "./pages/settings/integrations/IntegrationsPage";
 import { EnvironmentsPage } from "./pages/settings/EnvironmentsPage";
 import { GeneralPage } from "./pages/settings/GeneralPage";
 import { JobsPage } from "./pages/settings/JobsPage";
@@ -120,6 +121,10 @@ const McpRoute = settingsPage(McpPage);
 const UsageRoute = settingsPage(UsagePage);
 const JobsRoute = settingsPage(JobsPage);
 const ActivityRoute = settingsPage(ActivityPage);
+
+function IntegrationsRoute() {
+  return <IntegrationsPage {...settingsProps(useWorkspace())} id={useParams().id} />;
+}
 
 function EnvironmentsRoute() {
   const { workspace, environment, onRefresh, onChooseEnvironment } = useWorkspace();
@@ -233,6 +238,7 @@ export const createRouter = () =>
             { path: "models", element: <ModelsPage /> },
             { path: "models/:slug", element: <ModelRoute /> },
             { path: "keys", element: <KeysRoute /> },
+            { path: "integrations/:id?", element: <IntegrationsRoute /> },
             { path: "mcp", element: <McpRoute /> },
             { path: "usage", element: <UsageRoute /> },
             { path: "activity", element: <ActivityRoute /> },

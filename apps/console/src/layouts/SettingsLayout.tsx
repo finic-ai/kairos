@@ -29,6 +29,7 @@ export const SETTINGS_TABS: { title: string; items: { id: string; label: string 
     title: "Developer",
     items: [
       { id: "keys", label: "API keys" },
+      { id: "integrations", label: "Integrations" },
       { id: "mcp", label: "MCP" },
       { id: "webhooks", label: "Webhooks" },
       { id: "jobs", label: "Jobs" },

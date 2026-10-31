@@ -105,7 +105,7 @@ An admin turns the groups on and off in **Settings › MCP**, for the whole work
 | Read   | Read actions, decisions, entities, sessions, cases, workflows and metrics. Nothing changes.                                   |
 | Write  | Send events, label entities and add notes to cases. Events can start automatic decisions, as events from your server do.      |
 | Decide | Ask for decisions, resolve decisions and cases, and start workflow runs. These call the model, end reviews and send webhooks. |
-| Build  | Save entity types, actions and workflow drafts, publish workflows, and run and apply experiments. These change what Kairos decides.  |
+| Build  | Save entity types, actions, client settings and workflow drafts, publish workflows, and run and apply experiments. These change what Kairos decides and collects. |
 
 `tools/list` shows only the tools of the groups that are on.
 
@@ -127,6 +127,7 @@ An admin turns the groups on and off in **Settings › MCP**, for the whole work
 | `get_workflow`                                             | Read   | `GET /v1/workflows/:name`                                                        |
 | `list_models`, `get_model`                                 | Read   | `GET /v1/models`, `GET /v1/models/:slug`                                         |
 | `list_workflow_experiments`, `get_workflow_experiment`     | Read   | `GET /v1/workflows/:name/experiments`, `GET /v1/workflow-experiments/:id`        |
+| `get_client_settings`                                      | Read   | `GET /v1/client-settings`                                                        |
 | `track_events`                                             | Write  | `POST /v1/events`                                                                |
 | `label_entities`                                           | Write  | `POST /v1/labels`                                                                |
 | `add_case_note`                                            | Write  | `POST /v1/cases/:id/notes`                                                       |
@@ -137,6 +138,7 @@ An admin turns the groups on and off in **Settings › MCP**, for the whole work
 | `start_workflow_run`                                       | Decide | `POST /v1/workflows/:name/runs`                                                  |
 | `save_entity_type`                                         | Build  | `PUT /v1/entity-types/:type`                                                     |
 | `save_action`                                              | Build  | `PUT /v1/actions/:name`                                                          |
+| `save_client_settings`                                     | Build  | `PUT /v1/client-settings`                                                        |
 | `save_workflow_draft`, `publish_workflow`                  | Build  | `PUT /v1/workflows/:name/draft`, `POST /v1/workflows/:name/publish`              |
 | `create_workflow_experiment`                               | Build  | `POST /v1/workflows/:name/experiments`                                           |
 | `apply_workflow_experiment`                                | Build  | `POST /v1/workflow-experiments/:id/apply`                                        |

@@ -600,6 +600,47 @@ What a metric can be filtered and grouped by in this workspace: `{ actions, sign
 | `GET /v1/usage?days=30` | What the workspace used in the last days (1 to 366): `{ days_asked, since, days: [{ day, events, decisions, input_tokens }], by_action, by_event_type, stored: { events, decisions, entities } }`. Events are counted by the day the server received them. |
 | `GET /v1/overview` | What the console's overview page shows, in one request. Its shape follows the console and can change. |
 
+## Client settings
+
+What the website script, the mobile SDKs, the edge and the SDK middleware collect, for the environment of the key. The console shows them in **Settings › Integrations › Client settings**. A secret key only.
+
+| | |
+|---|---|
+| `GET /v1/client-settings` | `{ version, consent, defaults, routing, pages, screens, routes }`. `version` is 0 until the first save. |
+| `PUT /v1/client-settings` | Replaces all of them, and answers them with the next `version`. |
+
+```json
+{
+  "consent": "required",
+  "defaults": { "country": "GB", "off": ["address"], "sessionCookie": "sid" },
+  "routing": { "mode": "monitor", "other": "ignore" },
+  "pages": [{ "path": "/checkout", "type": "checkout_viewed" }],
+  "screens": [{ "name": "Transfer", "type": "transfer_screen_viewed" }],
+  "routes": [
+    {
+      "route": "POST /login",
+      "mode": "decide_response",
+      "type": "login",
+      "failed": "login_failed",
+      "fields": { "userId": { "from": "response.header", "path": "x-kairos-user" } },
+      "fallback": "approve",
+      "enforce": false
+    }
+  ]
+}
+```
+
+| Field | |
+|---|---|
+| `consent` | `required` or `not_required`. |
+| `defaults.country` | Two letters, for a phone number with no country code. |
+| `defaults.off` | Kinds of personal data never sent: `email`, `phone`, `address`, `username`. |
+| `defaults.sessionCookie` | The name of the login session cookie. Only its hash is sent. |
+| `routing.mode` | For the edge and the SDK middleware. `off`: nothing is sent for routes. `monitor`, the default: the routes track and decide, but never block. `active`: routes with `enforce` can block, redirect or step up. |
+| `routing.other` | What is done with a request that matches no route: `ignore`, the default, or `discover`, which sends the shape of a sample of bodies (key names and value types, never values). |
+| `pages`, `screens` | A path or a screen name, and the event type it sends. At most 200 of each. |
+| `routes` | Run by the edge, and by the SDK middleware when it opts in. A method and a path, a `mode` (`track`, `decide_request`, or `decide_response`, which only the edge runs), the event `type`, an optional `failed` type for a 4xx, and `fields`. A route that decides needs a `fallback`, and can have `timeoutMs`, `block`, `stepUp` and `enforce`. At most 100. |
+
 ## Inbound webhooks
 
 A provider sends its webhooks to Kairos, which stores them as events and labels. The guide is [Inbound webhooks](../platform/webhooks/inbound.md).

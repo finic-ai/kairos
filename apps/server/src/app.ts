@@ -22,6 +22,7 @@ import { tenancyModule } from "./modules/tenancy";
 import { apiAuth } from "./platform/auth";
 import { activityLog } from "./platform/activity";
 import { activitiesModule } from "./modules/activities";
+import { clientsModule } from "./modules/clients";
 import { internalRoutes } from "./internal";
 import { SessionsService } from "./services/session.service";
 import { UsersService } from "./services/user.service";
@@ -101,6 +102,13 @@ export function createApp(options: AppOptions) {
     onQueued,
   });
   const activities = activitiesModule({ db, sessions, requireRole: tenancy.tenancy.requireRole, now });
+  const clients = clientsModule({
+    db,
+    environments: environmentService,
+    sessions,
+    requireRole: tenancy.tenancy.requireRole,
+    now,
+  });
   const mcp = mcpModule({
     db,
     app: () => app,
@@ -121,6 +129,7 @@ export function createApp(options: AppOptions) {
   app.route("/app", webhookModule.adminRoutes);
   app.route("/app", jobModule.routes);
   app.route("/app", mcp.adminRoutes);
+  app.route("/app", clients.adminRoutes);
   app.route("/app", activities.routes);
 
   // Registered before the key check, which an inbound webhook and a workflow's webhook skip.
@@ -148,6 +157,7 @@ export function createApp(options: AppOptions) {
   app.route("/v1", modelModule.routes);
   app.route("/v1", experimentModule.routes);
   app.route("/v1", observe.routes);
+  app.route("/v1", clients.routes);
 
   // The MCP Inspector and other browser clients send a key, not a cookie, so any origin can ask.
   app.use(
