@@ -160,13 +160,17 @@ export function DecisionPage({ id }: { id: string }) {
           </section>
 
           {traced && (
-            <Card title="Signals" className="o-signals">
-              <WorkflowSignals
-                run={traced.run}
-                steps={traced.definition.steps}
-                actionSignals={{ signals, descriptions: action?.reasons, threshold }}
-              />
-            </Card>
+            <WorkflowSignals
+              run={traced.run}
+              steps={traced.definition.steps}
+              decision={{
+                action: d.action,
+                signals,
+                descriptions: action?.reasons,
+                threshold,
+                policy: action?.policy?.rules,
+              }}
+            />
           )}
 
           {traced && (
@@ -176,6 +180,11 @@ export function DecisionPage({ id }: { id: string }) {
                 definition={traced.definition}
                 outcome={outcome}
                 entityTypes={entityTypes}
+                decision={
+                  asked
+                    ? { action: d.action, events: d.context.recent_events, pending: d.context.pending_action, signals }
+                    : undefined
+                }
               />
               <p className="note" style={{ margin: "14px 0 0" }}>
                 The steps of <span className="mono">{workflow}</span> in order, with what each one read and gave.{" "}

@@ -32,4 +32,10 @@ export interface DecisionFilter {
   action?: string;
   subject?: EntityRef;
   session?: string;
+  /** "workflow": made by a decision workflow. "policy": a policy rule of the action fired. */
+  decided_by?: "workflow" | "policy";
+  /** A decision workflow, as "review_payouts" (every version) or "review_payouts@2". */
+  workflow?: string;
+  /** A policy rule that fired. */
+  rule?: string;
 }

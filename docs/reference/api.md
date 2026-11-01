@@ -511,12 +511,17 @@ The decision log, newest first, without the context and the raw answer.
 | `action` | An action key (every version) or `key@version`. |
 | `subject_type`, `subject_id` | Decisions about one entity. Both are needed. |
 | `session` | Decisions made in one session. |
+| `decided_by` | `workflow`: decisions that a [decision workflow](../platform/workflows.md#decision-request) made. `policy`: decisions where a policy rule of the action fired. |
+| `workflow` | Decisions that one decision workflow made: its key (every version) or `key@version`. |
+| `rule` | Decisions where one policy rule of the action fired. With `action`, the rule of that action only. Only rules in the policy of the action version that decided count: a rule that only a workflow's answer names is not one. |
 | `limit`, `offset` | Default 50, at most 200. |
 | `before` | Only decisions before this time, for paging by time. |
 
 ```json
 { "decisions": [{ "id": "kdec_…", "ts": "…", "action": "bank_transfer@2", "subject": { "type": "user", "id": "user_42" }, "decision": { … }, "session": "sess_7f3a" }], "total": 298, "next_before": "…" }
 ```
+
+A decision that a workflow made also has `"metadata": { "decision_workflow": "review_transfers@3" }`.
 
 ### `GET /v1/decisions/:id`
 

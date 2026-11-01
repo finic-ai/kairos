@@ -26,7 +26,15 @@ import type {
 
 export const api = {
   stats: () => request<Stats>("GET", "/v1/stats"),
-  decisions: (filter: { outcome?: string; action?: string; limit?: number; offset?: number }) => {
+  decisions: (filter: {
+    outcome?: string;
+    action?: string;
+    decided_by?: "workflow" | "policy";
+    workflow?: string;
+    rule?: string;
+    limit?: number;
+    offset?: number;
+  }) => {
     const query = new URLSearchParams();
     for (const [k, v] of Object.entries(filter)) if (v) query.set(k, String(v));
     return request<{ decisions: DecisionSummary[]; total: number }>("GET", `/v1/decisions?${query}`);

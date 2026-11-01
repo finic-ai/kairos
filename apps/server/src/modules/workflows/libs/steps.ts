@@ -371,7 +371,8 @@ async function assessStep(step: WorkflowStepDef, vars: Variables, ctx: StepConte
     throw new StepFailure((cause as Error).message, true);
   }
   ctx.onAssess?.(assessment);
-  ctx.onRead?.({ model: (assessment.raw as { model?: string }).model, context: assessment.context });
+  const raw = assessment.raw as { model?: string; answers?: unknown };
+  ctx.onRead?.({ model: raw.model, context: assessment.context, answers: raw.answers });
   return assessment.decision;
 }
 
