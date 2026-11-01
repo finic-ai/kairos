@@ -306,11 +306,34 @@ The key is the method and the route as you registered it, with its prefix: `/api
 - A status below 400 sends `type`. A 4xx sends `failed`, if the route has one. A 5xx sends nothing.
 - A request with no entity sends nothing, and nothing is raised.
 - If the handler tracked the same event type, the route's event is left out.
-- The middleware does not read the request body. `properties` is the only way data gets onto the event.
+- `routes` do not read the request body. `properties` is the only way data gets onto the event.
 - The route comes from `scope["route"]`, which Starlette and FastAPI set. With a framework that does not, no event is sent.
 - In a serverless function, pass `flush=True`: the queue is sent before the request ends.
 
 See [Events for routes](typescript.md#events-for-routes) in the TypeScript guide for what a decision sees and when to use `track`.
+
+### Routes from the console
+
+The routes can also come from **Settings › Integrations › Client settings**, where a person changes them with no deployment:
+
+```python
+app.add_middleware(
+    KairosASGI,
+    client=kairos,
+    entities=lambda scope: {"user": scope["state"].get("user_id")},
+    client_settings=True,
+    hash_key=os.environ["KAIROS_HASH_KEY"],
+)
+```
+
+It works as in the TypeScript middleware: see [Routes from the console](typescript.md#routes-from-the-console). In Python:
+
+- The settings are read in a thread when the middleware starts, and again each minute. A request never waits for them.
+- A route matches the path of the request, such as `POST /api/payees/:id`: the console's form, not FastAPI's `{payee_id}`.
+- **Decide on request** asks for a decision before your app runs, in a thread, and puts it on `scope["state"]["kairos_decision"]`, which FastAPI shows as `request.state.kairos_decision`. With the route mode **Active** and the route's **Enforce** on, a `block` answers with the route's block response, and a `step_up` with a step-up page redirects.
+- The `kairos_device` cookie of the [JavaScript tag](browser.md#the-device) gives the `device` entity when `entities` gives none, and its `kairos_visit` cookie gives the session when `session` and the settings' session cookie give none.
+- Behind the [Kairos edge](edge.md#with-the-middleware-on-your-servers), the middleware sends the events of a route, and takes the edge's decision for a route that decides on the request. Give both the same hash key.
+- A route with body fields reads the body before your app, and gives your app the same body. It reads only JSON, so a file upload is never read, and stops at 128 KB: past it, your app gets the rest as it comes, and the body fields are left out.
 
 ## Backtesting
 
@@ -370,6 +393,7 @@ In code, `kairos.training` has the same parts: `TrainingConfig.from_dict`, `fetc
 | `label(entity, label, properties=None, *, timestamp)` | `None` | |
 | `resolve(decision_id, outcome, *, note, by)` | `dict` | A person's decision on a decision: `outcome` is `"approve"` or `"block"`. Returns the decision with its new `revision`, `resolution` and `final_outcome`. |
 | `run_workflow(name, input=None, *, wait=False, timeout_seconds, idempotency_key)` | `dict` | Starts a run of a workflow, and returns it. With `wait`, its `output` too. See [Run and wait](../../platform/workflows.md#run-and-wait). |
+| `client_settings()` | `dict` | The client settings of the key's environment. See [Client settings](../api.md#client-settings). |
 | `flush()` | `None` | Sends the queue and waits. |
 | `shutdown()` | `None` | Flushes and closes the client. |
 | `context(entities=None, *, session, subject="user")` | a context manager | Says who is acting, for the calls in the block. |
@@ -386,6 +410,8 @@ In code, `kairos.training` has the same parts: `TrainingConfig.from_dict`, `fetc
 | `subject` | `"user"` | The entity type of the person who makes the request. |
 | `routes` | none | `"METHOD /pattern"` → an event type, or `{"type", "failed", "properties"}`. |
 | `flush` | `False` | Send the queue before the request ends, when a route sent an event. |
+| `client_settings` | `False` | `True` also runs the routes of the client settings. See [Routes from the console](#routes-from-the-console). |
+| `hash_key` | none | The secret for hashed fields and cookies. |
 
 ### `verify_webhook(body, headers, secret, *, tolerance_seconds=300, now=None)`
 

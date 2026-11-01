@@ -127,7 +127,7 @@ def _by_subject(name: str, value: Any, entities: Mapping[str, str], about: list[
 
 def _http(method: str, url: str, headers: dict[str, str], body: bytes, timeout: float) -> tuple[int, bytes, Mapping[str, str]]:
     """The default transport: the standard library, one request, no retries."""
-    request = urllib.request.Request(url, data=body, method=method, headers=headers)
+    request = urllib.request.Request(url, data=body or None, method=method, headers=headers)
     try:
         with urllib.request.urlopen(request, timeout=timeout) as response:
             return response.status, response.read(), dict(response.headers.items())
@@ -382,6 +382,20 @@ class Kairos:
         :param flush: Send queued events first, so the decision sees them. Default true.
         """
         event = self._event(type, properties, timestamp, event_id, universal_id, status, session, set, set_once, entities, _context.current(self))
+        return self._event_decision(event, fallback, timeout, flush)
+
+    def _auto_decide(self, scope: Scope, type: str, properties: Properties, *, fallback: Outcome, timeout: float | None) -> Decision | None:
+        """``track_and_decide`` for the route of a middleware. No decision for a request with no one to be about."""
+        try:
+            event = self._event(type, properties, None, None, None, None, None, None, None, None, scope)
+        except _NoEntity:
+            return None
+        except Exception as error:  # noqa: BLE001 - any failure of a resolver is reported, not raised
+            self._report(error)
+            return None
+        return self._event_decision(event, fallback, timeout, True)
+
+    def _event_decision(self, event: dict[str, Any], fallback: Outcome | None, timeout: float | None, flush: bool) -> Decision:
         limit = self._decide_timeout if timeout is None else timeout
         deadline = time.monotonic() + limit
         try:
@@ -410,6 +424,10 @@ class Kairos:
             self._drain(None, self._timeout)
         except KairosError as error:
             self._report(error)
+
+    def client_settings(self) -> dict[str, Any]:
+        """The client settings of the key's environment, as set in Settings › Integrations. Needs a secret key."""
+        return self._request("GET", "/v1/client-settings", None, time.monotonic() + self._timeout, self._timeout)
 
     def shutdown(self) -> None:
         """Send what is queued and stop the timer. Call before the process exits.
@@ -725,8 +743,10 @@ class Kairos:
 
     def _request(self, method: str, path: str, body: Any, deadline: float | None, limit: float) -> dict[str, Any]:
         """One request with retries. ``deadline`` is for the whole of it; without one, each attempt has ``limit``."""
-        data = _encode(body)
-        headers = {"Authorization": f"Bearer {self._api_key}", "Content-Type": "application/json", "User-Agent": "kairos-python/0.1.0"}
+        data = b"" if method == "GET" else _encode(body)
+        headers = {"Authorization": f"Bearer {self._api_key}", "User-Agent": "kairos-python/0.1.0"}
+        if method != "GET":
+            headers["Content-Type"] = "application/json"
         last: KairosError = KairosError("Request failed")
         for attempt in range(self._max_retries + 1):
             if attempt > 0:

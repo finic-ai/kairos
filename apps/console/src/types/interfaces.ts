@@ -498,6 +498,22 @@ export interface ApiKey {
   revoked: string | null;
 }
 
+export interface CloudflareZone {
+  id: string;
+  name: string;
+  account: string;
+}
+
+export interface CloudflareDeployment {
+  script: string;
+  zone: string;
+  pattern: string;
+  key: ApiKey;
+  public_key?: ApiKey;
+  /** Only when Kairos made it: shown once. */
+  hash_key?: string;
+}
+
 export type McpGroup = "read" | "write" | "decide" | "build";
 
 export interface McpTool {
@@ -513,6 +529,50 @@ export interface McpSettings {
   enabled: boolean;
   groups: McpGroup[];
   tools: McpTool[];
+}
+
+export type RouteMode = "track" | "decide_request" | "decide_response";
+export type RoutingMode = "off" | "monitor" | "active";
+export type FieldSource =
+  | "request.body"
+  | "request.query"
+  | "request.header"
+  | "request.cookie"
+  | "request.param"
+  | "response.header"
+  | "response.body";
+export type FieldKind = "email" | "phone" | "address" | "username" | "hmac" | "token";
+export type DataKind = "email" | "phone" | "address" | "username";
+
+export interface RouteField {
+  from?: FieldSource;
+  path?: string;
+  value?: string | number | boolean;
+  kind?: FieldKind;
+}
+
+export interface ClientRoute {
+  route: string;
+  mode: RouteMode;
+  type: string;
+  failed?: string;
+  fields: Record<string, RouteField>;
+  fallback?: Outcome;
+  timeoutMs?: number;
+  block?: { status: number; body?: unknown };
+  stepUp?: "forward" | { redirect: string };
+  enforce: boolean;
+}
+
+/** Settings › Integrations: what the browser script, the mobile SDKs, the edge and the SDK middleware collect in one environment. */
+export interface ClientSettings {
+  version: number;
+  consent: "required" | "not_required";
+  defaults: { country?: string; off: DataKind[]; sessionCookie?: string };
+  routing: { mode: RoutingMode; other: "ignore" | "discover" };
+  pages: { path: string; type: string }[];
+  screens: { name: string; type: string }[];
+  routes: ClientRoute[];
 }
 
 export type WebhookEvent =

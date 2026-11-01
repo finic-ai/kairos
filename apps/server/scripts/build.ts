@@ -11,6 +11,7 @@ import { cpSync, existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
+import { bundleWorker } from "../src/modules/cloudflare/libs";
 
 const server = fileURLToPath(new URL("..", import.meta.url));
 const root = join(server, "../..");
@@ -19,6 +20,8 @@ if (!existsSync(join(consoleDist, "index.html"))) {
   console.error("The console is not built. Run this through `pnpm build:standalone` or `pnpm build:vercel`.");
   process.exit(1);
 }
+
+const worker = await bundleWorker();
 
 async function bundle(entry: string, outfile: string) {
   await build({
@@ -30,7 +33,8 @@ async function bundle(entry: string, outfile: string) {
     format: "esm",
     // The embedded Postgres is for a machine with no Postgres; a deployment has DATABASE_URL.
     // The other two are optional parts of pg that are not installed.
-    external: ["embedded-postgres", "pg-native", "pg-cloudflare"],
+    external: ["embedded-postgres", "pg-native", "pg-cloudflare", "esbuild"],
+    define: { KAIROS_CLOUDFLARE_WORKER: JSON.stringify(worker) },
     // pg is CommonJS and calls require() for the Node built-ins.
     banner: {
       js: 'import { createRequire as __createRequire } from "node:module";\nconst require = __createRequire(import.meta.url);',

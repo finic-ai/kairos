@@ -77,6 +77,8 @@ kairos.track("transaction", {"amount": 900})  # the user and the session come fr
 
 See [In a web framework](https://kairos.finic.ai/docs/reference/clients/python#in-a-web-framework).
 
+With `client_settings=True`, the middleware also runs the routes set in **Settings › Integrations › Client settings**: it tracks them, or asks for a decision before your app runs. See [Routes from the console](https://kairos.finic.ai/docs/reference/clients/python#routes-from-the-console).
+
 ## Import history from files
 
 ```bash

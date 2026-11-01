@@ -513,7 +513,7 @@ A later decision in the same session then sees the visit step by step, with no `
 
 What to know:
 
-- **The middleware does not read the request body.** Bodies hold passwords and card numbers. `properties` is the only way data gets onto the event, and you choose each field. A key that ends in `Id` names an entity, as in `track`.
+- **`routes` do not read the request body.** Bodies hold passwords and card numbers. `properties` is the only way data gets onto the event, and you choose each field. A key that ends in `Id` names an entity, as in `track`.
 - **Use it for routes where the fact is enough.** A transfer needs its amount and its payee: call `track` there.
 - **The event is sent after the response**, so a `decide` in the same request does not see it. The next one does.
 - **In a serverless function**, the function can stop before the event is sent. Hand the upload to the platform:
@@ -533,6 +533,30 @@ What it is worth, on the 100 evaluation cases, 80 of which have an account chang
 | Tracked by hand, with their data | 98.3% | 17.5% | 10 of 10 |
 
 An event for the route brings back the takeovers that were missed. It is not as good as an event with its data: the two differences from the last row are one case each and within what the model varies by itself, but two held cases dropped from `block` to `review`, and the typology was right less often (77% against 83%). So give `properties`, or call `track`, where a route has data that matters.
+
+### Routes from the console
+
+The routes can also come from **Settings › Integrations › Client settings**, where a person changes them with no deployment. Turn it on in the middleware:
+
+```ts
+app.use(
+  kairosExpress<Request>(kairos, {
+    entities: (req) => ({ user: req.user?.id, device: req.get("x-kairos-device") }),
+    clientSettings: true,
+    hashKey: process.env.KAIROS_HASH_KEY,
+  }),
+);
+```
+
+- **The middleware reads the settings of the key's environment** when it starts and again each minute, in the background. A request never waits for them. If they cannot be read, the middleware keeps the last ones and tells `onError`. It needs a secret key.
+- **A route matches the path of the request**, such as `POST /api/payees/:id`, with the path of its router. The routes in `routes` stay as they are; when both send the same event type for a request, it is sent once.
+- **Track** sends the route's event when the response finishes, as `routes` does.
+- **Decide on request** asks for a decision before your handler runs, with the route's fields, and puts it on `req.kairosDecision` (Hono: `c.get("kairosDecision")`). With the route mode **Active** and the route's **Enforce** on, a `block` answers with the route's block response, and a `step_up` with a step-up page redirects; your handler does not run. In **Monitor**, the handler always runs.
+- **Decide on response** is for the [edge](edge.md). The middleware skips such a route, because a handler has already started the response. Call `decide` in the handler instead, after the password check.
+- **Behind the Kairos edge**, the middleware sends the events of a route and the edge does not, and a route that decides on the request is decided once, by the edge. Give both the same hash key: see [With the middleware on your servers](edge.md#with-the-middleware-on-your-servers).
+- **Fields** are read from the parsed body, the query, the headers, the cookies and the route's parameters. Nothing else from the request is sent. A body is read only when it is JSON of at most 128 KB, so a file upload is never read; in Hono, only when the request has a `Content-Length`. A field of the kind **Hashed**, a cookie and the session cookie are sent only as an HMAC with `hashKey`: without it, they are left out, and `onError` says so once. Keep `hashKey` secret and the same on every server, or links break.
+- **The session** is what `session` gives, else the hash of the settings' session cookie, else the [visit](browser.md#the-visit) of the JavaScript tag, from its `kairos_visit` cookie.
+- **The `kairos_device` cookie** of the [JavaScript tag](browser.md#the-device) gives the `device` entity when `entities` gives none, so your server's events and the browser's name the same device.
 
 
 ## Define an action
@@ -983,6 +1007,7 @@ These come from testing on synthetic data in four domains. They are the things t
 | `label(entity, label, properties?, options?)` | `Promise<void>`                           | Option: `timestamp`.                                                                                          |
 | `resolve(decisionId, outcome, options?)`      | `Promise<{ id, revision, final_outcome, resolution }>` | A person's verdict on a decision, after a review: `"approve"` or `"block"`. Options: `note`, `by`. |
 | `runWorkflow(name, input?, options?)`         | `Promise<WorkflowRun>`                    | Starts a run. Options: `wait`, `timeoutSeconds`, `idempotencyKey`. With `wait`, the time limit is `timeoutSeconds` (default 10) plus 5 seconds. See [Run and wait](../../platform/workflows.md#run-and-wait). |
+| `clientSettings()`                            | `Promise<ClientSettings>`                 | The client settings of the key's environment. See [Client settings](../api.md#client-settings).              |
 | `flush()`                                     | `Promise<void>`                           | Sends the queue and waits.                                                                                    |
 | `shutdown()`                                  | `Promise<void>`                           | Flushes and closes the client.                                                                                |
 
@@ -1003,6 +1028,8 @@ These come from testing on synthetic data in four domains. They are the things t
 | `subject` | `"user"` | The entity type of the person who makes the request. |
 | `routes` | none | `"METHOD /pattern"` → an event type, or `{ type, failed?, properties? }`. |
 | `waitUntil` | none | `(req, work) => void`. Receives the upload of a route's event. |
+| `clientSettings` | `false` | `true` also runs the routes of the client settings. See [Routes from the console](#routes-from-the-console). |
+| `hashKey` | none | The secret for hashed fields and cookies. |
 
 ### `verifyWebhook`
 

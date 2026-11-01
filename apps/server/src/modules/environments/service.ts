@@ -1,6 +1,7 @@
 import { notFound, AppError } from "../../platform/error";
 import type { Executor } from "../../platform/database";
 import { EnvironmentsService } from "../../services/environment.service";
+import { WorkspacesService } from "../../services/workspace.service";
 import { InvalidCopySelection, toEnvironment, type EnvironmentsRepository } from "./repo";
 import type { CopyOptionsQuery, EnvironmentCopyOptions } from "./schema";
 import type { Environment } from "./types";
@@ -79,6 +80,7 @@ export function createEnvironments({
       if (confirm.trim() !== target.name)
         throw new AppError("invalid", "not_confirmed", "Type the environment name to confirm");
       await environmentsIn(workspaceId).deleteMany({ id: target.id, kind: "sandbox" });
+      await new WorkspacesService(db).removeEnvironmentSetting(workspaceId, "clients", target.id, now());
     },
   };
 }

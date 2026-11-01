@@ -22,6 +22,8 @@ import { tenancyModule } from "./modules/tenancy";
 import { apiAuth } from "./platform/auth";
 import { activityLog } from "./platform/activity";
 import { activitiesModule } from "./modules/activities";
+import { clientsModule } from "./modules/clients";
+import { cloudflareModule } from "./modules/cloudflare";
 import { internalRoutes } from "./internal";
 import { SessionsService } from "./services/session.service";
 import { UsersService } from "./services/user.service";
@@ -69,7 +71,7 @@ export function createApp(options: AppOptions) {
     presets: options.presets ?? [],
     onQueued,
   });
-  const ingest = ingestModule({ db, events, transaction, now, onQueued });
+  const ingest = ingestModule({ db, events, transaction, now, onQueued, trustProxy });
   const catalog = catalogModule({
     db,
     entities,
@@ -101,6 +103,21 @@ export function createApp(options: AppOptions) {
     onQueued,
   });
   const activities = activitiesModule({ db, sessions, requireRole: tenancy.tenancy.requireRole, now });
+  const clients = clientsModule({
+    db,
+    environments: environmentService,
+    sessions,
+    requireRole: tenancy.tenancy.requireRole,
+    now,
+  });
+  const cloudflare = cloudflareModule({
+    tenancy: tenancy.tenancy,
+    environments: environmentService,
+    sessions,
+    requireRole: tenancy.tenancy.requireRole,
+    fetch: options.fetch ?? fetch,
+    now,
+  });
   const mcp = mcpModule({
     db,
     app: () => app,
@@ -121,6 +138,8 @@ export function createApp(options: AppOptions) {
   app.route("/app", webhookModule.adminRoutes);
   app.route("/app", jobModule.routes);
   app.route("/app", mcp.adminRoutes);
+  app.route("/app", clients.adminRoutes);
+  app.route("/app", cloudflare.routes);
   app.route("/app", activities.routes);
 
   // Registered before the key check, which an inbound webhook and a workflow's webhook skip.
@@ -136,6 +155,10 @@ export function createApp(options: AppOptions) {
       maxAge: 86400,
     }),
   );
+  app.use(
+    "/v1/client-settings",
+    cors({ origin: "*", allowMethods: ["GET", "OPTIONS"], allowHeaders: ["Authorization"], maxAge: 86400 }),
+  );
   app.use("/v1/*", apiAuth({ db, trustProxy, now }));
 
   app.route("/v1", webhookModule.presetRoutes);
@@ -148,6 +171,7 @@ export function createApp(options: AppOptions) {
   app.route("/v1", modelModule.routes);
   app.route("/v1", experimentModule.routes);
   app.route("/v1", observe.routes);
+  app.route("/v1", clients.routes);
 
   // The MCP Inspector and other browser clients send a key, not a cookie, so any origin can ask.
   app.use(

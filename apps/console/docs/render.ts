@@ -18,8 +18,15 @@ export type RenderedDoc = {
   sections: SearchEntry[];
 };
 
-const LANGS = ["bash", "csv", "json", "nginx", "python", "toml", "typescript"];
-const ALIASES: Record<string, string> = { sh: "bash", shell: "bash", zsh: "bash", ts: "typescript", py: "python" };
+const LANGS = ["bash", "csv", "html", "http", "javascript", "json", "nginx", "python", "toml", "typescript"];
+const ALIASES: Record<string, string> = {
+  sh: "bash",
+  shell: "bash",
+  zsh: "bash",
+  js: "javascript",
+  ts: "typescript",
+  py: "python",
+};
 const THEMES = { light: "github-light", dark: "github-dark" };
 
 let highlighter: Promise<Highlighter> | undefined;

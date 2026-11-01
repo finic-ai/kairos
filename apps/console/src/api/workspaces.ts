@@ -3,6 +3,9 @@ import type {
   Activity,
   ActivityFilter,
   ApiKey,
+  ClientSettings,
+  CloudflareDeployment,
+  CloudflareZone,
   Invite,
   McpGroup,
   McpSettings,
@@ -20,6 +23,17 @@ export const workspaces = {
   dataRetention: (id: string) => request<{ retention_days: number | null }>("GET", `${ws(id)}/data-retention`),
   setDataRetention: (id: string, retention_days: number | null) =>
     request<{ retention_days: number | null }>("PUT", `${ws(id)}/data-retention`, { retention_days }),
+  /** For the environment that the console has chosen. */
+  clientSettings: (id: string) => request<ClientSettings>("GET", `${ws(id)}/client-settings`),
+  setClientSettings: (id: string, settings: Omit<ClientSettings, "version">) =>
+    request<ClientSettings>("PUT", `${ws(id)}/client-settings`, settings),
+  /** The token is sent for this call only. Kairos does not keep it. */
+  cloudflareZones: (id: string, token: string) =>
+    request<{ zones: CloudflareZone[] }>("POST", `${ws(id)}/cloudflare/zones`, { token }, { changes: false }),
+  deployCloudflare: (
+    id: string,
+    body: { token: string; zone_id: string; pattern: string; hash_key?: string; javascript: boolean; url: string },
+  ) => request<CloudflareDeployment>("POST", `${ws(id)}/cloudflare/deploy`, body),
   mcp: (id: string) => request<McpSettings>("GET", `${ws(id)}/mcp`),
   setMcp: (id: string, settings: { enabled: boolean; groups: McpGroup[] }) =>
     request<McpSettings>("PUT", `${ws(id)}/mcp`, settings),

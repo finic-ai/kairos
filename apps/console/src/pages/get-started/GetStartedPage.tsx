@@ -202,8 +202,8 @@ kairos.track("login", { userId: "user_42", deviceId: "dev_1", ip_country: "GB" }
                 ]}
               />
               <div className="stack" style={{ gap: 12 }}>
-                <Code title="With the SDK" text={manual} />
-                <Code title="With curl" text={curl} />
+                <Code title="With the SDK" text={manual} lang="typescript" />
+                <Code title="With curl" text={curl} lang="bash" />
               </div>
             </div>
           )}

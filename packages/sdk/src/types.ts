@@ -226,6 +226,51 @@ export interface RunWorkflowOptions {
   idempotencyKey?: string;
 }
 
+export type RouteMode = "track" | "decide_request" | "decide_response";
+export type FieldSource =
+  | "request.body"
+  | "request.query"
+  | "request.header"
+  | "request.cookie"
+  | "request.param"
+  | "response.header"
+  | "response.body";
+export type FieldKind = "email" | "phone" | "address" | "username" | "hmac" | "token";
+
+/** Where one property of a route's event comes from: a `from` and a `path`, or a constant `value`. */
+export interface RouteField {
+  from?: FieldSource;
+  /** A JSONPath such as `$.payee.id` for a body; the name of a header, a query parameter, a cookie or a route parameter. */
+  path?: string;
+  value?: string | number | boolean;
+  kind?: FieldKind;
+}
+
+export interface ClientRoute {
+  /** A method and a path: "POST /payees/:id". */
+  route: string;
+  mode: RouteMode;
+  type: string;
+  failed?: string;
+  fields: Record<string, RouteField>;
+  fallback?: Action;
+  timeoutMs?: number;
+  block?: { status: number; body?: unknown };
+  stepUp?: "forward" | { redirect: string };
+  enforce: boolean;
+}
+
+/** What the clients collect in one environment, as set in Settings › Integrations › Client settings. */
+export interface ClientSettings {
+  version: number;
+  consent: "required" | "not_required";
+  defaults: { country?: string; off: ("email" | "phone" | "address" | "username")[]; sessionCookie?: string };
+  routing: { mode: "off" | "monitor" | "active"; other: "ignore" | "discover" };
+  pages: { path: string; type: string }[];
+  screens: { name: string; type: string }[];
+  routes: ClientRoute[];
+}
+
 /** Wire format of one event in `POST /v1/events`. */
 export interface WireEvent {
   id: string;

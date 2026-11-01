@@ -87,4 +87,35 @@ export class WorkspacesService extends DatabaseService<"workspaces"> {
       now,
     );
   }
+
+  /** The value of `key` for one environment. */
+  async environmentSetting(id: string, key: string, environmentId: string): Promise<unknown> {
+    const all = await this.setting(id, key);
+    return all && typeof all === "object" ? (all as Record<string, unknown>)[environmentId] : undefined;
+  }
+
+  /**
+   * Saves the value of `key` for one environment, with a `version` one above the stored one. One
+   * statement, so that two saves never share a version and a save for another environment is kept.
+   */
+  async saveEnvironmentSetting(
+    id: string,
+    key: string,
+    environmentId: string,
+    value: object,
+    now: Date,
+  ): Promise<number> {
+    const row = await this.update(
+      id,
+      {
+        settings: sql`settings || jsonb_build_object(${key}::text, COALESCE(settings -> ${key}, '{}'::jsonb) || jsonb_build_object(${environmentId}::text, ${JSON.stringify(value)}::jsonb || jsonb_build_object('version', COALESCE((settings -> ${key} -> ${environmentId} ->> 'version')::int, 0) + 1)))`,
+      },
+      now,
+    );
+    return (row?.settings[key] as Record<string, { version: number }>)[environmentId]!.version;
+  }
+
+  async removeEnvironmentSetting(id: string, key: string, environmentId: string, now: Date): Promise<void> {
+    await this.update(id, { settings: sql`settings #- ARRAY[${key}::text, ${environmentId}::text]` }, now);
+  }
 }

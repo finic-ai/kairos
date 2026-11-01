@@ -1,7 +1,10 @@
 import { scopeEntities, type Scope } from "./context.js";
+import { newId, split } from "./properties.js";
 import { KairosApiError, KairosError, KairosTimeoutError } from "./errors.js";
 import type {
+  Action,
   ActionDefinition,
+  ClientSettings,
   EntityDefinition,
   DecideInput,
   DecideOptions,
@@ -16,15 +19,27 @@ import type {
 const RETRYABLE = new Set([408, 429, 500, 502, 503, 504]);
 const MAX_BATCH = 500;
 
+/** Aborts after `ms`. Where the runtime has no AbortSignal, as on Fastly Compute, a timer in its place. */
+function deadline(ms: number): { signal: AbortSignal; clear(): void } {
+  if (typeof AbortSignal !== "undefined") return { signal: AbortSignal.timeout(ms), clear: () => {} };
+  const listeners = new Set<() => void>();
+  const signal = {
+    aborted: false,
+    addEventListener: (_type: string, listener: () => void) => void listeners.add(listener),
+    removeEventListener: (_type: string, listener: () => void) => void listeners.delete(listener),
+  };
+  const timer = setTimeout(() => {
+    signal.aborted = true;
+    listeners.forEach((listener) => listener());
+  }, ms);
+  return { signal: signal as unknown as AbortSignal, clear: () => clearTimeout(timer) };
+}
+
 const sleep = (ms: number, signal?: AbortSignal) =>
   new Promise<void>((resolve) => {
     const timer = setTimeout(resolve, ms);
     signal?.addEventListener("abort", () => (clearTimeout(timer), resolve()), { once: true });
   });
-
-function newId(): string {
-  return globalThis.crypto?.randomUUID?.() ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
-}
 
 /** `$session` as the API takes it. An empty value is no session. */
 function session(value: unknown): { session?: string } {
@@ -32,29 +47,6 @@ function session(value: unknown): { session?: string } {
   if (typeof value !== "string" && typeof value !== "number")
     throw new KairosError("$session must be the id of a session, as text");
   return { session: String(value) };
-}
-
-/** userId → user, bankAccountId → bank_account, recipient_id → recipient. */
-function entityType(key: string): string | undefined {
-  const match = /^(.+?)(?:Id|_id)$/.exec(key);
-  return match ? match[1]!.replace(/([a-z0-9])([A-Z])/g, "$1_$2").toLowerCase() : undefined;
-}
-
-/** Split properties into entity references and everything else. */
-function split(input: Record<string, unknown>): {
-  entities: Record<string, string>;
-  properties: Record<string, unknown>;
-} {
-  const entities: Record<string, string> = {};
-  const properties: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(input)) {
-    const type = entityType(key);
-    if (key === "entities" && value && typeof value === "object") Object.assign(entities, value);
-    else if (type && (typeof value === "string" || typeof value === "number") && value !== "")
-      entities[type] = String(value);
-    else if (value !== undefined) properties[key] = value;
-  }
-  return { entities, properties };
 }
 
 const optional = <K extends string, V>(key: K, value: V | undefined) =>
@@ -152,9 +144,25 @@ export class Kairos {
    * The same calls, with the context of one request held directly and not looked up. Used by
    * `@finic-ai/kairos/middleware`. `auto` sends the event of a route, and says whether it did: the
    * event is left out when the request has no one to be about, or when the handler tracked
-   * that type itself.
+   * that type itself. `autoDecide` does the same for a route that decides, and gives no
+   * decision for a request with no one to be about.
    */
-  bind(scope: Scope): RequestClient & { auto(type: string, properties: () => EventProperties): boolean } {
+  bind(scope: Scope): RequestClient & {
+    auto(type: string, properties: () => EventProperties): boolean;
+    autoDecide(
+      type: string,
+      properties: () => EventProperties,
+      options: Omit<DecideOptions, "timestamp"> & { fallback: Action },
+    ): Promise<Decision | undefined>;
+  } {
+    const eventOf = (type: string, properties: () => EventProperties): WireEvent | undefined => {
+      try {
+        return this.event(type, properties(), scope);
+      } catch (cause) {
+        if (!(cause instanceof NoEntityError)) this.report(cause);
+        return undefined;
+      }
+    };
     return {
       track: (type, properties = {}) => this.enqueue(this.event(type, properties, scope)),
       trackAndDecide: async (type, properties = {}, options = {}) =>
@@ -162,14 +170,13 @@ export class Kairos {
       decide: (input, options = {}) => this.decision(input, options, scope),
       auto: (type, properties) => {
         if (scope.tracked.has(type)) return false;
-        try {
-          this.enqueue(this.event(type, properties(), scope));
-          return true;
-        } catch (cause) {
-          if (!(cause instanceof NoEntityError))
-            this.onError(cause instanceof Error ? cause : new KairosError(String(cause)));
-          return false;
-        }
+        const event = eventOf(type, properties);
+        if (event) this.enqueue(event);
+        return !!event;
+      },
+      autoDecide: async (type, properties, options) => {
+        const event = eventOf(type, properties);
+        return event && this.eventDecision(event, options);
       },
     };
   }
@@ -193,7 +200,7 @@ export class Kairos {
       visit = session(values.session);
     } catch (cause) {
       // A resolver that fails must not fail the request. The call goes on with what it names.
-      this.onError(cause instanceof Error ? cause : new KairosError(String(cause)));
+      this.report(cause);
       return own;
     }
     // A call about someone else, such as a support agent changing a customer's account, takes
@@ -258,10 +265,10 @@ export class Kairos {
 
   private async eventDecision(event: WireEvent, options: Omit<DecideOptions, "timestamp">): Promise<Decision> {
     const timeoutMs = options.timeoutMs ?? this.decideTimeoutMs;
-    const signal = AbortSignal.timeout(timeoutMs);
+    const { signal, clear } = deadline(timeoutMs);
     try {
       if (options.flush !== false) await this.raceAbort(this.flush(), signal, timeoutMs);
-      return this.toDecision(await this.request("POST", "/v1/events/decide", event, signal, timeoutMs));
+      return this.toDecision(await this.request("POST", "/v1/events/decide", event, timeoutMs, signal));
     } catch (cause) {
       const error = cause instanceof Error ? cause : new KairosError(String(cause));
       // The request may not have arrived. Queue the event so the history keeps it; the id
@@ -282,6 +289,8 @@ export class Kairos {
         fallback: true,
         error,
       };
+    } finally {
+      clear();
     }
   }
 
@@ -334,11 +343,11 @@ export class Kairos {
       ...(options.timestamp ? { ts: new Date(options.timestamp).toISOString() } : {}),
     };
     const timeoutMs = options.timeoutMs ?? this.decideTimeoutMs;
-    const signal = AbortSignal.timeout(timeoutMs);
+    const { signal, clear } = deadline(timeoutMs);
 
     try {
       if (options.flush !== false) await this.raceAbort(this.flush(), signal, timeoutMs);
-      return this.toDecision(await this.request("POST", "/v1/decide", request, signal, timeoutMs));
+      return this.toDecision(await this.request("POST", "/v1/decide", request, timeoutMs, signal));
     } catch (cause) {
       const error = cause instanceof Error ? cause : new KairosError(String(cause));
       if (!options.fallback) throw error;
@@ -351,6 +360,8 @@ export class Kairos {
         fallback: true,
         error,
       };
+    } finally {
+      clear();
     }
   }
 
@@ -362,13 +373,7 @@ export class Kairos {
     name: string,
     definition: ActionDefinition,
   ): Promise<ActionDefinition & { name: string; version: number }> {
-    return this.request(
-      "PUT",
-      `/v1/actions/${encodeURIComponent(name)}`,
-      definition,
-      AbortSignal.timeout(this.timeoutMs),
-      this.timeoutMs,
-    );
+    return this.request("PUT", `/v1/actions/${encodeURIComponent(name)}`, definition, this.timeoutMs);
   }
 
   /**
@@ -376,13 +381,7 @@ export class Kairos {
    * whether sharing one links two subjects. Optional, and safe to call at startup.
    */
   async defineEntity(type: string, definition: EntityDefinition = {}): Promise<EntityDefinition & { type: string }> {
-    return this.request(
-      "PUT",
-      `/v1/entity-types/${encodeURIComponent(type)}`,
-      definition,
-      AbortSignal.timeout(this.timeoutMs),
-      this.timeoutMs,
-    );
+    return this.request("PUT", `/v1/entity-types/${encodeURIComponent(type)}`, definition, this.timeoutMs);
   }
 
   /**
@@ -399,13 +398,7 @@ export class Kairos {
    * properties are kept as an object, keyed by its type and id.
    */
   async setObject(type: string, id: string, properties: Record<string, unknown>): Promise<void> {
-    await this.request(
-      "PUT",
-      "/v1/objects",
-      { batch: [{ type, id, properties }] },
-      AbortSignal.timeout(this.timeoutMs),
-      this.timeoutMs,
-    );
+    await this.request("PUT", "/v1/objects", { batch: [{ type, id, properties }] }, this.timeoutMs);
   }
 
   /**
@@ -427,13 +420,7 @@ export class Kairos {
     };
     // The server answers once its own time is up: wait for that, and a margin.
     const timeoutMs = options.wait ? (options.timeoutSeconds ?? 10) * 1000 + 5_000 : this.timeoutMs;
-    return this.request(
-      "POST",
-      `/v1/workflows/${encodeURIComponent(name)}/runs`,
-      body,
-      AbortSignal.timeout(timeoutMs),
-      timeoutMs,
-    );
+    return this.request("POST", `/v1/workflows/${encodeURIComponent(name)}/runs`, body, timeoutMs);
   }
 
   /**
@@ -448,13 +435,7 @@ export class Kairos {
     options: { timestamp?: Date | string } = {},
   ): Promise<void> {
     const ts = options.timestamp ? { ts: new Date(options.timestamp).toISOString() } : {};
-    await this.request(
-      "POST",
-      "/v1/labels",
-      { batch: [{ entity, label, properties, ...ts }] },
-      AbortSignal.timeout(this.timeoutMs),
-      this.timeoutMs,
-    );
+    await this.request("POST", "/v1/labels", { batch: [{ entity, label, properties, ...ts }] }, this.timeoutMs);
   }
 
   /**
@@ -476,9 +457,21 @@ export class Kairos {
       "POST",
       `/v1/decisions/${encodeURIComponent(decisionId)}/resolution`,
       { outcome, ...options },
-      AbortSignal.timeout(this.timeoutMs),
       this.timeoutMs,
     );
+  }
+
+  /**
+   * The client settings of the key's environment: the pages, screens and routes that the clients
+   * collect, as set in Settings › Integrations. Needs a secret key.
+   */
+  async clientSettings(): Promise<ClientSettings> {
+    return this.request("GET", "/v1/client-settings", undefined, this.timeoutMs);
+  }
+
+  /** Give an error to `onError`. Used by `@finic-ai/kairos/middleware`. */
+  report(cause: unknown): void {
+    this.onError(cause instanceof Error ? cause : new KairosError(String(cause)));
   }
 
   /** Send what is queued and stop the timer. Call before the process exits. */
@@ -508,7 +501,7 @@ export class Kairos {
     while (this.queue.length > 0) {
       const batch = this.queue.splice(0, MAX_BATCH);
       try {
-        await this.request("POST", "/v1/events", { batch }, AbortSignal.timeout(this.timeoutMs), this.timeoutMs);
+        await this.request("POST", "/v1/events", { batch }, this.timeoutMs);
       } catch (cause) {
         const error = cause instanceof Error ? cause : new KairosError(String(cause));
         // A rejected batch will be rejected again, so drop it. Keep the rest for the next flush.
@@ -538,23 +531,43 @@ export class Kairos {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private async request(
-    method: "POST" | "PUT",
+    method: "GET" | "POST" | "PUT",
     path: string,
     body: unknown,
-    signal: AbortSignal,
     timeoutMs: number,
+    shared?: AbortSignal,
+  ): Promise<any> {
+    const own = shared ? undefined : deadline(timeoutMs);
+    try {
+      return await this.attempts(method, path, body, timeoutMs, shared ?? own!.signal);
+    } finally {
+      own?.clear();
+    }
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private async attempts(
+    method: "GET" | "POST" | "PUT",
+    path: string,
+    body: unknown,
+    timeoutMs: number,
+    signal: AbortSignal,
   ): Promise<any> {
     let last: Error = new KairosError("Request failed");
     for (let attempt = 0; attempt <= this.maxRetries; attempt++) {
       if (attempt > 0) await sleep(Math.min(200 * 2 ** (attempt - 1), 5000) * (0.5 + Math.random() / 2), signal);
       if (signal.aborted) throw new KairosTimeoutError(timeoutMs);
       try {
-        const response = await this.doFetch(this.baseUrl + path, {
+        const fetched = this.doFetch(this.baseUrl + path, {
           method,
-          headers: { Authorization: `Bearer ${this.apiKey}`, "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-          signal,
+          headers: {
+            Authorization: `Bearer ${this.apiKey}`,
+            ...(method === "GET" ? {} : { "Content-Type": "application/json" }),
+          },
+          ...(method === "GET" ? {} : { body: JSON.stringify(body) }),
+          ...(typeof AbortSignal !== "undefined" ? { signal } : {}),
         });
+        const response = await this.raceAbort(fetched, signal, timeoutMs);
         if (response.ok) return response.status === 204 ? {} : await response.json();
         last = new KairosApiError(
           response.status,

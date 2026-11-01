@@ -83,6 +83,8 @@ function describe(a: Activity, members: Map<string, Member>): Sentence {
       return { verb: "renamed the workspace to", name: text(d.name) };
     case "workspace.media_hosts_updated":
       return { verb: "changed the media hosts of the workspace" };
+    case "environment.client_settings_updated":
+      return { verb: "changed the client settings" };
     case "environment.renamed":
       return { verb: "renamed", noun, name: text(d.from), rest: `to ${text(d.to) ?? ""}` };
     case "model.renamed":

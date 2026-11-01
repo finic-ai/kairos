@@ -33,7 +33,7 @@ class Server:
         self.lock = threading.Lock()
 
     def __call__(self, method: str, url: str, headers: dict[str, str], body: bytes, timeout: float) -> tuple[int, bytes, Mapping[str, str]]:
-        call = {"method": method, "path": url.replace("https://k.test", ""), "headers": headers, "body": json.loads(body), "timeout": timeout}
+        call = {"method": method, "path": url.replace("https://k.test", ""), "headers": headers, "body": json.loads(body) if body else None, "timeout": timeout}
         with self.lock:
             self.calls.append(call)
         status, answer = self.answer(call)
