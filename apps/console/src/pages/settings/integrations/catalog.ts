@@ -264,12 +264,13 @@ decision = kairos.decide("bank_transfer", {"user_id": "user_123", "usd": 9500}, 
     logo: fastapi,
     note: "Middleware for FastAPI, Starlette and any other ASGI framework.",
     overview: [
-      "With KairosASGI, a track or decide call anywhere in a request gets the user, the IP address and the session from the request.",
+      "With KairosASGI, a track or decide call anywhere in a request gets the user, the IP address and the session from the request. The routes in your client settings send an event when the response finishes, or ask for a decision before your app runs.",
     ],
-    docs: "/docs/reference/clients/python#in-a-web-framework",
+    docs: "/docs/reference/clients/python#routes-from-the-console",
+    clientSettings: true,
     steps: [
       { title: "Install", code: () => "pip install finic-kairos" },
-      envStep,
+      middlewareEnvStep,
       {
         title: "Add the middleware",
         code: (_, origin) => `import os
@@ -283,6 +284,8 @@ app.add_middleware(
     client=kairos,
     entities=lambda scope: {"user": scope["state"].get("user_id"), "ip": scope["client"][0]},
     session=lambda scope: scope["state"].get("session_id"),
+    client_settings=True,
+    hash_key=os.environ["KAIROS_HASH_KEY"],
 )`,
       },
     ],
