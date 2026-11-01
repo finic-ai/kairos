@@ -72,16 +72,20 @@ Entities do the work. An event joins the timeline of each entity it names, and t
 ```ts
 import { express as kairosExpress } from "@finic-ai/kairos/middleware";
 
-app.use(kairosExpress<Request>(kairos, {
-  entities: (req) => ({ user: req.user?.id, device: req.get("x-kairos-device") }),
-  session: (req) => req.session?.id,
-  routes: { "PUT /account/password": "password_changed" },
-}));
+app.use(
+  kairosExpress<Request>(kairos, {
+    entities: (req) => ({ user: req.user?.id, device: req.get("x-kairos-device") }),
+    session: (req) => req.session?.id,
+    routes: { "PUT /account/password": "password_changed" },
+  }),
+);
 
 kairos.track("transaction", { amount: 900 }); // the user and the session come from the request
 ```
 
 There is one for Hono too. See [In a web framework](https://kairos.finic.ai/docs/reference/clients/typescript#in-a-web-framework).
+
+With `clientSettings: true`, the middleware also runs the routes set in **Settings › Integrations › Client settings**: it tracks them, or asks for a decision before your handler runs. See [Routes from the console](https://kairos.finic.ai/docs/reference/clients/typescript#routes-from-the-console).
 
 ## Objects and labels
 
@@ -104,18 +108,18 @@ Object properties appear in the decision context of that entity. Labels are outc
 
 ## Options
 
-| Option | Default | |
-|---|---|---|
-| `apiKey` | required | |
-| `baseUrl` | `https://kairos.finic.ai` | The address of a self-hosted server, such as `http://localhost:8787` |
-| `flushAt` | 20 | Queue size that triggers a send |
-| `flushIntervalMs` | 2000 | 0 turns the timer off |
-| `maxQueueSize` | 10000 | Oldest events are dropped beyond this |
-| `timeoutMs` | 10000 | One event upload, and each other call that is not a decision |
-| `decideTimeoutMs` | 3000 | One decision, including retries |
-| `maxRetries` | 3 | Network failures, 408, 429, 500, 502, 503 and 504 |
-| `onError` | no-op | Delivery failures, dropped events and errors in the functions of the middleware |
-| `fetch` | global `fetch` | |
+| Option            | Default                   |                                                                                 |
+| ----------------- | ------------------------- | ------------------------------------------------------------------------------- |
+| `apiKey`          | required                  |                                                                                 |
+| `baseUrl`         | `https://kairos.finic.ai` | The address of a self-hosted server, such as `http://localhost:8787`            |
+| `flushAt`         | 20                        | Queue size that triggers a send                                                 |
+| `flushIntervalMs` | 2000                      | 0 turns the timer off                                                           |
+| `maxQueueSize`    | 10000                     | Oldest events are dropped beyond this                                           |
+| `timeoutMs`       | 10000                     | One event upload, and each other call that is not a decision                    |
+| `decideTimeoutMs` | 3000                      | One decision, including retries                                                 |
+| `maxRetries`      | 3                         | Network failures, 408, 429, 500, 502, 503 and 504                               |
+| `onError`         | no-op                     | Delivery failures, dropped events and errors in the functions of the middleware |
+| `fetch`           | global `fetch`            |                                                                                 |
 
 ## Wire contract
 

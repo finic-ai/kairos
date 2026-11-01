@@ -62,6 +62,12 @@ const envStep: Step = {
   title: "Add your secret key to the server's environment",
   code: (key) => `KAIROS_API_KEY=${key}`,
 };
+const middlewareEnvStep: Step = {
+  title: "Add your secret key, and a hash key of your own, to the server's environment",
+  code: (key) => `KAIROS_API_KEY=${key}
+# The same on every server. Make one with: openssl rand -hex 32
+KAIROS_HASH_KEY=<A_LONG_RANDOM_SECRET>`,
+};
 const npmStep: Step = { title: "Install", code: () => "npm install @finic-ai/kairos" };
 
 export const INTEGRATIONS: Integration[] = [
@@ -162,12 +168,13 @@ const decision = await kairos.decide(
     mono: true,
     note: "Middleware that adds the user, device and session of each request, and sends events for routes.",
     overview: [
-      "With the middleware, a track or decide call anywhere in a request gets the user, the device, the IP address and the session from the request. The routes that you name send an event when the response finishes.",
+      "With the middleware, a track or decide call anywhere in a request gets the user, the device, the IP address and the session from the request. The routes in your client settings send an event when the response finishes, or ask for a decision before your handler runs.",
     ],
-    docs: "/docs/reference/clients/typescript#in-a-web-framework",
+    docs: "/docs/reference/clients/typescript#routes-from-the-console",
+    clientSettings: true,
     steps: [
       npmStep,
-      envStep,
+      middlewareEnvStep,
       {
         title: "Add the middleware after your body parsers",
         code: (_, origin) => `import express, { type Request } from "express";
@@ -182,7 +189,8 @@ app.use(
   kairosExpress<Request>(kairos, {
     entities: (req) => ({ user: req.user?.id, device: req.get("x-kairos-device"), ip: req.ip }),
     session: (req) => req.session?.id,
-    routes: { "PUT /account/password": { type: "password_changed", failed: "password_change_failed" } },
+    clientSettings: true,
+    hashKey: process.env.KAIROS_HASH_KEY,
   }),
 );`,
       },
@@ -197,10 +205,11 @@ app.use(
     overview: [
       "The same middleware as for Express. On Cloudflare Workers, turn on nodejs_compat, and give the upload of route events to waitUntil.",
     ],
-    docs: "/docs/reference/clients/typescript#in-a-web-framework",
+    docs: "/docs/reference/clients/typescript#routes-from-the-console",
+    clientSettings: true,
     steps: [
       npmStep,
-      envStep,
+      middlewareEnvStep,
       {
         title: "Add the middleware",
         code: (_, origin) => `import { Hono, type Context } from "hono";
@@ -215,6 +224,8 @@ app.use(
   kairosHono<Context<Env>>(kairos, {
     entities: (c) => ({ user: c.get("userId"), device: c.req.header("x-kairos-device") }),
     session: (c) => c.get("sessionId"),
+    clientSettings: true,
+    hashKey: process.env.KAIROS_HASH_KEY,
   }),
 );`,
       },

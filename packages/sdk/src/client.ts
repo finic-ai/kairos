@@ -1,7 +1,9 @@
 import { scopeEntities, type Scope } from "./context.js";
 import { KairosApiError, KairosError, KairosTimeoutError } from "./errors.js";
 import type {
+  Action,
   ActionDefinition,
+  ClientSettings,
   EntityDefinition,
   DecideInput,
   DecideOptions,
@@ -152,9 +154,25 @@ export class Kairos {
    * The same calls, with the context of one request held directly and not looked up. Used by
    * `@finic-ai/kairos/middleware`. `auto` sends the event of a route, and says whether it did: the
    * event is left out when the request has no one to be about, or when the handler tracked
-   * that type itself.
+   * that type itself. `autoDecide` does the same for a route that decides, and gives no
+   * decision for a request with no one to be about.
    */
-  bind(scope: Scope): RequestClient & { auto(type: string, properties: () => EventProperties): boolean } {
+  bind(scope: Scope): RequestClient & {
+    auto(type: string, properties: () => EventProperties): boolean;
+    autoDecide(
+      type: string,
+      properties: () => EventProperties,
+      options: Omit<DecideOptions, "timestamp"> & { fallback: Action },
+    ): Promise<Decision | undefined>;
+  } {
+    const eventOf = (type: string, properties: () => EventProperties): WireEvent | undefined => {
+      try {
+        return this.event(type, properties(), scope);
+      } catch (cause) {
+        if (!(cause instanceof NoEntityError)) this.report(cause);
+        return undefined;
+      }
+    };
     return {
       track: (type, properties = {}) => this.enqueue(this.event(type, properties, scope)),
       trackAndDecide: async (type, properties = {}, options = {}) =>
@@ -162,14 +180,13 @@ export class Kairos {
       decide: (input, options = {}) => this.decision(input, options, scope),
       auto: (type, properties) => {
         if (scope.tracked.has(type)) return false;
-        try {
-          this.enqueue(this.event(type, properties(), scope));
-          return true;
-        } catch (cause) {
-          if (!(cause instanceof NoEntityError))
-            this.onError(cause instanceof Error ? cause : new KairosError(String(cause)));
-          return false;
-        }
+        const event = eventOf(type, properties);
+        if (event) this.enqueue(event);
+        return !!event;
+      },
+      autoDecide: async (type, properties, options) => {
+        const event = eventOf(type, properties);
+        return event && this.eventDecision(event, options);
       },
     };
   }
@@ -193,7 +210,7 @@ export class Kairos {
       visit = session(values.session);
     } catch (cause) {
       // A resolver that fails must not fail the request. The call goes on with what it names.
-      this.onError(cause instanceof Error ? cause : new KairosError(String(cause)));
+      this.report(cause);
       return own;
     }
     // A call about someone else, such as a support agent changing a customer's account, takes
@@ -481,6 +498,19 @@ export class Kairos {
     );
   }
 
+  /**
+   * The client settings of the key's environment: the pages, screens and routes that the clients
+   * collect, as set in Settings › Integrations. Needs a secret key.
+   */
+  async clientSettings(): Promise<ClientSettings> {
+    return this.request("GET", "/v1/client-settings", undefined, AbortSignal.timeout(this.timeoutMs), this.timeoutMs);
+  }
+
+  /** Give an error to `onError`. Used by `@finic-ai/kairos/middleware`. */
+  report(cause: unknown): void {
+    this.onError(cause instanceof Error ? cause : new KairosError(String(cause)));
+  }
+
   /** Send what is queued and stop the timer. Call before the process exits. */
   async shutdown(): Promise<void> {
     this.closed = true;
@@ -538,7 +568,7 @@ export class Kairos {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private async request(
-    method: "POST" | "PUT",
+    method: "GET" | "POST" | "PUT",
     path: string,
     body: unknown,
     signal: AbortSignal,
@@ -551,8 +581,11 @@ export class Kairos {
       try {
         const response = await this.doFetch(this.baseUrl + path, {
           method,
-          headers: { Authorization: `Bearer ${this.apiKey}`, "Content-Type": "application/json" },
-          body: JSON.stringify(body),
+          headers: {
+            Authorization: `Bearer ${this.apiKey}`,
+            ...(method === "GET" ? {} : { "Content-Type": "application/json" }),
+          },
+          ...(method === "GET" ? {} : { body: JSON.stringify(body) }),
           signal,
         });
         if (response.ok) return response.status === 204 ? {} : await response.json();

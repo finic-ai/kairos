@@ -1,7 +1,10 @@
 import { AsyncLocalStorage } from "node:async_hooks";
+import { createHmac } from "node:crypto";
 import type { Kairos, RequestClient } from "./client.js";
 import type { ContextValues, Id, Scope } from "./context.js";
 import { KairosError } from "./errors.js";
+import { matchRoute, readableBody, routeProperties, type RequestParts } from "./settings.js";
+import type { ClientRoute, ClientSettings, Decision, EventProperties } from "./types.js";
 
 export type { ContextValues, Id } from "./context.js";
 export type { RequestClient } from "./client.js";
@@ -13,8 +16,8 @@ export interface RouteEvent<Req> {
   /** The event type for a 4xx response. Without it, a refused request sends nothing. */
   failed?: string;
   /**
-   * Properties of the event. This is the only way business data gets onto an automatic event:
-   * the middleware does not read the request body. A key that ends in `Id` names an entity.
+   * Properties of the event. This is the only way business data gets onto the event of a
+   * route: a route does not read the request body. A key that ends in `Id` names an entity.
    */
   properties?: (req: Req) => Record<string, unknown>;
 }
@@ -42,6 +45,14 @@ export interface ContextOptions<Req> {
    * platform, or the function can stop before the event is sent.
    */
   waitUntil?: (req: Req, work: Promise<void>) => void;
+  /**
+   * Also run the routes of the client settings of the key's environment (Settings › Integrations).
+   * They are read in the background, and again each minute; a request never waits for them. A route
+   * that decides on the request is decided before your handler runs. Needs a secret key.
+   */
+  clientSettings?: boolean;
+  /** The secret for fields and session cookies that are sent only as a hash. The same on every server. */
+  hashKey?: string;
 }
 
 interface RequestScope extends Scope {
@@ -76,8 +87,11 @@ function newScope(subject: string | undefined, resolve: () => ContextValues): Re
   };
 }
 
-const requestScope = <Req>(options: ContextOptions<Req>, req: Req) =>
-  newScope(options.subject, () => ({ entities: options.entities?.(req), session: options.session?.(req) }));
+const requestScope = <Req>(options: ContextOptions<Req>, req: Req, cookieSession: () => Id) =>
+  newScope(options.subject, () => ({
+    entities: options.entities?.(req),
+    session: options.session?.(req) ?? cookieSession(),
+  }));
 
 /**
  * Say who is acting, from inside a request: for a sign-in handler, which learns the user and
@@ -121,12 +135,14 @@ function routesOf<Req>(routes: ContextOptions<Req>["routes"]): Routes<Req> {
   return out;
 }
 
+type Bound = ReturnType<Kairos["bind"]>;
+
 /** Send the event of the route, if the route has one for this status. */
 function finished<Req>(
   kairos: Kairos,
   options: ContextOptions<Req>,
   routes: Routes<Req>,
-  auto: (type: string, properties: () => Record<string, unknown>) => boolean,
+  auto: Bound["auto"],
   req: Req,
   method: string,
   pattern: string | undefined,
@@ -149,12 +165,173 @@ function finished<Req>(
   if (queued) options.waitUntil?.(req, kairos.flush());
 }
 
+const REFRESH_MS = 60_000;
+const loaded = new WeakMap<Kairos, { settings?: ClientSettings; at: number; loading?: Promise<void> }>();
+
+/** The client settings as last read. When they are a minute old, they are read again in the background. */
+function currentSettings(kairos: Kairos): ClientSettings | undefined {
+  const held = loaded.get(kairos) ?? { at: -Infinity };
+  loaded.set(kairos, held);
+  if (!held.loading && Date.now() - held.at >= REFRESH_MS) {
+    held.loading = kairos
+      .clientSettings()
+      .then(
+        (settings) => void (held.settings = settings),
+        (cause) => kairos.report(cause),
+      )
+      .finally(() => {
+        held.at = Date.now();
+        held.loading = undefined;
+      });
+  }
+  return held.settings;
+}
+
+/** What one middleware needs for the routes of the client settings. */
+interface Side {
+  hash?: (value: string) => string;
+  /** Each problem once, not on every request. */
+  report(problem: string): void;
+}
+
+function sideOf(
+  kairos: Kairos,
+  options: Pick<ContextOptions<unknown>, "clientSettings" | "hashKey">,
+): Side | undefined {
+  if (!options.clientSettings) return undefined;
+  currentSettings(kairos);
+  const { hashKey } = options;
+  const reported = new Set<string>();
+  return {
+    hash: hashKey ? (value) => createHmac("sha256", hashKey).update(value).digest("hex") : undefined,
+    report: (problem) => {
+      if (reported.has(problem)) return;
+      reported.add(problem);
+      kairos.report(new KairosError(problem));
+    },
+  };
+}
+
+/** One request that a route of the client settings is for. */
+interface Live extends Side {
+  kairos: Kairos;
+  settings: ClientSettings;
+  route: ClientRoute;
+  params: Record<string, string>;
+  method: string;
+}
+
+function cookie(header: string | undefined, name: string): string | undefined {
+  for (const part of header?.split(";") ?? []) {
+    const at = part.indexOf("=");
+    if (at < 0 || part.slice(0, at).trim() !== name) continue;
+    const value = part.slice(at + 1).trim();
+    try {
+      return decodeURIComponent(value);
+    } catch {
+      return value;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * The route of the client settings that a request is for, and the session that the settings'
+ * session cookie gives: its hash, when there is a hash key to make it with. A route that decides
+ * on the response is the edge's: the middleware cannot hold back a response once a handler wrote it.
+ */
+function forRequest(
+  kairos: Kairos,
+  side: Side | undefined,
+  method: string,
+  path: string,
+): { live?: Live; session(cookies: string | undefined): Id } {
+  const settings = side && currentSettings(kairos);
+  if (!side || !settings) return { session: () => undefined };
+  const { hash } = side;
+  const name = settings.defaults.sessionCookie;
+  const session = (cookies: string | undefined): Id => {
+    const value = name ? cookie(cookies, name) : undefined;
+    return value && hash ? hash(value) : undefined;
+  };
+  const matched = matchRoute(settings, method, path);
+  if (!matched || matched.route.mode === "decide_response") return { session };
+  return { session, live: { ...side, kairos, settings, method, ...matched } };
+}
+
+const routeFacts = (live: Live) => ({
+  source: "auto",
+  http_method: live.method.toUpperCase(),
+  http_route: live.route.route.slice(live.route.route.indexOf(" ") + 1),
+});
+
+async function propertiesOf(live: Live, parts: RequestParts): Promise<EventProperties> {
+  const { properties, problems } = await routeProperties(live.route, parts, live.settings, live.hash);
+  problems.forEach(live.report);
+  return { ...properties, ...routeFacts(live) };
+}
+
+/** What the middleware answers instead of the handler: the route's block response, or its step-up page. */
+type Answer = { status: number; body: unknown } | { redirect: string };
+
+/** The decision of a route that decides on the request. It acts only when enforced in active mode. */
+async function decideOnRequest(
+  live: Live,
+  parts: RequestParts,
+  autoDecide: Bound["autoDecide"],
+): Promise<{ decision?: Decision; answer?: Answer }> {
+  const { route, settings } = live;
+  try {
+    const properties = await propertiesOf(live, parts);
+    const decision = await autoDecide(route.type, () => properties, {
+      fallback: route.fallback ?? "approve",
+      ...(route.timeoutMs ? { timeoutMs: route.timeoutMs } : {}),
+    });
+    if (!decision || !route.enforce || settings.routing.mode !== "active") return { decision };
+    if (decision.decision === "block")
+      return {
+        decision,
+        answer: { status: route.block?.status ?? 403, body: route.block?.body ?? { error: "blocked" } },
+      };
+    if (decision.decision === "step_up" && route.stepUp && route.stepUp !== "forward")
+      return { decision, answer: { redirect: route.stepUp.redirect } };
+    return { decision };
+  } catch (cause) {
+    live.kairos.report(cause);
+    return {};
+  }
+}
+
+/**
+ * The event of a route of the client settings when the response finishes: the route's own for
+ * a route that tracks, and the `failed` one for a 4xx. A 5xx sends nothing.
+ */
+function trackAfter(live: Live, parts: RequestParts, auto: Bound["auto"], status: number): Promise<void> | undefined {
+  const { route } = live;
+  const type =
+    status >= 500 ? undefined : status >= 400 ? route.failed : route.mode === "track" ? route.type : undefined;
+  if (!type) return undefined;
+  return propertiesOf(live, parts)
+    .then((properties) => {
+      if (auto(type, () => ({ ...properties, http_status: String(status) }))) return live.kairos.flush();
+    })
+    .catch((cause) => live.kairos.report(cause));
+}
+
+/** A query parameter or a header as one text: the first, when there are several. */
+function text(value: unknown): string | undefined {
+  if (Array.isArray(value)) return text(value[0]);
+  return typeof value === "string" || typeof value === "number" ? String(value) : undefined;
+}
+
 declare global {
   // eslint-disable-next-line @typescript-eslint/no-namespace
   namespace Express {
     interface Request {
       /** The Kairos client with the context of this request. Set by the Kairos middleware. */
       kairos: RequestClient;
+      /** The decision of a route of the client settings that decides on the request. */
+      kairosDecision?: Decision;
     }
   }
 }
@@ -162,13 +339,21 @@ declare global {
 /** As much of an Express request and response as the middleware reads. */
 interface ExpressRequest {
   method: string;
+  originalUrl: string;
   baseUrl?: string;
   route?: { path?: unknown };
+  body?: unknown;
+  query?: unknown;
+  get(name: string): string | undefined;
   kairos?: RequestClient;
+  kairosDecision?: Decision;
 }
 interface ExpressResponse {
   statusCode: number;
   once(event: "finish", listener: () => void): unknown;
+  getHeader(name: string): unknown;
+  status(code: number): { json(body: unknown): unknown };
+  redirect(status: number, url: string): unknown;
 }
 
 /**
@@ -186,11 +371,22 @@ export function express<Req extends ExpressRequest = ExpressRequest>(
 ): (req: Req, res: ExpressResponse, next: () => void) => void {
   const store = storeOf(kairos);
   const routes = routesOf(options.routes);
+  const side = sideOf(kairos, options);
   return (req, res, next) => {
-    const scope = requestScope(options, req);
-    const { auto, ...client } = kairos.bind(scope);
+    const { live, session } = forRequest(kairos, side, req.method, req.originalUrl.split("?")[0]!);
+    const scope = requestScope(options, req, () => session(req.get("cookie")));
+    const { auto, autoDecide, ...client } = kairos.bind(scope);
     req.kairos = client;
-    if (routes.size > 0) {
+    let answered = false;
+    const parts = (params: Record<string, string>): RequestParts => ({
+      body: readableBody(req.get("content-type"), req.get("content-length")) ? req.body : undefined,
+      query: (name) => text((req.query as Record<string, unknown> | undefined)?.[name]),
+      header: (name) => req.get(name),
+      cookie: (name) => cookie(req.get("cookie"), name),
+      params,
+      responseHeader: (name) => text(res.getHeader(name)),
+    });
+    if (routes.size > 0 || live) {
       // Only a response that was sent: a request the client gave up on fires "close" alone.
       res.once("finish", () => {
         const path = req.route?.path;
@@ -204,21 +400,51 @@ export function express<Req extends ExpressRequest = ExpressRequest>(
           typeof path === "string" ? (req.baseUrl ?? "") + path : undefined,
           res.statusCode,
         );
+        // The middleware's own block response is not something the person's request was refused for.
+        const work =
+          live && !answered && store.run(scope, () => trackAfter(live, parts(live.params), auto, res.statusCode));
+        if (work) options.waitUntil?.(req, work);
       });
     }
-    store.run(scope, next);
+    store.run(scope, () => {
+      if (live?.route.mode !== "decide_request") return next();
+      void decideOnRequest(live, parts(live.params), autoDecide).then(({ decision, answer }) => {
+        if (decision) req.kairosDecision = decision;
+        if (!answer) return next();
+        answered = true;
+        if ("redirect" in answer) res.redirect(302, answer.redirect);
+        else res.status(answer.status).json(answer.body);
+      });
+    });
   };
 }
 
 /** As much of a Hono context as the middleware reads. */
 interface HonoContext {
-  req: { method: string; routePath?: string; routeIndex?: number };
-  res: { status: number };
+  req: {
+    method: string;
+    path: string;
+    routePath?: string;
+    routeIndex?: number;
+    header(name: string): string | undefined;
+    query(name: string): string | undefined;
+    json(): Promise<unknown>;
+  };
+  res: { status: number; headers: Headers };
   set(key: "kairos", value: RequestClient): void;
+  set(key: "kairosDecision", value: Decision): void;
 }
 
 /** For `new Hono<{ Variables: KairosVariables }>()`, so that `c.get("kairos")` has a type. */
-export type KairosVariables = { kairos: RequestClient };
+export type KairosVariables = { kairos: RequestClient; kairosDecision?: Decision };
+
+const responseOf = (answer: Answer) =>
+  "redirect" in answer
+    ? new Response(null, { status: 302, headers: { location: answer.redirect } })
+    : new Response(JSON.stringify(answer.body), {
+        status: answer.status,
+        headers: { "content-type": "application/json" },
+      });
 
 /**
  * Hono middleware. The resolvers receive the Hono context.
@@ -230,17 +456,46 @@ export type KairosVariables = { kairos: RequestClient };
 export function hono<Ctx extends HonoContext = HonoContext>(
   kairos: Kairos,
   options: ContextOptions<Ctx> = {},
-): (c: Ctx, next: () => Promise<void>) => Promise<void> {
+): (c: Ctx, next: () => Promise<void>) => Promise<Response | void> {
   const store = storeOf(kairos);
   const routes = routesOf(options.routes);
+  const side = sideOf(kairos, options);
   return async (c, next) => {
-    const scope = requestScope(options, c);
-    const { auto, ...client } = kairos.bind(scope);
+    const { live, session } = forRequest(kairos, side, c.req.method, c.req.path);
+    const scope = requestScope(options, c, () => session(c.req.header("cookie")));
+    const { auto, autoDecide, ...client } = kairos.bind(scope);
     c.set("kairos", client);
     const own = c.req.routeIndex;
+    // Read before the handler, which may read the body too: Hono keeps it for a second reader.
+    // Only with a length: Hono reads a body of unknown length to its end, however large.
+    const length = c.req.header("content-length");
+    const body =
+      live &&
+      length !== undefined &&
+      readableBody(c.req.header("content-type"), length) &&
+      Object.values(live.route.fields).some((f) => f.from === "request.body")
+        ? await c.req.json().catch(() => undefined)
+        : undefined;
+    const parts = (params: Record<string, string>): RequestParts => ({
+      body,
+      query: (name) => c.req.query(name),
+      header: (name) => c.req.header(name),
+      cookie: (name) => cookie(c.req.header("cookie"), name),
+      params,
+      responseHeader: (name) => c.res.headers.get(name) ?? undefined,
+    });
+
+    if (live?.route.mode === "decide_request") {
+      const { decision, answer } = await store.run(scope, () => decideOnRequest(live, parts(live.params), autoDecide));
+      if (decision) c.set("kairosDecision", decision);
+      if (answer) return responseOf(answer);
+    }
+
     await store.run(scope, next);
     // With no handler after this middleware, the pattern is the middleware's own.
     if (routes.size > 0 && (own === undefined || c.req.routeIndex !== own))
       finished(kairos, options, routes, auto, c, c.req.method, c.req.routePath, c.res.status);
+    const work = live && store.run(scope, () => trackAfter(live, parts(live.params), auto, c.res.status));
+    if (work) options.waitUntil?.(c, work);
   };
 }

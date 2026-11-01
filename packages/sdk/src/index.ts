@@ -6,7 +6,13 @@ export { KairosWebhookError, verifyWebhook, type WebhookMessage } from "./webhoo
 export type {
   Action,
   ActionDefinition,
+  ClientRoute,
+  ClientSettings,
   EntityDefinition,
+  FieldKind,
+  FieldSource,
+  RouteField,
+  RouteMode,
   DecideInput,
   DecideOptions,
   Decision,
