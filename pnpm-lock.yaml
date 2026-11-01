@@ -140,6 +140,8 @@ importers:
         specifier: workspace:*
         version: link:../core
 
+  packages/kairosid: {}
+
   packages/kairosjs:
     devDependencies:
       tsup:
@@ -148,6 +150,9 @@ importers:
 
   packages/sdk:
     devDependencies:
+      '@finic-ai/kairosid':
+        specifier: workspace:*
+        version: link:../kairosid
       '@types/express':
         specifier: ^5.0.6
         version: 5.0.6
@@ -157,6 +162,9 @@ importers:
       hono:
         specifier: ^4.13.13
         version: 4.13.13
+      tsup:
+        specifier: ^8.5.1
+        version: 8.5.1(postcss@8.5.29)(tsx@4.23.15)(typescript@5.9.3)
 
 packages:
 

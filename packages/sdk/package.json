@@ -29,13 +29,15 @@
     "node": ">=18"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "tsup && tsc -p tsconfig.build.json",
     "typecheck": "tsc -p ."
   },
   "devDependencies": {
+    "@finic-ai/kairosid": "workspace:*",
     "@types/express": "^5.0.6",
     "express": "^5.3.0",
-    "hono": "^4.13.13"
+    "hono": "^4.13.13",
+    "tsup": "^8.5.1"
   },
   "repository": {
     "type": "git",

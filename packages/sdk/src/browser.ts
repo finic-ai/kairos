@@ -2,7 +2,8 @@ import { scopeEntities, type Id } from "./context.js";
 import { KairosApiError, KairosError } from "./errors.js";
 import { matchPath } from "./paths.js";
 import { FormWatch, inputKind, sensitiveForm, type FormLike, type Input, type InputKind } from "./forms.js";
-import { DEVICE_COOKIE, VISIT_COOKIE, newId, readCookie, split } from "./properties.js";
+import { automation, deviceId, readBrowser, visitId, type Jar } from "@finic-ai/kairosid";
+import { newId, split } from "./properties.js";
 import type { ClientSettings, EventProperties, WireEvent } from "./types.js";
 
 /** The part of the client settings that a public key reads. */
@@ -41,6 +42,8 @@ export interface BrowserEnvironment {
   facts(): Record<string, unknown>;
   /** Whether a tool drives the browser: WebDriver, or a headless browser that says so. */
   automation(): { webdriver: boolean; headless: boolean };
+  /** An id that stays the same in a private window and after the cookies are cleared. */
+  browser(): Promise<string | undefined>;
 }
 
 type FormActivity = "focusin" | "keydown" | "pointerdown" | "paste";
@@ -68,16 +71,11 @@ function browserEnvironment(): BrowserEnvironment {
       time_zone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       screen: `${screen.width}x${screen.height}`,
     }),
-    automation: () => ({
-      webdriver: navigator.webdriver === true,
-      headless: /HeadlessChrome|PhantomJS/.test(navigator.userAgent),
-    }),
+    automation: () => automation(),
+    browser: () => readBrowser().then((reading) => reading.id),
   };
 }
 
-const YEAR_SECONDS = 365 * 24 * 60 * 60;
-const VISIT_IDLE_MS = 30 * 60 * 1000;
-const VISIT_AT = "kairos_visit_at";
 const RETRY_MS = 60_000;
 const FLUSH_AT = 20;
 const MAX_BATCH = 500;
@@ -112,6 +110,9 @@ export class Kairos {
   private timer: ReturnType<typeof setTimeout> | undefined;
   private path: string | undefined;
   private watches = new WeakMap<object, FormWatch>();
+  // Read only once the page may send.
+  private reading: Promise<void> | undefined;
+  private browser: string | undefined;
 
   constructor(options: BrowserOptions, env?: BrowserEnvironment) {
     if (!options.apiKey) throw new KairosError("apiKey is required");
@@ -188,7 +189,7 @@ export class Kairos {
    * reach it: a native app, a payment page on another domain. Empty until the page may send.
    */
   ids(): { device?: string; visit?: string } {
-    return this.allowed() ? { device: this.device(), visit: this.visitId() } : {};
+    return this.allowed() ? { device: deviceId(this.jar()), visit: visitId(this.jar()) } : {};
   }
 
   /** Run `fn` with the client. For code that runs before the script tag has loaded; see the snippet. */
@@ -203,12 +204,19 @@ export class Kairos {
       this.timer = undefined;
     }
     if (!this.allowed() || this.queue.length === 0) return;
-    const device = this.device();
-    const visit = this.visitId();
+    this.reading ??= this.env.browser().then(
+      (id) => void (this.browser = id),
+      () => {},
+    );
+    if (!leaving) await this.reading;
     const waiting = this.queue.splice(0, MAX_BATCH);
+    if (waiting.length === 0) return;
+    const { browser } = this;
+    const device = deviceId(this.jar());
+    const visit = visitId(this.jar());
     const batch = waiting.map(({ event, visit: takesVisit }) => ({
       ...event,
-      entities: { device, ...event.entities },
+      entities: { device, ...(browser ? { browser } : {}), ...event.entities },
       ...(takesVisit ? { session: visit } : {}),
     }));
     try {
@@ -233,29 +241,14 @@ export class Kairos {
     return this.consented ?? this.settings.consent === "not_required";
   }
 
-  /** The id of this browser, kept in a first-party cookie that the edge and the middleware can read, and in storage. */
-  private device(): string {
-    const id = readCookie(this.env.cookies(), DEVICE_COOKIE) || this.env.storage?.getItem(DEVICE_COOKIE) || newId();
-    this.setCookie(DEVICE_COOKIE, id, `; Max-Age=${YEAR_SECONDS}`);
-    this.env.storage?.setItem(DEVICE_COOKIE, id);
-    return id;
-  }
-
-  /** The id of this visit, in a cookie that ends with the browser session. After 30 minutes with no event, a new visit. */
-  private visitId(): string {
-    const now = Date.now();
-    const last = Number(this.env.storage?.getItem(VISIT_AT));
-    const current = readCookie(this.env.cookies(), VISIT_COOKIE);
-    const id = current && !(last && now - last > VISIT_IDLE_MS) ? current : newId();
-    this.setCookie(VISIT_COOKIE, id, "");
-    this.env.storage?.setItem(VISIT_AT, String(now));
-    return id;
-  }
-
-  private setCookie(name: string, value: string, lifetime: string): void {
-    const domain = this.cookieDomain ? `; Domain=${this.cookieDomain}` : "";
-    const secure = this.env.location().protocol === "https:" ? "; Secure" : "";
-    this.env.setCookie(`${name}=${value}${lifetime}; Path=/${domain}; SameSite=Lax${secure}`);
+  private jar(): Jar {
+    return {
+      cookies: () => this.env.cookies(),
+      setCookie: (cookie) => this.env.setCookie(cookie),
+      storage: this.env.storage,
+      secure: this.env.location().protocol === "https:",
+      domain: this.cookieDomain,
+    };
   }
 
   private schedule(): void {

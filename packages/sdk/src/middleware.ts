@@ -3,7 +3,7 @@ import { createHmac } from "node:crypto";
 import type { Kairos, RequestClient } from "./client.js";
 import type { ContextValues, Id, Scope } from "./context.js";
 import { KairosError } from "./errors.js";
-import { DEVICE_COOKIE, VISIT_COOKIE, readCookie } from "./properties.js";
+import { DEVICE_COOKIE, VISIT_COOKIE, readCookie } from "@finic-ai/kairosid";
 import { matchRoute, readableBody, routeProperties, type RequestParts } from "./settings.js";
 import type { ClientRoute, ClientSettings, Decision, EventProperties } from "./types.js";
 

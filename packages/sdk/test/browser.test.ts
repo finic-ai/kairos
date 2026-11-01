@@ -12,6 +12,7 @@ function page(settings: Partial<BrowserSettings> | number, path = "/") {
   const listeners: Record<string, () => void> = {};
   const documentListeners: Record<string, (event: Event) => void> = {};
   const automation = { webdriver: false, headless: false };
+  const browser: { id: string | undefined } = { id: "browser_1" };
   const location = { pathname: path, protocol: "https:" };
   const history = {
     pushState: (_data: unknown, _unused: string, url?: string | URL | null) => void (location.pathname = String(url)),
@@ -42,11 +43,12 @@ function page(settings: Partial<BrowserSettings> | number, path = "/") {
     }) as typeof fetch,
     facts: () => ({ language: "en-GB" }),
     automation: () => automation,
+    browser: async () => browser.id,
   };
   /** An event of the page on `target`, as the document's listener gets it. */
   const dispatch = (type: string, target: unknown, isTrusted = true) =>
     documentListeners[type]!({ type, target, isTrusted } as unknown as Event);
-  return { env, sent, asked, history, listeners, dispatch, automation, jar, setCookies, stored };
+  return { env, sent, asked, history, listeners, dispatch, automation, browser, jar, setCookies, stored };
 }
 
 const settle = () => new Promise((resolve) => setTimeout(resolve, 5));
@@ -93,13 +95,13 @@ describe("the browser client", () => {
     expect(withoutIds(p.sent)).toEqual([
       {
         type: "checkout_viewed",
-        entities: { device, user: "u1" },
+        entities: { device, browser: "browser_1", user: "u1" },
         session: "s1",
         properties: { path: "/checkout", ...facts },
       },
       {
         type: "account_viewed",
-        entities: { device, user: "u1" },
+        entities: { device, browser: "browser_1", user: "u1" },
         session: "s1",
         properties: { path: "/account/security", ...facts },
       },
@@ -122,13 +124,38 @@ describe("the browser client", () => {
     expect(withoutIds(p.sent)).toEqual([
       {
         type: "coupon_applied",
-        entities: { device, payee: "p7" },
+        entities: { device, browser: "browser_1", payee: "p7" },
         session: p.jar.get("kairos_visit"),
         properties: { code: "SPRING10", source: "browser" },
       },
-      { type: "signed_in", entities: { device, user: "u9" }, properties: { source: "browser" } },
+      {
+        type: "signed_in",
+        entities: { device, browser: "browser_1", user: "u9" },
+        properties: { source: "browser" },
+      },
     ]);
     expect(p.asked.find((a) => a.url.endsWith("/v1/events"))!.url).toBe("https://kairos.finic.ai/v1/events");
+  });
+
+  it("names the browser only when it could be read", async () => {
+    const p = page({});
+    p.browser.id = undefined;
+    const kairos = new Kairos({ apiKey: "kpk_site", flushIntervalMs: 0 }, p.env);
+    kairos.track("seen");
+    await settle();
+    await kairos.flush();
+    expect(Object.keys(p.sent[0]![0].entities)).toEqual(["device"]);
+  });
+
+  it("does not wait for the browser as the page goes", async () => {
+    const p = page({});
+    p.env.browser = () => new Promise(() => {});
+    const kairos = new Kairos({ apiKey: "kpk_site", flushIntervalMs: 0 }, p.env);
+    kairos.track("seen");
+    await settle();
+    p.listeners.pagehide!();
+    await settle();
+    expect(p.sent.flat().map((event) => Object.keys(event.entities))).toEqual([["device"]]);
   });
 
   it("keeps the device of the browser", async () => {

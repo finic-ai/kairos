@@ -90,7 +90,7 @@ What was typed or pasted is never read. The kind of a field comes from its type,
 
 The script makes a random id for the browser the first time, and keeps it in a first-party cookie, `kairos_device`, for a year, and in local storage. Every event of the script names it as the `device` entity. The [TypeScript](typescript.md#routes-from-the-console) and [Python](python.md#routes-from-the-console) middleware read the same cookie when it is on your domain, so your server's events name the same device.
 
-It is not a fingerprint. It changes when the person clears the browser's data, and a private window has its own.
+The device changes when the person clears the browser's data, and a private window has its own. So every event also names the `browser` entity: a hash of what the browser shows of itself, such as how it draws text and shapes, its graphics card and fonts, its screen, time zone, languages and hardware. It is the same in a private window and after the cookies are cleared, so two accounts that come from one browser link even when the device does not. Two browsers of the same model and version can share it, and an update of the browser can change it, so a `browser` that many accounts share says little. The script reads it only once the page may send, and never sends the parts it is made of.
 
 ## The visit
 

@@ -26,23 +26,3 @@ export function split(input: Record<string, unknown>): {
   }
   return { entities, properties };
 }
-
-/** The cookie of the website script that holds the id of the browser. The middleware reads it too. */
-export const DEVICE_COOKIE = "kairos_device";
-/** The cookie of the website script that holds the id of the visit: the session when nothing else gives one. */
-export const VISIT_COOKIE = "kairos_visit";
-
-/** The value of one cookie in a `Cookie` header, or in `document.cookie`. */
-export function readCookie(header: string | undefined, name: string): string | undefined {
-  for (const part of header?.split(";") ?? []) {
-    const at = part.indexOf("=");
-    if (at < 0 || part.slice(0, at).trim() !== name) continue;
-    const value = part.slice(at + 1).trim();
-    try {
-      return decodeURIComponent(value);
-    } catch {
-      return value;
-    }
-  }
-  return undefined;
-}
