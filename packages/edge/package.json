@@ -1,0 +1,42 @@
+{
+  "name": "@finic-ai/kairos-edge",
+  "version": "0.1.0",
+  "license": "Apache-2.0",
+  "description": "Kairos at the edge: the routes of the client settings in a Cloudflare Worker.",
+  "type": "module",
+  "exports": {
+    "./cloudflare": {
+      "types": "./src/cloudflare.ts",
+      "default": "./src/cloudflare.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsup && tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p ."
+  },
+  "dependencies": {
+    "@finic-ai/kairos": "workspace:*"
+  },
+  "devDependencies": {
+    "tsup": "^8.5.1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/finic-ai/kairos.git",
+    "directory": "packages/edge"
+  },
+  "homepage": "https://github.com/finic-ai/kairos/tree/main/packages/edge",
+  "publishConfig": {
+    "access": "public",
+    "exports": {
+      "./cloudflare": {
+        "types": "./dist/cloudflare.d.ts",
+        "default": "./dist/cloudflare.js"
+      }
+    }
+  }
+}

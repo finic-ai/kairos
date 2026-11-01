@@ -5,7 +5,11 @@ The same rules as the TypeScript SDK, so that a field reads the same in every cl
 
 from __future__ import annotations
 
+import base64
+import hmac
+import json
 import re
+import time
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any, Callable
@@ -16,6 +20,32 @@ Hash = Callable[[str], str]
 
 #: The largest body that a collector reads for the fields of a route.
 MAX_BODY_BYTES = 128 * 1024
+
+#: On a request that the edge sent on: what it did with the route, signed with the hash key.
+EDGE_HEADER = "x-kairos-edge"
+#: On a response to the edge: the middleware sends the events of the route, so the edge does not.
+TRACKED_HEADER = "x-kairos-tracked"
+_EDGE_MAX_AGE = 5 * 60.0
+
+
+def verify_edge(hash: Hash, header: str | None, method: str, path: str, now: float | None = None) -> dict[str, Any] | None:
+    """``{"decision": {...}}`` or ``{}`` for the edge's own header for this request, at most five minutes old. Else None."""
+    payload, _, signature = (header or "").partition(".")
+    if not payload or not signature or "." in signature:
+        return None
+    if not hmac.compare_digest(signature, hash(f"kairos-edge.{payload}")):
+        return None
+    try:
+        claim = json.loads(base64.urlsafe_b64decode(payload + "=" * (-len(payload) % 4)))
+    except ValueError:
+        return None
+    at = claim.get("t") if isinstance(claim, dict) else None
+    if not isinstance(at, (int, float)) or abs((time.time() if now is None else now) * 1000 - at) > _EDGE_MAX_AGE * 1000:
+        return None
+    if claim.get("m") != method.upper() or claim.get("p") != path:
+        return None
+    decision = claim.get("d")
+    return {"decision": decision} if isinstance(decision, dict) else {}
 
 _JSON = re.compile(r"^application/(?:[\w.+-]+\+)?json\b", re.IGNORECASE)
 

@@ -17,6 +17,7 @@ it. For FastAPI, Starlette and any other ASGI framework. The standard library on
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 import hashlib
 import hmac
 import json
@@ -32,7 +33,7 @@ from . import context as _context
 from .client import Kairos
 from .context import Scope
 from .errors import KairosError
-from .settings import MAX_BODY_BYTES, RequestParts, match_route, readable_body, route_properties
+from .settings import EDGE_HEADER, MAX_BODY_BYTES, TRACKED_HEADER, RequestParts, match_route, readable_body, route_properties, verify_edge
 from .types import Decision
 
 #: The ASGI scope of a request: what the resolvers receive.
@@ -237,6 +238,7 @@ class KairosASGI:
 
         live = _live(settings, method, str(scope.get("path", "/")))
         parts: RequestParts | None = None
+        edge = self._from_edge(scope, headers, method) if live else None
         if live:
             current, route, params = live
             reads = any(spec.get("from") == "request.body" for spec in route.get("fields", {}).values())
@@ -254,15 +256,21 @@ class KairosASGI:
                 response_header=lambda name: response_headers.get(name.lower()),
             )
             if route.get("mode") == "decide_request":
-                answer = await self._decide(scope, context, current, route, parts, method)
-                if answer is not None:
-                    await _answer(send, answer)
-                    return
+                if edge and edge.get("decision"):
+                    decided = Kairos._decision(edge["decision"])
+                    scope.setdefault("state", {})["kairos_decision"] = dataclasses.replace(decided, fallback=edge["decision"].get("fallback") is True)
+                else:
+                    answer = await self._decide(scope, context, current, route, parts, method)
+                    if answer is not None:
+                        await _answer(send, answer)
+                        return
 
         async def sending(message: MutableMapping[str, Any]) -> None:
             if message["type"] == "http.response.start":
                 status.append(message["status"])
                 response_headers.update({key.decode("latin-1").lower(): value.decode("latin-1") for key, value in message.get("headers", [])})
+                if edge is not None:
+                    message = {**message, "headers": [*message.get("headers", []), (TRACKED_HEADER.encode(), b"1")]}
             await send(message)
 
         token = self._client._enter(context)
@@ -278,6 +286,23 @@ class KairosASGI:
             queued = self._track_after(context, live[0], live[1], parts, method, status[0]) or queued
         if queued and self._flush:
             await asyncio.get_running_loop().run_in_executor(None, self._client.flush)
+
+    def _from_edge(self, scope: Request, headers: Mapping[str, str], method: str) -> dict[str, Any] | None:
+        header = headers.get(EDGE_HEADER)
+        if not header:
+            return None
+        if not self._hash:
+            self._report_once("A request came from the Kairos edge, and there is no hash_key to check its x-kairos-edge header.")
+            return None
+        # The path as the edge signed it: ``path`` is decoded.
+        raw = scope.get("raw_path")
+        path = raw.decode("latin-1").partition("?")[0] if isinstance(raw, bytes) else str(scope.get("path", "/"))
+        return verify_edge(self._hash, header, method, path)
+
+    def _report_once(self, problem: str) -> None:
+        if problem not in self._reported:
+            self._reported.add(problem)
+            self._client._report(KairosError(problem))
 
     def _acting(self, scope: Request, headers: Mapping[str, str]) -> Mapping[str, Any] | None:
         """Who ``entities`` says is acting, with the website script's device when it names none."""
@@ -302,9 +327,7 @@ class KairosASGI:
     def _properties(self, settings: Mapping[str, Any], route: Mapping[str, Any], parts: RequestParts, method: str) -> dict[str, Any]:
         properties, problems = route_properties(route, parts, settings, self._hash)
         for problem in problems:
-            if problem not in self._reported:
-                self._reported.add(problem)
-                self._client._report(KairosError(problem))
+            self._report_once(problem)
         return {**properties, "source": "auto", "http_method": method, "http_route": str(route["route"]).partition(" ")[2]}
 
     async def _decide(self, scope: Request, context: Scope, settings: Mapping[str, Any], route: Mapping[str, Any], parts: RequestParts, method: str) -> Mapping[str, Any] | None:

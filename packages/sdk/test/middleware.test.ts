@@ -5,6 +5,7 @@ import { Hono, type Context } from "hono";
 import { describe, expect, it } from "vitest";
 import { Kairos, KairosError, type ClientRoute, type ClientSettings, type Decision } from "../src/index.js";
 import { express, hono, runWithContext, setContext, withoutContext, type KairosVariables } from "../src/middleware.js";
+import { EDGE_HEADER, TRACKED_HEADER, signEdge } from "../src/routes.js";
 import { MAX_BODY_BYTES } from "../src/settings.js";
 
 declare global {
@@ -862,5 +863,71 @@ describe("the routes of the client settings", () => {
     const blocked = await post(blocking.server, "/api/transfers", { amount: 900 });
     expect(blocked.status).toBe(403);
     expect(await blocked.json()).toEqual({ error: "blocked" });
+  });
+
+  it("take the edge's decision, and tell the edge that the middleware sends the events", async () => {
+    const hash = (value: string) => createHmac("sha256", "hash-key").update(value).digest("hex");
+    const settings = settingsWith(
+      [
+        { route: "POST /payees", mode: "track", type: "beneficiary_added" },
+        { route: "POST /transfers", mode: "decide_request", type: "transfer_requested", enforce: true },
+      ],
+      { mode: "active", other: "ignore" },
+    );
+    const decided = { decision: "review", riskScore: 61, probability: 0.61, reasons: [], rules: [], fallback: false };
+    const edge = (path: string) => signEdge(hash, { method: "POST", path, decision: decided as Decision });
+
+    const viaExpress = recorder({ settings, decision: "block" });
+    const server = expressApp();
+    server.use(
+      express<Request>(viaExpress.kairos, {
+        entities: () => ({ user: "u1" }),
+        clientSettings: true,
+        hashKey: "hash-key",
+      }),
+    );
+    server.post("/:what", (req, res) => void res.status(201).json({ decision: req.kairosDecision?.decision }));
+    await pause(10);
+    await serving(server, async (url) => {
+      const post = async (path: string, header?: string) => {
+        const response = await fetch(url + path, { method: "POST", headers: header ? { [EDGE_HEADER]: header } : {} });
+        return {
+          status: response.status,
+          tracked: response.headers.get(TRACKED_HEADER),
+          body: await response.json().catch(() => null),
+        };
+      };
+      expect(await post("/payees", await edge("/payees"))).toMatchObject({ status: 201, tracked: "1" });
+      expect(await post("/payees", "forged.0000")).toMatchObject({ status: 201, tracked: null });
+      expect(await post("/transfers", await edge("/transfers"))).toEqual({
+        status: 201,
+        tracked: "1",
+        body: { decision: "review" },
+      });
+      expect(await post("/transfers", await edge("/payees"))).toMatchObject({ status: 403, tracked: null });
+      await pause(20);
+    });
+    expect((await viaExpress.events()).map((e) => e.type)).toEqual(["beneficiary_added", "beneficiary_added"]);
+    expect(viaExpress.calls.filter((c) => c.path === "/v1/events/decide")).toHaveLength(1);
+
+    type Env = { Variables: KairosVariables };
+    const viaHono = recorder({ settings, decision: "block" });
+    const app = new Hono<Env>();
+    app.use(
+      hono<Context<Env>>(viaHono.kairos, {
+        entities: () => ({ user: "u1" }),
+        clientSettings: true,
+        hashKey: "hash-key",
+      }),
+    );
+    app.post("/transfers", (c) => c.json({ decision: c.get("kairosDecision")?.decision }, 201));
+    await pause(10);
+    const response = await app.request("/transfers", {
+      method: "POST",
+      headers: { [EDGE_HEADER]: await edge("/transfers") },
+    });
+    expect(response.headers.get(TRACKED_HEADER)).toBe("1");
+    expect(await response.json()).toEqual({ decision: "review" });
+    expect(viaHono.calls.filter((c) => c.path === "/v1/events/decide")).toHaveLength(0);
   });
 });

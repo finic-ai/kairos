@@ -4,20 +4,24 @@
   "license": "Apache-2.0",
   "description": "Kairos client: track financial events and request decisions.",
   "type": "module",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "default": "./dist/index.js"
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
     },
     "./middleware": {
-      "types": "./dist/middleware.d.ts",
-      "default": "./dist/middleware.js"
+      "types": "./src/middleware.ts",
+      "default": "./src/middleware.ts"
     },
     "./browser": {
-      "types": "./dist/browser.d.ts",
-      "default": "./dist/browser.js"
+      "types": "./src/browser.ts",
+      "default": "./src/browser.ts"
+    },
+    "./routes": {
+      "types": "./src/routes.ts",
+      "default": "./src/routes.ts"
     }
   },
   "files": [
@@ -46,6 +50,26 @@
   },
   "homepage": "https://github.com/finic-ai/kairos/tree/main/packages/sdk",
   "publishConfig": {
-    "access": "public"
+    "access": "public",
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "./middleware": {
+        "types": "./dist/middleware.d.ts",
+        "default": "./dist/middleware.js"
+      },
+      "./browser": {
+        "types": "./dist/browser.d.ts",
+        "default": "./dist/browser.js"
+      },
+      "./routes": {
+        "types": "./dist/routes.d.ts",
+        "default": "./dist/routes.js"
+      }
+    }
   }
 }

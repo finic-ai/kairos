@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import hashlib
 import hmac
 import json
@@ -566,6 +567,53 @@ class ClientSettingsTest(unittest.TestCase):
 
         (status, _, _), seen, _, _ = attempt("approve", "active", "/api/transfers")
         self.assertEqual((status, seen[0]["decision"]), (201, "approve"))
+
+    def test_take_the_edges_decision_and_tell_the_edge_that_the_middleware_sends_the_events(self) -> None:
+        def edge(path: str, decision: dict[str, Any] | None = None) -> str:
+            claim = {"t": time.time() * 1000, "m": "POST", "p": path, **({"d": decision} if decision else {})}
+            payload = base64.urlsafe_b64encode(json.dumps(claim).encode()).decode().rstrip("=")
+            return f"{payload}.{hmac.new(b'hash-key', f'kairos-edge.{payload}'.encode(), hashlib.sha256).hexdigest()}"
+
+        routes = [
+            {"route": "POST /payees", "mode": "track", "type": "beneficiary_added"},
+            {"route": "POST /transfers", "mode": "decide_request", "type": "transfer_requested", "enforce": True},
+        ]
+        server = with_settings(routes, "active", "block")
+        kairos = client(server)
+        seen: list[dict[str, Any]] = []
+        app = KairosASGI(reader(seen), client=kairos, entities=user, client_settings=True, hash_key="hash-key")
+        settled(kairos)
+        review = {"decision": "review", "risk_score": 61, "probability": 0.61, "event_id": "evt_1"}
+
+        async def run() -> list[tuple[int, str | None]]:
+            answers = [
+                await ask(app, "POST", "/payees", headers={"x-kairos-edge": edge("/payees")}),
+                await ask(app, "POST", "/payees", headers={"x-kairos-edge": "forged.0000"}),
+                await ask(app, "POST", "/transfers", headers={"x-kairos-edge": edge("/transfers", review)}),
+                await ask(app, "POST", "/transfers", headers={"x-kairos-edge": edge("/payees", review)}),
+            ]
+            return [(status, headers.get("x-kairos-tracked")) for status, headers, _ in answers]
+
+        self.assertEqual(asyncio.run(run()), [(201, "1"), (201, None), (201, "1"), (403, None)])
+        self.assertEqual([s["decision"] for s in seen], [None, None, "review"])
+        self.assertEqual(len(server.to("/v1/events/decide")), 1)
+        self.assertEqual([e["type"] for e in events(server, kairos)], ["beneficiary_added", "beneficiary_added"])
+
+    def test_read_a_header_that_the_typescript_edge_signed(self) -> None:
+        header = (
+            "eyJ0IjoxNzAwMDAwMDAwMDAwLCJtIjoiUE9TVCIsInAiOiIvdHJhbnNmZXJzIiwiZCI6eyJkZWNpc2lvbiI6InJldmlldyIsInJpc2tfc2NvcmUiOjYxLCJwcm9iYWJpbGl0eSI6MC42MSwiZGVjaXNpb25faWQiOiJkZWNfw6kifX0"
+            ".b5540595e9b7f2571e4240fd481585bb724bb4cb925230d8ea9258f2447d0717"
+        )
+
+        def sign(value: str) -> str:
+            return hmac.new(b"hash-key", value.encode(), hashlib.sha256).hexdigest()
+
+        self.assertEqual(
+            kairos_settings.verify_edge(sign, header, "post", "/transfers", now=1_700_000_060),
+            {"decision": {"decision": "review", "risk_score": 61, "probability": 0.61, "decision_id": "dec_é"}},
+        )
+        self.assertIsNone(kairos_settings.verify_edge(sign, header, "POST", "/transfers", now=1_700_000_301))
+        self.assertIsNone(kairos_settings.verify_edge(sign, header, "POST", "/payees", now=1_700_000_060))
 
     def test_do_nothing_when_routing_is_off_or_the_settings_cannot_be_read_and_fail_no_request(self) -> None:
         errors: list[Exception] = []

@@ -3,9 +3,24 @@ import { createHmac } from "node:crypto";
 import type { Kairos, RequestClient } from "./client.js";
 import type { ContextValues, Id, Scope } from "./context.js";
 import { KairosError } from "./errors.js";
-import { DEVICE_COOKIE, VISIT_COOKIE, readCookie } from "@finic-ai/kairosid";
-import { matchRoute, readableBody, routeProperties, type RequestParts } from "./settings.js";
-import type { ClientRoute, ClientSettings, Decision, EventProperties } from "./types.js";
+import {
+  EDGE_HEADER,
+  TRACKED_HEADER,
+  answerResponse,
+  currentSettings,
+  decideRoute,
+  liveRoute,
+  readCookie,
+  readableBody,
+  requestCookies,
+  routing,
+  trackAfter,
+  verifyEdge,
+  type Live,
+  type RequestParts,
+  type Routing,
+} from "./routes.js";
+import type { Decision } from "./types.js";
 
 export type { ContextValues, Id } from "./context.js";
 export type { RequestClient } from "./client.js";
@@ -173,34 +188,8 @@ function finished<Req>(
   if (queued) options.waitUntil?.(req, kairos.flush());
 }
 
-const REFRESH_MS = 60_000;
-const loaded = new WeakMap<Kairos, { settings?: ClientSettings; at: number; loading?: Promise<void> }>();
-
-/** The client settings as last read. When they are a minute old, they are read again in the background. */
-function currentSettings(kairos: Kairos): ClientSettings | undefined {
-  const held = loaded.get(kairos) ?? { at: -Infinity };
-  loaded.set(kairos, held);
-  if (!held.loading && Date.now() - held.at >= REFRESH_MS) {
-    held.loading = kairos
-      .clientSettings()
-      .then(
-        (settings) => void (held.settings = settings),
-        (cause) => kairos.report(cause),
-      )
-      .finally(() => {
-        held.at = Date.now();
-        held.loading = undefined;
-      });
-  }
-  return held.settings;
-}
-
-/** What one middleware needs for the routes of the client settings. */
-interface Side {
-  hash?: (value: string) => string;
-  /** Each problem once, not on every request. */
-  report(problem: string): void;
-}
+/** The scope reads the session cookie's hash as it resolves, which cannot wait. */
+type Side = Routing & { hash?: (value: string) => string };
 
 function sideOf(
   kairos: Kairos,
@@ -209,112 +198,36 @@ function sideOf(
   if (!options.clientSettings) return undefined;
   currentSettings(kairos);
   const { hashKey } = options;
-  const reported = new Set<string>();
-  return {
-    hash: hashKey ? (value) => createHmac("sha256", hashKey).update(value).digest("hex") : undefined,
-    report: (problem) => {
-      if (reported.has(problem)) return;
-      reported.add(problem);
-      kairos.report(new KairosError(problem));
-    },
-  };
+  const hash = hashKey ? (value: string) => createHmac("sha256", hashKey).update(value).digest("hex") : undefined;
+  return { ...routing(kairos, hash), hash };
 }
 
-/** One request that a route of the client settings is for. */
-interface Live extends Side {
-  kairos: Kairos;
-  settings: ClientSettings;
-  route: ClientRoute;
-  params: Record<string, string>;
-  method: string;
-}
-
-/**
- * The route of the client settings that a request is for, and what the cookies say: the device and
- * the visit of the website script, and the session cookie of the settings as its hash, when there
- * is a hash key to make it with. A route that decides on the response is the edge's: the middleware
- * cannot hold back a response once a handler wrote it.
- */
 function forRequest(
-  kairos: Kairos,
   side: Side | undefined,
   method: string,
   path: string,
 ): { live?: Live; cookies(header: string | undefined): Cookies } {
   if (!side) return { cookies: () => ({}) };
-  const settings = currentSettings(kairos);
-  const { hash } = side;
-  const name = settings?.defaults.sessionCookie;
-  const cookies = (header: string | undefined): Cookies => {
-    const session = name ? readCookie(header, name) : undefined;
-    return {
-      device: readCookie(header, DEVICE_COOKIE),
-      session: session && hash ? hash(session) : undefined,
-      visit: readCookie(header, VISIT_COOKIE),
-    };
+  const settings = currentSettings(side.kairos);
+  const live = liveRoute(side, settings, method, path);
+  return {
+    cookies: (header) => requestCookies(settings, header, side.hash),
+    // The middleware cannot hold back a response once a handler wrote it: that route is the edge's.
+    live: live?.route.mode === "decide_response" ? undefined : live,
   };
-  const matched = settings && matchRoute(settings, method, path);
-  if (!settings || !matched || matched.route.mode === "decide_response") return { cookies };
-  return { cookies, live: { ...side, kairos, settings, method, ...matched } };
 }
 
-const routeFacts = (live: Live) => ({
-  source: "auto",
-  http_method: live.method.toUpperCase(),
-  http_route: live.route.route.slice(live.route.route.indexOf(" ") + 1),
-});
-
-async function propertiesOf(live: Live, parts: RequestParts): Promise<EventProperties> {
-  const { properties, problems } = await routeProperties(live.route, parts, live.settings, live.hash);
-  problems.forEach(live.report);
-  return { ...properties, ...routeFacts(live) };
-}
-
-/** What the middleware answers instead of the handler: the route's block response, or its step-up page. */
-type Answer = { status: number; body: unknown } | { redirect: string };
-
-/** The decision of a route that decides on the request. It acts only when enforced in active mode. */
-async function decideOnRequest(
+async function fromEdge(
   live: Live,
-  parts: RequestParts,
-  autoDecide: Bound["autoDecide"],
-): Promise<{ decision?: Decision; answer?: Answer }> {
-  const { route, settings } = live;
-  try {
-    const properties = await propertiesOf(live, parts);
-    const decision = await autoDecide(route.type, () => properties, {
-      fallback: route.fallback ?? "approve",
-      ...(route.timeoutMs ? { timeoutMs: route.timeoutMs } : {}),
-    });
-    if (!decision || !route.enforce || settings.routing.mode !== "active") return { decision };
-    if (decision.decision === "block")
-      return {
-        decision,
-        answer: { status: route.block?.status ?? 403, body: route.block?.body ?? { error: "blocked" } },
-      };
-    if (decision.decision === "step_up" && route.stepUp && route.stepUp !== "forward")
-      return { decision, answer: { redirect: route.stepUp.redirect } };
-    return { decision };
-  } catch (cause) {
-    live.kairos.report(cause);
-    return {};
+  header: string | undefined,
+  path: string,
+): Promise<{ decision?: Decision } | undefined> {
+  if (!header) return undefined;
+  if (!live.hash) {
+    live.report("A request came from the Kairos edge, and there is no hashKey to check its x-kairos-edge header.");
+    return undefined;
   }
-}
-
-/**
- * The event of a route of the client settings when the response finishes: the route's own for
- * a route that tracks, and the `failed` one for a 4xx. A 5xx sends nothing.
- */
-function trackAfter(live: Live, parts: RequestParts, auto: Bound["auto"], status: number): Promise<void> | undefined {
-  const { route } = live;
-  const type =
-    status >= 500 ? undefined : status >= 400 ? route.failed : route.mode === "track" ? route.type : undefined;
-  if (!type) return undefined;
-  return propertiesOf(live, parts)
-    .then((properties) => {
-      if (auto(type, () => ({ ...properties, http_status: String(status) }))) return live.kairos.flush();
-    })
-    .catch((cause) => live.kairos.report(cause));
+  return verifyEdge(live.hash, header, { method: live.method, path });
 }
 
 /** A query parameter or a header as one text: the first, when there are several. */
@@ -351,6 +264,7 @@ interface ExpressResponse {
   statusCode: number;
   once(event: "finish", listener: () => void): unknown;
   getHeader(name: string): unknown;
+  setHeader(name: string, value: string): unknown;
   status(code: number): { json(body: unknown): unknown };
   redirect(status: number, url: string): unknown;
 }
@@ -372,7 +286,8 @@ export function express<Req extends ExpressRequest = ExpressRequest>(
   const routes = routesOf(options.routes);
   const side = sideOf(kairos, options);
   return (req, res, next) => {
-    const { live, cookies } = forRequest(kairos, side, req.method, req.originalUrl.split("?")[0]!);
+    const path = req.originalUrl.split("?")[0]!;
+    const { live, cookies } = forRequest(side, req.method, path);
     const scope = requestScope(options, req, () => cookies(req.get("cookie")));
     const { auto, autoDecide, ...client } = kairos.bind(scope);
     req.kairos = client;
@@ -405,15 +320,24 @@ export function express<Req extends ExpressRequest = ExpressRequest>(
         if (work) options.waitUntil?.(req, work);
       });
     }
+    const header = req.get(EDGE_HEADER);
     store.run(scope, () => {
-      if (live?.route.mode !== "decide_request") return next();
-      void decideOnRequest(live, parts(live.params), autoDecide).then(({ decision, answer }) => {
+      if (!live || (!header && live.route.mode !== "decide_request")) return next();
+      void (async () => {
+        const edge = await fromEdge(live, header, path);
+        if (edge) res.setHeader(TRACKED_HEADER, "1");
+        if (live.route.mode !== "decide_request") return next();
+        if (edge?.decision) {
+          req.kairosDecision = edge.decision;
+          return next();
+        }
+        const { decision, answer } = await decideRoute(live, parts(live.params), autoDecide);
         if (decision) req.kairosDecision = decision;
         if (!answer) return next();
         answered = true;
         if ("redirect" in answer) res.redirect(302, answer.redirect);
         else res.status(answer.status).json(answer.body);
-      });
+      })();
     });
   };
 }
@@ -422,6 +346,7 @@ export function express<Req extends ExpressRequest = ExpressRequest>(
 interface HonoContext {
   req: {
     method: string;
+    url: string;
     path: string;
     routePath?: string;
     routeIndex?: number;
@@ -430,20 +355,13 @@ interface HonoContext {
     json(): Promise<unknown>;
   };
   res: { status: number; headers: Headers };
+  header(name: string, value: string): void;
   set(key: "kairos", value: RequestClient): void;
   set(key: "kairosDecision", value: Decision): void;
 }
 
 /** For `new Hono<{ Variables: KairosVariables }>()`, so that `c.get("kairos")` has a type. */
 export type KairosVariables = { kairos: RequestClient; kairosDecision?: Decision };
-
-const responseOf = (answer: Answer) =>
-  "redirect" in answer
-    ? new Response(null, { status: 302, headers: { location: answer.redirect } })
-    : new Response(JSON.stringify(answer.body), {
-        status: answer.status,
-        headers: { "content-type": "application/json" },
-      });
 
 /**
  * Hono middleware. The resolvers receive the Hono context.
@@ -460,7 +378,7 @@ export function hono<Ctx extends HonoContext = HonoContext>(
   const routes = routesOf(options.routes);
   const side = sideOf(kairos, options);
   return async (c, next) => {
-    const { live, cookies } = forRequest(kairos, side, c.req.method, c.req.path);
+    const { live, cookies } = forRequest(side, c.req.method, c.req.path);
     const scope = requestScope(options, c, () => cookies(c.req.header("cookie")));
     const { auto, autoDecide, ...client } = kairos.bind(scope);
     c.set("kairos", client);
@@ -484,13 +402,19 @@ export function hono<Ctx extends HonoContext = HonoContext>(
       responseHeader: (name) => c.res.headers.get(name) ?? undefined,
     });
 
+    // The path as the edge signed it: `c.req.path` is decoded.
+    const edge = live && (await fromEdge(live, c.req.header(EDGE_HEADER), new URL(c.req.url).pathname));
     if (live?.route.mode === "decide_request") {
-      const { decision, answer } = await store.run(scope, () => decideOnRequest(live, parts(live.params), autoDecide));
-      if (decision) c.set("kairosDecision", decision);
-      if (answer) return responseOf(answer);
+      if (edge?.decision) c.set("kairosDecision", edge.decision);
+      else {
+        const { decision, answer } = await store.run(scope, () => decideRoute(live, parts(live.params), autoDecide));
+        if (decision) c.set("kairosDecision", decision);
+        if (answer) return answerResponse(answer);
+      }
     }
 
     await store.run(scope, next);
+    if (edge) c.header(TRACKED_HEADER, "1");
     // With no handler after this middleware, the pattern is the middleware's own.
     if (routes.size > 0 && (own === undefined || c.req.routeIndex !== own))
       finished(kairos, options, routes, auto, c, c.req.method, c.req.routePath, c.res.status);

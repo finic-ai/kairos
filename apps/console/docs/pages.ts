@@ -232,6 +232,12 @@ export const groups: DocGroup[] = [
             blurb: "kairos.js: the device of each visitor, the pages of your client settings, and events of your own.",
           },
           {
+            slug: "reference/clients/edge",
+            title: "Edge",
+            blurb:
+              "@finic-ai/kairos-edge: the routes of your client settings in a Cloudflare Worker, with no change to your app.",
+          },
+          {
             slug: "reference/clients/cli",
             title: "CLI",
             blurb: "kairos: events, imports, decisions, cases and models from a terminal.",

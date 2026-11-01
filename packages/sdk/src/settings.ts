@@ -11,6 +11,7 @@ export interface RequestParts {
   cookie(name: string): string | undefined;
   params: Record<string, string>;
   responseHeader?(name: string): string | undefined;
+  responseBody?: unknown;
 }
 
 /** HMAC-SHA-256 of a value with the customer's hash key, as hex. Each runtime brings its own. */
@@ -73,8 +74,8 @@ function read(field: RouteField, parts: RequestParts): unknown {
       return parts.params[path];
     case "response.header":
       return parts.responseHeader?.(path);
-    default:
-      return undefined;
+    case "response.body":
+      return readPath(parts.responseBody, path);
   }
 }
 

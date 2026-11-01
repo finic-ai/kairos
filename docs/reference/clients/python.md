@@ -332,6 +332,7 @@ It works as in the TypeScript middleware: see [Routes from the console](typescri
 - A route matches the path of the request, such as `POST /api/payees/:id`: the console's form, not FastAPI's `{payee_id}`.
 - **Decide on request** asks for a decision before your app runs, in a thread, and puts it on `scope["state"]["kairos_decision"]`, which FastAPI shows as `request.state.kairos_decision`. With the route mode **Active** and the route's **Enforce** on, a `block` answers with the route's block response, and a `step_up` with a step-up page redirects.
 - The `kairos_device` cookie of the [website script](browser.md#the-device) gives the `device` entity when `entities` gives none, and its `kairos_visit` cookie gives the session when `session` and the settings' session cookie give none.
+- Behind the [Kairos edge](edge.md#with-the-middleware-on-your-servers), the middleware sends the events of a route, and takes the edge's decision for a route that decides on the request. Give both the same hash key.
 - A route with body fields reads the body before your app, and gives your app the same body. It reads only JSON, so a file upload is never read, and stops at 128 KB: past it, your app gets the rest as it comes, and the body fields are left out.
 
 ## Backtesting

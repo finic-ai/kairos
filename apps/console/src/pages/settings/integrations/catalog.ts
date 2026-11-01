@@ -351,15 +351,35 @@ app.add_middleware(
     logo: cloudflare,
     note: "Send events for the routes in your client settings, and block them, with no change to your app.",
     overview: [
-      "One call in a Cloudflare Worker in front of your app. It sends events for the routes in your client settings, and can ask Kairos to decide before a request reaches your app.",
+      "A Cloudflare Worker in front of your app. For each route in your client settings, it sends the route's event, or asks Kairos to decide before the request reaches your app or before the response reaches the person. Every other request goes on as it came, and an error of the Worker sends the request on.",
+      "With a public key as KAIROS_PUBLIC_KEY, it also adds the website script to your pages. Behind it, the Express, Hono and FastAPI middleware send the events of a route themselves, with the user, and take the Worker's decision.",
     ],
-    plans: [
-      "Track, decide on request, or decide on response, for each route.",
-      "Monitor first: decide and log, but never block, until you set the edge mode to Active.",
-      "Fails open: an error sends the request to your app with no change.",
-      "Adds the website script to your pages, with no change to your site.",
-    ],
+    docs: "/docs/reference/clients/edge",
     clientSettings: true,
+    steps: [
+      { title: "Install, in a Worker project", code: () => "npm install @finic-ai/kairos-edge" },
+      {
+        title: "Put Kairos in front of your app",
+        code: () => `// src/index.ts
+import { cloudflare } from "@finic-ai/kairos-edge/cloudflare";
+
+export default cloudflare();`,
+      },
+      {
+        title: "Route the Worker on your domain",
+        code: (_, origin) => `# wrangler.toml
+name = "kairos"
+main = "src/index.ts"
+compatibility_date = "2025-09-01"
+routes = [{ pattern = "example.com/*", zone_name = "example.com" }]${origin === HOSTED ? "" : `\n\n[vars]\nKAIROS_URL = "${origin}"`}`,
+      },
+      {
+        title: "Add your secret key, and your servers' hash key, then deploy",
+        code: (key) => `npx wrangler secret put KAIROS_API_KEY   # ${key}
+npx wrangler secret put KAIROS_HASH_KEY  # the same as your servers'
+npx wrangler deploy`,
+      },
+    ],
   },
   {
     slug: "fastly",

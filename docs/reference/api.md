@@ -639,7 +639,7 @@ What the website script, the mobile SDKs, the edge and the SDK middleware collec
 | `routing.mode` | For the edge and the SDK middleware. `off`: nothing is sent for routes. `monitor`, the default: the routes track and decide, but never block. `active`: routes with `enforce` can block, redirect or step up. |
 | `routing.other` | What is done with a request that matches no route: `ignore`, the default, or `discover`, which sends the shape of a sample of bodies (key names and value types, never values). |
 | `pages`, `screens` | A path or a screen name, and the event type it sends. At most 200 of each. |
-| `routes` | Run by the edge, and by the SDK middleware when it opts in. A method and a path, a `mode` (`track`, `decide_request`, or `decide_response`, which only the edge runs), the event `type`, an optional `failed` type for a 4xx, and `fields`. A route that decides needs a `fallback`, and can have `timeoutMs`, `block`, `stepUp` and `enforce`. At most 100. |
+| `routes` | Run by the edge, and by the SDK middleware when it opts in. A method and a path, a `mode` (`track`, `decide_request`, or `decide_response`, which only the [edge](clients/edge.md) runs), the event `type`, an optional `failed` type for a 4xx, and `fields`. A route that decides needs a `fallback`, and can have `timeoutMs`, `block`, `stepUp` and `enforce`. At most 100. |
 
 ## Inbound webhooks
 

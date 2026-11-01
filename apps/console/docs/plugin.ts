@@ -21,7 +21,7 @@ const NOT_FOR_CUSTOMERS: [RegExp, string][] = [
   [/localhost:(8787|5273)/, "a local server"],
   [/\b(apps|packages|examples)\/[a-z]/, "a path in the repository"],
   [
-    /\b(KAIROS_(?!(API_KEY|HASH_KEY|URL|PROFILE|WEBHOOK_SECRET)\b)[A-Z_]+|SUPABASE_[A-Z_]+|DATABASE_URL|GRAYSON_API_KEY|CRON_SECRET|VITE_[A-Z_]+)/,
+    /\b(KAIROS_(?!(API_KEY|HASH_KEY|PUBLIC_KEY|URL|PROFILE|WEBHOOK_SECRET)\b)[A-Z_]+|SUPABASE_[A-Z_]+|DATABASE_URL|GRAYSON_API_KEY|CRON_SECRET|VITE_[A-Z_]+)/,
     "a server setting",
   ],
 ];
