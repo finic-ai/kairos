@@ -12,18 +12,19 @@ export function KeyModal({
   environment,
   onClose,
   onCreated,
-  secretOnly = false,
+  kind: fixed,
   defaultName = "",
 }: {
   workspace: Workspace;
   environment: Environment;
   onClose: () => void;
   onCreated: (created: { key: ApiKey; secret: string }) => void;
-  secretOnly?: boolean;
+  /** Make only this kind of key, with no choice. */
+  kind?: ApiKey["kind"];
   defaultName?: string;
 }) {
   const [name, setName] = useState(defaultName);
-  const [kind, setKind] = useState<ApiKey["kind"]>("secret");
+  const [kind, setKind] = useState<ApiKey["kind"]>(fixed ?? "secret");
   const [ips, setIps] = useState("");
   const [sites, setSites] = useState("");
   const [created, setCreated] = useState<{ key: ApiKey; secret: string } | null>(null);
@@ -69,7 +70,7 @@ export function KeyModal({
             {error}
           </div>
         )}
-        {!secretOnly && (
+        {!fixed && (
           <div className="key-kinds">
             <button
               type="button"

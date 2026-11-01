@@ -1,4 +1,5 @@
 import { scopeEntities, type Scope } from "./context.js";
+import { newId, split } from "./properties.js";
 import { KairosApiError, KairosError, KairosTimeoutError } from "./errors.js";
 import type {
   Action,
@@ -24,39 +25,12 @@ const sleep = (ms: number, signal?: AbortSignal) =>
     signal?.addEventListener("abort", () => (clearTimeout(timer), resolve()), { once: true });
   });
 
-function newId(): string {
-  return globalThis.crypto?.randomUUID?.() ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
-}
-
 /** `$session` as the API takes it. An empty value is no session. */
 function session(value: unknown): { session?: string } {
   if (value === undefined || value === null || value === "") return {};
   if (typeof value !== "string" && typeof value !== "number")
     throw new KairosError("$session must be the id of a session, as text");
   return { session: String(value) };
-}
-
-/** userId → user, bankAccountId → bank_account, recipient_id → recipient. */
-function entityType(key: string): string | undefined {
-  const match = /^(.+?)(?:Id|_id)$/.exec(key);
-  return match ? match[1]!.replace(/([a-z0-9])([A-Z])/g, "$1_$2").toLowerCase() : undefined;
-}
-
-/** Split properties into entity references and everything else. */
-function split(input: Record<string, unknown>): {
-  entities: Record<string, string>;
-  properties: Record<string, unknown>;
-} {
-  const entities: Record<string, string> = {};
-  const properties: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(input)) {
-    const type = entityType(key);
-    if (key === "entities" && value && typeof value === "object") Object.assign(entities, value);
-    else if (type && (typeof value === "string" || typeof value === "number") && value !== "")
-      entities[type] = String(value);
-    else if (value !== undefined) properties[key] = value;
-  }
-  return { entities, properties };
 }
 
 const optional = <K extends string, V>(key: K, value: V | undefined) =>

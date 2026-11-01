@@ -30,8 +30,12 @@ export function apiAuth(options: Options): MiddlewareHandler<Env> {
       if (!key.workspaceActive) return error(c, 403, "workspace_suspended", "This workspace is suspended");
       if (!ipAllowed(clientIp(c, options.trustProxy), key.allowedIps))
         return error(c, 403, "ip_not_allowed", "This API key cannot be used from this IP address");
-      // A public key can be read out of a web page by anyone, so it can only add events.
-      if (key.kind === "public" && !(c.req.method === "POST" && c.req.path === "/v1/events")) {
+      // A public key can be read out of a web page by anyone, so it can only add events, and read
+      // the part of the client settings that the website script needs.
+      const allowed =
+        (c.req.method === "POST" && c.req.path === "/v1/events") ||
+        (c.req.method === "GET" && c.req.path === "/v1/client-settings");
+      if (key.kind === "public" && !allowed) {
         return error(
           c,
           403,

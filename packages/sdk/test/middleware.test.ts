@@ -587,7 +587,7 @@ describe("the routes of the client settings", () => {
           headers: {
             "x-user": "u1",
             "x-country": "NG",
-            cookie: "theme=dark; sid=abc",
+            cookie: "theme=dark; sid=abc; kairos_device=browser_1",
             "content-type": "application/json",
           },
           ...(body ? { body: JSON.stringify(body) } : {}),
@@ -604,18 +604,46 @@ describe("the routes of the client settings", () => {
     expect(byType(await events())).toEqual([
       {
         type: "beneficiary_add_failed",
-        entities: { user: "u1", payee: "p8" },
+        entities: { user: "u1", device: "browser_1", payee: "p8" },
         session,
         properties: { country: "NG", ...auto("POST", "/api/payees/:id", "400") },
       },
       {
         type: "beneficiary_added",
-        entities: { user: "u1", payee: "p7" },
+        entities: { user: "u1", device: "browser_1", payee: "p7" },
         session,
         properties: { email: "ada@example.com", country: "NG", ...auto("POST", "/api/payees/:id", "201") },
       },
-      { type: "password_changed", entities: { user: "u1" }, session, properties: auto("PUT", "/api/password", "204") },
+      {
+        type: "password_changed",
+        entities: { user: "u1", device: "browser_1" },
+        session,
+        properties: auto("PUT", "/api/password", "204"),
+      },
     ]);
+  });
+
+  it("take the visit of the website script as the session when nothing else gives one", async () => {
+    const { kairos, events } = recorder({
+      settings: settingsWith([{ route: "POST /payees", mode: "track", type: "beneficiary_added" }]),
+    });
+    const server = expressApp();
+    server.use(
+      express<Request>(kairos, {
+        entities: () => ({ user: "u1" }),
+        session: (req) => req.get("x-session"),
+        clientSettings: true,
+      }),
+    );
+    server.post("/payees", (_req, res) => void res.status(201).end());
+    await pause(10);
+    await serving(server, async (url) => {
+      const post = (headers: Record<string, string>) => fetch(`${url}/payees`, { method: "POST", headers });
+      await post({ cookie: "kairos_visit=visit_1" });
+      await post({ cookie: "kairos_visit=visit_1", "x-session": "login_9" });
+      await pause(20);
+    });
+    expect((await events()).map((e) => e.session)).toEqual(["visit_1", "login_9"]);
   });
 
   it("decide a route before the handler, and act only when enforced in active mode", async () => {

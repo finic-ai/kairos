@@ -554,7 +554,8 @@ app.use(
 - **Decide on request** asks for a decision before your handler runs, with the route's fields, and puts it on `req.kairosDecision` (Hono: `c.get("kairosDecision")`). With the route mode **Active** and the route's **Enforce** on, a `block` answers with the route's block response, and a `step_up` with a step-up page redirects; your handler does not run. In **Monitor**, the handler always runs.
 - **Decide on response** is for the edge. The middleware skips such a route, because a handler has already started the response. Call `decide` in the handler instead, after the password check.
 - **Fields** are read from the parsed body, the query, the headers, the cookies and the route's parameters. Nothing else from the request is sent. A body is read only when it is JSON of at most 128 KB, so a file upload is never read; in Hono, only when the request has a `Content-Length`. A field of the kind **Hashed**, a cookie and the session cookie are sent only as an HMAC with `hashKey`: without it, they are left out, and `onError` says so once. Keep `hashKey` secret and the same on every server, or links break.
-- **The session cookie** of the settings gives the session when `session` gives none.
+- **The session** is what `session` gives, else the hash of the settings' session cookie, else the [visit](browser.md#the-visit) of the website script, from its `kairos_visit` cookie.
+- **The `kairos_device` cookie** of the [website script](browser.md#the-device) gives the `device` entity when `entities` gives none, so your server's events and the browser's name the same device.
 
 
 ## Define an action

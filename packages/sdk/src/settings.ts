@@ -1,4 +1,7 @@
+import { matchPath } from "./paths.js";
 import type { ClientRoute, ClientSettings, EventProperties, FieldKind, RouteField } from "./types.js";
+
+export { matchPath } from "./paths.js";
 
 /** What a collector can read of a request, and of its response once there is one. */
 export interface RequestParts {
@@ -23,28 +26,6 @@ export const MAX_BODY_BYTES = 128 * 1024;
 export function readableBody(contentType: string | undefined, contentLength: string | undefined): boolean {
   if (!/^application\/(?:[\w.+-]+\+)?json\b/i.test(contentType?.trim() ?? "")) return false;
   return contentLength === undefined || Number(contentLength) <= MAX_BODY_BYTES;
-}
-
-const segments = (path: string) => path.split("/").filter(Boolean);
-
-/** The values of the parameters of `pattern` in `path`, or undefined when the path is not the pattern's. */
-export function matchPath(pattern: string, path: string): Record<string, string> | undefined {
-  const want = segments(pattern);
-  const have = segments(path);
-  const params: Record<string, string> = {};
-  for (const [i, part] of want.entries()) {
-    if (part === "*") return params;
-    const value = have[i];
-    if (value === undefined) return undefined;
-    if (part.startsWith(":")) {
-      try {
-        params[part.slice(1)] = decodeURIComponent(value);
-      } catch {
-        params[part.slice(1)] = value;
-      }
-    } else if (part !== value) return undefined;
-  }
-  return have.length === want.length ? params : undefined;
 }
 
 /** The first route of the settings for a request, with its parameters. */

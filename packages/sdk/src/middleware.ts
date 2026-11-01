@@ -3,6 +3,7 @@ import { createHmac } from "node:crypto";
 import type { Kairos, RequestClient } from "./client.js";
 import type { ContextValues, Id, Scope } from "./context.js";
 import { KairosError } from "./errors.js";
+import { DEVICE_COOKIE, VISIT_COOKIE, readCookie } from "./properties.js";
 import { matchRoute, readableBody, routeProperties, type RequestParts } from "./settings.js";
 import type { ClientRoute, ClientSettings, Decision, EventProperties } from "./types.js";
 
@@ -87,11 +88,18 @@ function newScope(subject: string | undefined, resolve: () => ContextValues): Re
   };
 }
 
-const requestScope = <Req>(options: ContextOptions<Req>, req: Req, cookieSession: () => Id) =>
-  newScope(options.subject, () => ({
-    entities: options.entities?.(req),
-    session: options.session?.(req) ?? cookieSession(),
-  }));
+/** What the cookies of a request say about who is acting. */
+type Cookies = { device?: string; session?: string; visit?: string };
+
+const requestScope = <Req>(options: ContextOptions<Req>, req: Req, cookies: () => Cookies) =>
+  newScope(options.subject, () => {
+    const entities = options.entities?.(req);
+    const known = cookies();
+    return {
+      entities: { ...entities, device: entities?.device || known.device },
+      session: options.session?.(req) ?? known.session ?? known.visit,
+    };
+  });
 
 /**
  * Say who is acting, from inside a request: for a sign-in handler, which learns the user and
@@ -221,42 +229,33 @@ interface Live extends Side {
   method: string;
 }
 
-function cookie(header: string | undefined, name: string): string | undefined {
-  for (const part of header?.split(";") ?? []) {
-    const at = part.indexOf("=");
-    if (at < 0 || part.slice(0, at).trim() !== name) continue;
-    const value = part.slice(at + 1).trim();
-    try {
-      return decodeURIComponent(value);
-    } catch {
-      return value;
-    }
-  }
-  return undefined;
-}
-
 /**
- * The route of the client settings that a request is for, and the session that the settings'
- * session cookie gives: its hash, when there is a hash key to make it with. A route that decides
- * on the response is the edge's: the middleware cannot hold back a response once a handler wrote it.
+ * The route of the client settings that a request is for, and what the cookies say: the device and
+ * the visit of the website script, and the session cookie of the settings as its hash, when there
+ * is a hash key to make it with. A route that decides on the response is the edge's: the middleware
+ * cannot hold back a response once a handler wrote it.
  */
 function forRequest(
   kairos: Kairos,
   side: Side | undefined,
   method: string,
   path: string,
-): { live?: Live; session(cookies: string | undefined): Id } {
-  const settings = side && currentSettings(kairos);
-  if (!side || !settings) return { session: () => undefined };
+): { live?: Live; cookies(header: string | undefined): Cookies } {
+  if (!side) return { cookies: () => ({}) };
+  const settings = currentSettings(kairos);
   const { hash } = side;
-  const name = settings.defaults.sessionCookie;
-  const session = (cookies: string | undefined): Id => {
-    const value = name ? cookie(cookies, name) : undefined;
-    return value && hash ? hash(value) : undefined;
+  const name = settings?.defaults.sessionCookie;
+  const cookies = (header: string | undefined): Cookies => {
+    const session = name ? readCookie(header, name) : undefined;
+    return {
+      device: readCookie(header, DEVICE_COOKIE),
+      session: session && hash ? hash(session) : undefined,
+      visit: readCookie(header, VISIT_COOKIE),
+    };
   };
-  const matched = matchRoute(settings, method, path);
-  if (!matched || matched.route.mode === "decide_response") return { session };
-  return { session, live: { ...side, kairos, settings, method, ...matched } };
+  const matched = settings && matchRoute(settings, method, path);
+  if (!settings || !matched || matched.route.mode === "decide_response") return { cookies };
+  return { cookies, live: { ...side, kairos, settings, method, ...matched } };
 }
 
 const routeFacts = (live: Live) => ({
@@ -373,8 +372,8 @@ export function express<Req extends ExpressRequest = ExpressRequest>(
   const routes = routesOf(options.routes);
   const side = sideOf(kairos, options);
   return (req, res, next) => {
-    const { live, session } = forRequest(kairos, side, req.method, req.originalUrl.split("?")[0]!);
-    const scope = requestScope(options, req, () => session(req.get("cookie")));
+    const { live, cookies } = forRequest(kairos, side, req.method, req.originalUrl.split("?")[0]!);
+    const scope = requestScope(options, req, () => cookies(req.get("cookie")));
     const { auto, autoDecide, ...client } = kairos.bind(scope);
     req.kairos = client;
     let answered = false;
@@ -382,7 +381,7 @@ export function express<Req extends ExpressRequest = ExpressRequest>(
       body: readableBody(req.get("content-type"), req.get("content-length")) ? req.body : undefined,
       query: (name) => text((req.query as Record<string, unknown> | undefined)?.[name]),
       header: (name) => req.get(name),
-      cookie: (name) => cookie(req.get("cookie"), name),
+      cookie: (name) => readCookie(req.get("cookie"), name),
       params,
       responseHeader: (name) => text(res.getHeader(name)),
     });
@@ -461,8 +460,8 @@ export function hono<Ctx extends HonoContext = HonoContext>(
   const routes = routesOf(options.routes);
   const side = sideOf(kairos, options);
   return async (c, next) => {
-    const { live, session } = forRequest(kairos, side, c.req.method, c.req.path);
-    const scope = requestScope(options, c, () => session(c.req.header("cookie")));
+    const { live, cookies } = forRequest(kairos, side, c.req.method, c.req.path);
+    const scope = requestScope(options, c, () => cookies(c.req.header("cookie")));
     const { auto, autoDecide, ...client } = kairos.bind(scope);
     c.set("kairos", client);
     const own = c.req.routeIndex;
@@ -480,7 +479,7 @@ export function hono<Ctx extends HonoContext = HonoContext>(
       body,
       query: (name) => c.req.query(name),
       header: (name) => c.req.header(name),
-      cookie: (name) => cookie(c.req.header("cookie"), name),
+      cookie: (name) => readCookie(c.req.header("cookie"), name),
       params,
       responseHeader: (name) => c.res.headers.get(name) ?? undefined,
     });

@@ -70,7 +70,7 @@ export function createApp(options: AppOptions) {
     presets: options.presets ?? [],
     onQueued,
   });
-  const ingest = ingestModule({ db, events, transaction, now, onQueued });
+  const ingest = ingestModule({ db, events, transaction, now, onQueued, trustProxy });
   const catalog = catalogModule({
     db,
     entities,
@@ -144,6 +144,10 @@ export function createApp(options: AppOptions) {
       allowHeaders: ["Authorization", "Content-Type"],
       maxAge: 86400,
     }),
+  );
+  app.use(
+    "/v1/client-settings",
+    cors({ origin: "*", allowMethods: ["GET", "OPTIONS"], allowHeaders: ["Authorization"], maxAge: 86400 }),
   );
   app.use("/v1/*", apiAuth({ db, trustProxy, now }));
 

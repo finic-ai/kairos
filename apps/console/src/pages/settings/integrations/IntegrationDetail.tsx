@@ -3,7 +3,7 @@ import { Code } from "../../../components/get-started/Code";
 import { KeyModal } from "../../../components/settings/KeyModal";
 import { href } from "../../../lib/route";
 import type { Environment, Workspace } from "../../../types/interfaces";
-import { KEY_PLACEHOLDER, KINDS, type Integration } from "./catalog";
+import { KEY_PLACEHOLDERS, KINDS, type Integration } from "./catalog";
 import { Logo } from "./CatalogTab";
 
 export function IntegrationDetail({
@@ -19,6 +19,8 @@ export function IntegrationDetail({
   const [creating, setCreating] = useState(false);
   const [secret, setSecret] = useState<string | null>(null);
   const available = !!integration.docs;
+  const kind = integration.key ?? "secret";
+  const placeholder = KEY_PLACEHOLDERS[kind];
   const origin = window.location.origin;
 
   return (
@@ -58,14 +60,16 @@ export function IntegrationDetail({
             ))}
             {integration.steps?.map((step, n) => (
               <div key={step.title}>
-                <Code title={`${n + 1}. ${step.title}`} text={step.code(secret ?? KEY_PLACEHOLDER, origin)} />
+                <Code title={`${n + 1}. ${step.title}`} text={step.code(secret ?? placeholder, origin)} />
               </div>
             ))}
             {available && (
               <p className="muted" style={{ margin: 0 }}>
                 {secret
                   ? "Copy the key now. It is shown only once."
-                  : `Replace ${KEY_PLACEHOLDER} with a secret key of ${environment.name}. Keep it on your server.`}
+                  : kind === "public"
+                    ? `Replace ${placeholder} with a public key of ${environment.name}, limited to your websites.`
+                    : `Replace ${placeholder} with a secret key of ${environment.name}. Keep it on your server.`}
               </p>
             )}
             {integration.plans && (
@@ -111,7 +115,7 @@ export function IntegrationDetail({
         <KeyModal
           workspace={workspace}
           environment={environment}
-          secretOnly
+          kind={kind}
           defaultName={integration.name}
           onClose={() => setCreating(false)}
           onCreated={(created) => setSecret(created.secret)}

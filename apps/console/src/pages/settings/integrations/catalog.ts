@@ -45,9 +45,11 @@ export interface Integration {
   plans?: string[];
   /** Whether it reads the client settings of the environment. */
   clientSettings?: boolean;
+  /** The kind of key it takes: a public key in a web page, a secret one on a server. */
+  key?: "public" | "secret";
 }
 
-export const KEY_PLACEHOLDER = "<YOUR_SECRET_KEY>";
+export const KEY_PLACEHOLDERS = { secret: "<YOUR_SECRET_KEY>", public: "<YOUR_PUBLIC_KEY>" } as const;
 
 const HOSTED = "https://kairos.finic.ai";
 const tsClient = (origin: string) =>
@@ -78,15 +80,37 @@ export const INTEGRATIONS: Integration[] = [
     logo: javascript,
     note: "One script tag. Tracks the pages in your client settings and the device of each visitor.",
     overview: [
-      "Add one script to each page of your website. It sends the pages in your client settings as events, and gives each browser a device id that your server and your edge function can read.",
+      "Add one script to each page of your website. It sends the pages in your client settings as events, and how each sign-in, payment or payee form was filled in, and gives each browser a device id in a first-party cookie, kairos_device, that your server can read.",
+      "Use a public key, and limit it to your websites in Settings › API keys. When your client settings ask for consent, the script sends nothing and sets no cookie until your page calls kairos.consent(true).",
     ],
-    plans: [
-      "Load it from a script tag, from npm, or from a tag manager.",
-      "Track the pages in your client settings, single-page apps too.",
-      "Keep a device id in a first-party cookie, so that events from your server name the same device.",
-      "Wait for consent when your client settings ask for it.",
-    ],
+    docs: "/docs/reference/clients/browser",
     clientSettings: true,
+    key: "public",
+    steps: [
+      {
+        title: "Add the script to every page",
+        code: (key, origin) => `<script src="${origin}/kairos.js" data-api-key="${key}" async></script>`,
+      },
+      {
+        title: "Say who the user is, and send events of your own",
+        code: (key, origin) => `<script>
+  window.kairos = { apiKey: "${key}", entities: { user: "user_123" }, calls: [] };
+  for (const method of ["track", "setContext", "consent"])
+    window.kairos[method] = (...args) => window.kairos.calls.push([method, args]);
+</script>
+<script src="${origin}/kairos.js" async></script>
+
+<script>
+  kairos.track("coupon_applied", { code: "SPRING10" });
+</script>`,
+      },
+      {
+        title: "Or, in a bundled app, from npm",
+        code: (key, origin) => `import { Kairos } from "@finic-ai/kairos/browser";
+
+const kairos = new Kairos({ apiKey: "${key}"${origin === HOSTED ? "" : `, baseUrl: "${origin}"`}, entities: { user: user.id } });`,
+      },
+    ],
   },
   {
     slug: "google-tag-manager",
@@ -94,9 +118,21 @@ export const INTEGRATIONS: Integration[] = [
     kind: "web",
     logo: googletagmanager,
     note: "Add the website script from a Custom HTML tag.",
-    overview: ["Add the website script to your site from Google Tag Manager, with no change to your code."],
-    plans: ["Paste the website script into a Custom HTML tag.", "Fire it on every page."],
+    overview: [
+      "Add the website script to your site from Google Tag Manager, with no change to your code. Use a public key, limited to your websites.",
+    ],
+    docs: "/docs/reference/clients/browser#from-a-tag-manager",
     clientSettings: true,
+    key: "public",
+    steps: [
+      {
+        title: "Add a Custom HTML tag that fires on every page",
+        code: (key, origin) => `<script>
+  window.kairos = { apiKey: "${key}", baseUrl: "${origin}" };
+</script>
+<script src="${origin}/kairos.js"></script>`,
+      },
+    ],
   },
   {
     slug: "react-native",

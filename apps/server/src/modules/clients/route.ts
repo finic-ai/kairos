@@ -50,13 +50,19 @@ export function clientsAdminRoutes({ clients, environments, sessions, requireRol
   return app;
 }
 
-/** The same settings for an API key, in the key's environment. A public key is refused before it gets here. */
+/**
+ * The same settings for an API key, in the key's environment. A public key is in a web page, so
+ * it gets only what the website script needs: not the routes, which say what is decided and read.
+ */
 export function clientsRoutes({ clients }: Pick<ClientsDeps, "clients">) {
   const app = new Hono<Env>();
 
-  app.get("/client-settings", async (c) =>
-    c.json(await clients.settings(c.get("workspaceId"), c.get("environmentId"))),
-  );
+  app.get("/client-settings", async (c) => {
+    const settings = await clients.settings(c.get("workspaceId"), c.get("environmentId"));
+    if (!c.get("publicKey")) return c.json(settings);
+    const { version, consent, pages, screens } = settings;
+    return c.json({ version, consent, pages, screens });
+  });
 
   app.put("/client-settings", async (c) => {
     const body = await parse(c, clientSettingsBody);

@@ -436,7 +436,7 @@ async def ask(app: Any, method: str, path: str, body: Any = None, headers: dict[
         "path": path,
         "query_string": query.encode(),
         "root_path": "",
-        "headers": [(b"x-user", b"u1"), (b"cookie", b"theme=dark; sid=abc")] + [(k.encode(), v.encode()) for k, v in headers.items()],
+        "headers": [(b"x-user", b"u1"), (b"cookie", headers.pop("cookie", "theme=dark; sid=abc").encode())] + [(k.encode(), v.encode()) for k, v in headers.items()],
         "state": {},
         "client": ("203.0.113.7", 1),
     }
@@ -489,7 +489,7 @@ class ClientSettingsTest(unittest.TestCase):
         settled(kairos)
 
         async def run() -> None:
-            await ask(app, "POST", "/api/payees/p7?plan=gold", {"email": " Ada@Example.COM "})
+            await ask(app, "POST", "/api/payees/p7?plan=gold", {"email": " Ada@Example.COM "}, {"cookie": "sid=abc; kairos_device=browser_1"})
             await ask(app, "POST", "/api/payees/p8", {}, {"x-status": "400"})
             await ask(app, "PUT", "/api/password", headers={"x-status": "204"})
             await ask(app, "POST", "/api/login", headers={"x-status": "401"})
@@ -503,7 +503,7 @@ class ClientSettingsTest(unittest.TestCase):
             [
                 {
                     "type": "beneficiary_added",
-                    "entities": {"user": "u1", "payee": "p7"},
+                    "entities": {"user": "u1", "device": "browser_1", "payee": "p7"},
                     "session": session,
                     "properties": {"email": "ada@example.com", "plan": "gold", "who": "u9", **facts("POST", "/api/payees/:id", "201")},
                 },
@@ -511,6 +511,23 @@ class ClientSettingsTest(unittest.TestCase):
                 {"type": "password_changed", "entities": {"user": "u1"}, "session": session, "properties": facts("PUT", "/api/password", "204")},
             ],
         )
+
+    def test_take_the_visit_of_the_website_script_as_the_session_when_nothing_else_gives_one(self) -> None:
+        server = with_settings([{"route": "POST /payees", "mode": "track", "type": "beneficiary_added"}])
+        kairos = client(server)
+
+        def session(scope: Any) -> str | None:
+            return dict(scope["headers"]).get(b"x-session", b"").decode() or None
+
+        app = KairosASGI(reader([]), client=kairos, entities=user, session=session, client_settings=True)
+        settled(kairos)
+
+        async def run() -> None:
+            await ask(app, "POST", "/payees", headers={"cookie": "kairos_visit=visit_1"})
+            await ask(app, "POST", "/payees", headers={"cookie": "kairos_visit=visit_1", "x-session": "login_9"})
+
+        asyncio.run(run())
+        self.assertEqual([e.get("session") for e in events(server, kairos)], ["visit_1", "login_9"])
 
     def test_decide_a_route_before_the_app_and_act_only_when_enforced_in_active_mode(self) -> None:
         routes = [

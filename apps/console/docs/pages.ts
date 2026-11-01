@@ -227,6 +227,11 @@ export const groups: DocGroup[] = [
             blurb: "finic-kairos: the same client, with Python names.",
           },
           {
+            slug: "reference/clients/browser",
+            title: "Website script",
+            blurb: "kairos.js: the device of each visitor, the pages of your client settings, and events of your own.",
+          },
+          {
             slug: "reference/clients/cli",
             title: "CLI",
             blurb: "kairos: events, imports, decisions, cases and models from a terminal.",

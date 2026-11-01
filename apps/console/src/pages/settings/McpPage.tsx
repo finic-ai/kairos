@@ -271,7 +271,7 @@ export function McpPage({ workspace, environment }: SettingsPageProps) {
         <KeyModal
           workspace={workspace}
           environment={environment}
-          secretOnly
+          kind="secret"
           defaultName="MCP agent"
           onClose={() => setCreating(false)}
           onCreated={(created) => setSecret(created.secret)}

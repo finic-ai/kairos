@@ -154,7 +154,7 @@ describe("the client settings", () => {
     expect(await save({ routes: [{ route: "PUT /a", mode: "collect", type: "a" }] })).toMatchObject({ status: 400 });
   });
 
-  it("are read and saved with a secret key in the key's environment, and never with a public key", async () => {
+  it("are read and saved with a secret key in the key's environment, and only read in part with a public key", async () => {
     const call = (method: string, key: string, body?: object) =>
       app.request("/v1/client-settings", {
         method,
@@ -180,8 +180,62 @@ describe("the client settings", () => {
       created: NOW,
       updated: NOW,
     });
-    expect((await call("GET", "kpk_site")).status).toBe(403);
+    const read = await call("GET", "kpk_site");
+    expect(read.status).toBe(200);
+    expect(await read.json()).toEqual({
+      version: 1,
+      consent: "required",
+      pages: settings.pages,
+      screens: settings.screens,
+    });
     expect((await call("PUT", "kpk_site", settings)).status).toBe(403);
+  });
+
+  it("add the address of the browser to the events of a public key", async () => {
+    app = createApp({
+      repos: createRepositories(database.db),
+      environments: environmentsRepository(database.db),
+      accounts: tenancyRepository(database.db),
+      decider: async () => ({ id: "dec_1", model: "grayson-1", answers: {}, usage: { input_tokens: 1 } }),
+      now: () => NOW,
+      trustProxy: true,
+    });
+    await database.db.insert(apiKeys).values({
+      id: "key_public",
+      workspaceId: "workspace_a",
+      environmentId: "workspace_a",
+      name: "Website",
+      kind: "public",
+      keyHash: hashToken("kpk_site"),
+      hint: "kpk_site",
+      allowedIps: [],
+      allowedOrigins: [],
+      created: NOW,
+      updated: NOW,
+    });
+    const send = (key: string, events: object[]) =>
+      app.request("/v1/events", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${key}`,
+          "Content-Type": "application/json",
+          "X-Forwarded-For": "203.0.113.7",
+        },
+        body: JSON.stringify({
+          batch: events.map((e, i) => ({ id: `${key}_${i}`, type: "page_viewed", ts: NOW.toISOString(), ...e })),
+        }),
+      });
+    expect(
+      (await send("kpk_site", [{ entities: { device: "d1" } }, { entities: { device: "d2", ip: "198.51.100.1" } }]))
+        .status,
+    ).toBe(202);
+    expect((await send("key_a", [{ entities: { device: "d3" } }])).status).toBe(202);
+    const stored = async (id: string) =>
+      ((await (await app.request(`/v1/events/${id}`, { headers: { Authorization: "Bearer key_a" } })).json()) as any)
+        .entities;
+    expect(await stored("kpk_site_0")).toEqual({ device: "d1", ip: "203.0.113.7" });
+    expect(await stored("kpk_site_1")).toEqual({ device: "d2", ip: "198.51.100.1" });
+    expect(await stored("key_a_0")).toEqual({ device: "d3" });
   });
 
   it("are read and saved through MCP when the build tools are on", async () => {

@@ -46,6 +46,10 @@ _App = Callable[[Request, _Receive, _Send], Awaitable[None]]
 
 _ROUTE = re.compile(r"^([A-Za-z]+)\s+(/.*)$")
 _REFRESH = 60.0
+#: The cookie of the website script that holds the id of the browser.
+DEVICE_COOKIE = "kairos_device"
+#: The cookie of the website script that holds the id of the visit: the session when nothing else gives one.
+VISIT_COOKIE = "kairos_visit"
 
 
 def _trimmed(path: str) -> str:
@@ -226,7 +230,7 @@ class KairosASGI:
         settings = _current_settings(self._client) if self._client_settings else None
         method = str(scope.get("method", "")).upper()
         headers = {key.decode("latin-1").lower(): value.decode("latin-1") for key, value in reversed(scope.get("headers", []))}
-        context = Scope(self._subject, lambda: (self._entities(scope) if self._entities else None, self._who(scope, settings, headers)))
+        context = Scope(self._subject, lambda: (self._acting(scope, headers), self._who(scope, settings, headers)))
         mounted_at = scope.get("root_path", "")
         status: list[int] = []
         response_headers: dict[str, str] = {}
@@ -275,14 +279,25 @@ class KairosASGI:
         if queued and self._flush:
             await asyncio.get_running_loop().run_in_executor(None, self._client.flush)
 
-    def _who(self, scope: Request, settings: Mapping[str, Any] | None, headers: Mapping[str, str]) -> Any:
-        """The session of the request: what ``session`` gives, else the hash of the settings' session cookie."""
-        found = self._session(scope) if self._session else None
-        if found is not None or not settings or self._hash is None:
+    def _acting(self, scope: Request, headers: Mapping[str, str]) -> Mapping[str, Any] | None:
+        """Who ``entities`` says is acting, with the website script's device when it names none."""
+        found = self._entities(scope) if self._entities else None
+        if not self._client_settings or (found and found.get("device")):
             return found
-        name = settings.get("defaults", {}).get("sessionCookie")
-        value = _cookie(headers.get("cookie"), name) if name else None
-        return self._hash(value) if value else None
+        device = _cookie(headers.get("cookie"), DEVICE_COOKIE)
+        return {**(found or {}), "device": device} if device else found
+
+    def _who(self, scope: Request, settings: Mapping[str, Any] | None, headers: Mapping[str, str]) -> Any:
+        """The session of the request: what ``session`` gives, else the hash of the settings' session cookie, else the visit."""
+        found = self._session(scope) if self._session else None
+        if found is not None or not self._client_settings:
+            return found
+        cookies = headers.get("cookie")
+        name = (settings or {}).get("defaults", {}).get("sessionCookie")
+        value = _cookie(cookies, name) if name and self._hash else None
+        if value and self._hash:
+            return self._hash(value)
+        return _cookie(cookies, VISIT_COOKIE)
 
     def _properties(self, settings: Mapping[str, Any], route: Mapping[str, Any], parts: RequestParts, method: str) -> dict[str, Any]:
         properties, problems = route_properties(route, parts, settings, self._hash)

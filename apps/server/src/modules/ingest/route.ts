@@ -1,5 +1,6 @@
 import { Hono, type Context } from "hono";
 import { bounded, error, parse, type Env } from "../../platform/http";
+import { clientIp, normalizeIp } from "../../platform/network";
 import type { Repositories } from "../../repositories";
 import { eventsBody } from "./schema";
 import { record, session, track } from "./service";
@@ -14,15 +15,23 @@ export const sourceOf = (c: Context<Env>): EventVia =>
 export type IngestDeps = Pick<Repositories, "db" | "events" | "transaction"> & {
   now: () => Date;
   onQueued?: () => void;
+  trustProxy?: boolean;
 };
 
-export function eventRoutes({ db, events, transaction, now, onQueued }: IngestDeps) {
+export function eventRoutes({ db, events, transaction, now, onQueued, trustProxy }: IngestDeps) {
   const app = new Hono<Env>();
 
   app.post("/events", async (c) => {
     const body = await parse(c, eventsBody);
     if ("response" in body) return body.response;
-    const batch = body.data.batch.map((e) => ({ ...e, ts: new Date(e.ts).toISOString() }));
+    // A browser cannot know its own public address, so the events of a public key get it here.
+    const address = c.get("publicKey") ? clientIp(c, trustProxy) : undefined;
+    const ip = address ? normalizeIp(address) : undefined;
+    const batch = body.data.batch.map((e) => ({
+      ...e,
+      ts: new Date(e.ts).toISOString(),
+      ...(ip && !e.entities.ip ? { entities: { ...e.entities, ip } } : {}),
+    }));
     const stored = await track(
       { transaction },
       c.get("workspaceId"),
