@@ -20,6 +20,7 @@ One process and one database.
 - **The server** is a single JavaScript file, `server.mjs`, that runs on Node.js 22. It serves the API and the console from the same address, so there is nothing else to host and no CORS to configure for the console.
 - **The database** is Postgres. A deployment connects to one through `DATABASE_URL`. The embedded Postgres of development is not in a built server.
 - **The model** is called over the internet: the server needs to reach the Finic API, and it needs a `GRAYSON_API_KEY`.
+- **Deploy from Kairos** for Cloudflare Workers calls `api.cloudflare.com` from the server, with the token that the person gives.
 
 The server keeps no state of its own. Everything is in Postgres.
 

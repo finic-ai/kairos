@@ -23,6 +23,7 @@ import { apiAuth } from "./platform/auth";
 import { activityLog } from "./platform/activity";
 import { activitiesModule } from "./modules/activities";
 import { clientsModule } from "./modules/clients";
+import { cloudflareModule } from "./modules/cloudflare";
 import { internalRoutes } from "./internal";
 import { SessionsService } from "./services/session.service";
 import { UsersService } from "./services/user.service";
@@ -109,6 +110,14 @@ export function createApp(options: AppOptions) {
     requireRole: tenancy.tenancy.requireRole,
     now,
   });
+  const cloudflare = cloudflareModule({
+    tenancy: tenancy.tenancy,
+    environments: environmentService,
+    sessions,
+    requireRole: tenancy.tenancy.requireRole,
+    fetch: options.fetch ?? fetch,
+    now,
+  });
   const mcp = mcpModule({
     db,
     app: () => app,
@@ -130,6 +139,7 @@ export function createApp(options: AppOptions) {
   app.route("/app", jobModule.routes);
   app.route("/app", mcp.adminRoutes);
   app.route("/app", clients.adminRoutes);
+  app.route("/app", cloudflare.routes);
   app.route("/app", activities.routes);
 
   // Registered before the key check, which an inbound webhook and a workflow's webhook skip.

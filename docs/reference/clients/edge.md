@@ -16,6 +16,22 @@ Each one needs a secret key from **Settings › API keys**. Then set the routes 
 
 ## Cloudflare Workers
 
+### Deploy from Kairos
+
+Kairos can put the Worker on your zone, with no project of your own. You need the admin role.
+
+1. In Cloudflare, make an API token from the template **Edit Cloudflare Workers**, for the zone of your website.
+2. In **Settings › Integrations › Cloudflare Workers**, choose **Deploy Worker**, paste the token and choose **Find zones**.
+3. Choose the zone and the route, such as `example.com/*`. Only the requests on the route go through the Worker.
+4. Give the hash key of your servers, if they run the Kairos middleware. Leave it empty, and Kairos makes one and shows it once: put it on your servers as `KAIROS_HASH_KEY`.
+5. Choose whether the Worker adds the [JavaScript tag](#javascript) to your pages, then **Deploy**.
+
+Kairos makes a secret key for the Worker in the environment that the console shows, named `Cloudflare Worker · example.com`, and a public key for the JavaScript tag. It uploads the Worker as `kairos-production` (for the environment Production), and routes it.
+
+**Kairos uses the token for that deployment only, and does not keep it.** To update the Worker, deploy again with a token: the new keys replace the keys of the earlier deployment to the zone, which Kairos revokes. To remove the Worker, delete its route and the Worker in Cloudflare, and revoke its keys in **Settings › API keys**.
+
+### Deploy it yourself
+
 In a Worker project:
 
 ```sh

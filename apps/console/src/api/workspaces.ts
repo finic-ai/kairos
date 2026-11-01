@@ -4,6 +4,8 @@ import type {
   ActivityFilter,
   ApiKey,
   ClientSettings,
+  CloudflareDeployment,
+  CloudflareZone,
   Invite,
   McpGroup,
   McpSettings,
@@ -25,6 +27,13 @@ export const workspaces = {
   clientSettings: (id: string) => request<ClientSettings>("GET", `${ws(id)}/client-settings`),
   setClientSettings: (id: string, settings: Omit<ClientSettings, "version">) =>
     request<ClientSettings>("PUT", `${ws(id)}/client-settings`, settings),
+  /** The token is sent for this call only. Kairos does not keep it. */
+  cloudflareZones: (id: string, token: string) =>
+    request<{ zones: CloudflareZone[] }>("POST", `${ws(id)}/cloudflare/zones`, { token }, { changes: false }),
+  deployCloudflare: (
+    id: string,
+    body: { token: string; zone_id: string; pattern: string; hash_key?: string; javascript: boolean; url: string },
+  ) => request<CloudflareDeployment>("POST", `${ws(id)}/cloudflare/deploy`, body),
   mcp: (id: string) => request<McpSettings>("GET", `${ws(id)}/mcp`),
   setMcp: (id: string, settings: { enabled: boolean; groups: McpGroup[] }) =>
     request<McpSettings>("PUT", `${ws(id)}/mcp`, settings),

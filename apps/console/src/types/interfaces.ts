@@ -498,6 +498,22 @@ export interface ApiKey {
   revoked: string | null;
 }
 
+export interface CloudflareZone {
+  id: string;
+  name: string;
+  account: string;
+}
+
+export interface CloudflareDeployment {
+  script: string;
+  zone: string;
+  pattern: string;
+  key: ApiKey;
+  public_key?: ApiKey;
+  /** Only when Kairos made it: shown once. */
+  hash_key?: string;
+}
+
 export type McpGroup = "read" | "write" | "decide" | "build";
 
 export interface McpTool {

@@ -5,6 +5,7 @@ import { href } from "../../../lib/route";
 import type { Environment, Workspace } from "../../../types/interfaces";
 import { KEY_PLACEHOLDERS, KINDS, type Integration } from "./catalog";
 import { Logo } from "./CatalogTab";
+import { CloudflareDeployModal } from "./CloudflareDeployModal";
 
 export function IntegrationDetail({
   integration,
@@ -17,6 +18,7 @@ export function IntegrationDetail({
 }) {
   const manage = workspace.role !== "member";
   const [creating, setCreating] = useState(false);
+  const [deploying, setDeploying] = useState(false);
   const [secret, setSecret] = useState<string | null>(null);
   const available = !!integration.docs;
   const kind = integration.key ?? "secret";
@@ -36,6 +38,11 @@ export function IntegrationDetail({
         {available && manage && (
           <button className="btn" onClick={() => setCreating(true)}>
             Create key
+          </button>
+        )}
+        {integration.slug === "cloudflare" && manage && (
+          <button className="btn primary" onClick={() => setDeploying(true)}>
+            Deploy Worker
           </button>
         )}
       </div>
@@ -115,6 +122,9 @@ export function IntegrationDetail({
         </aside>
       </div>
 
+      {deploying && (
+        <CloudflareDeployModal workspace={workspace} environment={environment} onClose={() => setDeploying(false)} />
+      )}
       {creating && (
         <KeyModal
           workspace={workspace}
