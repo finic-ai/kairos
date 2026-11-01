@@ -2,12 +2,20 @@
   "name": "@finic-ai/kairos-edge",
   "version": "0.1.0",
   "license": "Apache-2.0",
-  "description": "Kairos at the edge: the routes of the client settings in a Cloudflare Worker.",
+  "description": "Kairos at the edge: the routes of the client settings in a Cloudflare Worker, Fastly Compute or Lambda@Edge.",
   "type": "module",
   "exports": {
     "./cloudflare": {
       "types": "./src/cloudflare.ts",
       "default": "./src/cloudflare.ts"
+    },
+    "./fastly": {
+      "types": "./src/fastly.ts",
+      "default": "./src/fastly.ts"
+    },
+    "./lambda": {
+      "types": "./src/lambda.ts",
+      "default": "./src/lambda.ts"
     }
   },
   "files": [
@@ -36,6 +44,14 @@
       "./cloudflare": {
         "types": "./dist/cloudflare.d.ts",
         "default": "./dist/cloudflare.js"
+      },
+      "./fastly": {
+        "types": "./dist/fastly.d.ts",
+        "default": "./dist/fastly.js"
+      },
+      "./lambda": {
+        "types": "./dist/lambda.d.ts",
+        "default": "./dist/lambda.js"
       }
     }
   }

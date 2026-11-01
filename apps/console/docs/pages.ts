@@ -235,7 +235,7 @@ export const groups: DocGroup[] = [
             slug: "reference/clients/edge",
             title: "Edge",
             blurb:
-              "@finic-ai/kairos-edge: the routes of your client settings in a Cloudflare Worker, with no change to your app.",
+              "@finic-ai/kairos-edge: the routes of your client settings on Cloudflare, Fastly or CloudFront, with no change to your app.",
           },
           {
             slug: "reference/clients/cli",

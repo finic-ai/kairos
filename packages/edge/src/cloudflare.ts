@@ -1,5 +1,4 @@
-import type { Routing } from "@finic-ai/kairos/routes";
-import { edge, handle } from "./edge.js";
+import { edge, handle, scriptTag, type Routing } from "./edge.js";
 
 export interface KairosEnv {
   /** A secret key (`ksk_`). */
@@ -26,8 +25,6 @@ declare const HTMLRewriter: new () => {
   on(selector: string, handlers: { element(element: Element): void }): { transform(response: Response): Response };
 };
 
-const DEFAULT_URL = "https://kairos.finic.ai";
-
 let held: { key: string; routing: Routing } | undefined;
 
 function routingOf(env: KairosEnv & { KAIROS_API_KEY: string }): Routing {
@@ -44,14 +41,9 @@ function routingOf(env: KairosEnv & { KAIROS_API_KEY: string }): Routing {
   return held.routing;
 }
 
-const attribute = (value: string) =>
-  value.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-
 function withScript(response: Response, env: KairosEnv): Response {
-  const key = env.KAIROS_PUBLIC_KEY;
-  if (!key || !/^text\/html\b/i.test(response.headers.get("content-type") ?? "")) return response;
-  const src = `${(env.KAIROS_URL ?? DEFAULT_URL).replace(/\/+$/, "")}/kairos.js`;
-  const tag = `<script async src="${attribute(src)}" data-api-key="${attribute(key)}"></script>`;
+  const tag = scriptTag(response, env.KAIROS_PUBLIC_KEY, env.KAIROS_URL);
+  if (!tag) return response;
   return new HTMLRewriter().on("head", { element: (head) => head.append(tag, { html: true }) }).transform(response);
 }
 

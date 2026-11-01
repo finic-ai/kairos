@@ -387,9 +387,42 @@ npx wrangler deploy`,
     kind: "edge",
     logo: fastly,
     note: "The same as Cloudflare, on Fastly's edge.",
-    overview: ["The same as the Cloudflare Worker, for Fastly Compute."],
-    plans: ["The routes in your client settings, with the same modes as Cloudflare.", "A backend named kairos."],
+    overview: [
+      "A Compute service in front of your app, with the same route modes as the Cloudflare Worker. It reads its keys from a Secret Store, and keeps the settings in the cache of each point of presence for a minute.",
+      "With a public key as KAIROS_PUBLIC_KEY in the store, it also adds the website script to your pages.",
+    ],
+    docs: "/docs/reference/clients/edge#fastly-compute",
     clientSettings: true,
+    steps: [
+      { title: "Install, in a Compute project for JavaScript", code: () => "npm install @finic-ai/kairos-edge" },
+      {
+        title: "Put Kairos in front of your app",
+        code: () => `// src/index.js
+import { fastly } from "@finic-ai/kairos-edge/fastly";
+
+addEventListener("fetch", fastly());`,
+      },
+      {
+        title: "Add a backend named kairos, beside your app's backend named origin",
+        code: (_, origin) => {
+          const { hostname: host, port, protocol } = new URL(origin);
+          const tls = protocol === "https:" ? ` --use-ssl --ssl-cert-hostname ${host}` : "";
+          return `fastly service backend create --name kairos --address ${host} --port ${port || (tls ? 443 : 80)}${tls} --override-host ${host} --version latest --autoclone`;
+        },
+      },
+      {
+        title: "Put your secret key, and your servers' hash key, in a Secret Store named kairos, then publish",
+        code: (key, origin) => `fastly secret-store create --name kairos
+fastly secret-store-entry create --store-id <STORE_ID> --name KAIROS_API_KEY   # ${key}
+fastly secret-store-entry create --store-id <STORE_ID> --name KAIROS_HASH_KEY  # the same as your servers'${
+          origin === HOSTED
+            ? ""
+            : `\nfastly secret-store-entry create --store-id <STORE_ID> --name KAIROS_URL   # ${origin}`
+        }
+fastly service resource-link create --resource-id <STORE_ID> --version latest --autoclone
+fastly compute publish`,
+      },
+    ],
   },
   {
     slug: "lambda-edge",
@@ -398,12 +431,32 @@ npx wrangler deploy`,
     logo: lambda,
     note: "The same as Cloudflare, on CloudFront.",
     overview: [
-      "The same as the Cloudflare Worker, for CloudFront, with one function on the origin request and one on the origin response.",
+      "Two functions on a CloudFront behavior: one on the origin request, which can decide before your app, and one on the origin response, which sends the route's event or decides with the response.",
+      "Lambda@Edge has no work after the response, so a route waits for its sends. CloudFront does not give the response's body to a function, so a route reads the response's status and headers.",
     ],
-    plans: [
-      "The routes in your client settings, with the same modes as Cloudflare.",
-      "A time limit of 5 seconds, set by AWS.",
-    ],
+    docs: "/docs/reference/clients/edge#lambdaedge",
     clientSettings: true,
+    steps: [
+      { title: "Install", code: () => "npm install @finic-ai/kairos-edge" },
+      {
+        title: "Write the two functions. Lambda@Edge has no environment variables, so the keys go in the code",
+        code: (key, origin) => `// index.ts
+import { lambdaEdge } from "@finic-ai/kairos-edge/lambda";
+
+const kairos = lambdaEdge({
+  apiKey: "${key}",
+  hashKey: "<THE_SAME_AS_YOUR_SERVERS>",${origin === HOSTED ? "" : `\n  baseUrl: "${origin}",`}
+});
+
+export const originRequest = kairos.originRequest;
+export const originResponse = kairos.originResponse;`,
+      },
+      {
+        title: "Bundle it, and make two functions from the bundle in us-east-1",
+        code: () => `npx esbuild index.ts --bundle --platform=node --format=esm --outfile=dist/index.mjs
+# Handler index.originRequest: CloudFront event "Origin request", with Include body
+# Handler index.originResponse: CloudFront event "Origin response"`,
+      },
+    ],
   },
 ];

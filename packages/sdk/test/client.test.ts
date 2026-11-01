@@ -488,3 +488,37 @@ describe("objects, labels and actions", () => {
     });
   });
 });
+
+describe("a runtime with no AbortSignal", () => {
+  it("still times out a call, and leaves no timer when a call ends", async () => {
+    const { vi } = await import("vitest");
+    vi.stubGlobal("AbortSignal", undefined);
+    try {
+      const inits: RequestInit[] = [];
+      const hanging = new Kairos({
+        apiKey: "k",
+        timeoutMs: 50,
+        maxRetries: 0,
+        fetch: ((_url: string, init: RequestInit) => {
+          inits.push(init);
+          return new Promise(() => {});
+        }) as typeof fetch,
+      });
+      await expect(hanging.clientSettings()).rejects.toBeInstanceOf(KairosTimeoutError);
+      expect(inits[0]!.signal).toBeUndefined();
+      const decision = await hanging.decide({ type: "payment", userId: "u1" }, { fallback: "review", timeoutMs: 50 });
+      expect(decision).toMatchObject({ decision: "review", fallback: true });
+
+      vi.useFakeTimers();
+      const answering = new Kairos({
+        apiKey: "k",
+        fetch: (async () => Response.json({ version: 1 })) as unknown as typeof fetch,
+      });
+      await answering.clientSettings();
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+      vi.unstubAllGlobals();
+    }
+  });
+});

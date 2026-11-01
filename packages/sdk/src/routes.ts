@@ -35,6 +35,14 @@ export function currentSettings(kairos: Kairos, waitUntil?: (work: Promise<void>
   return held.settings;
 }
 
+/** The settings, after waiting for the first read: where background work does not outlive the request. */
+export async function loadedSettings(kairos: Kairos): Promise<ClientSettings | undefined> {
+  const settings = currentSettings(kairos);
+  if (settings) return settings;
+  await loaded.get(kairos)?.loading;
+  return loaded.get(kairos)?.settings;
+}
+
 export interface Routing {
   kairos: Kairos;
   hash?: Hash;
@@ -91,10 +99,14 @@ const routeFacts = (live: Live) => ({
   http_route: live.route.route.slice(live.route.route.indexOf(" ") + 1),
 });
 
-async function propertiesOf(live: Live, parts: RequestParts, facts: EventProperties): Promise<EventProperties> {
+export async function routeFields(live: Live, parts: RequestParts): Promise<EventProperties> {
   const { properties, problems } = await routeProperties(live.route, parts, live.settings, live.hash);
   problems.forEach(live.report);
-  return { ...facts, ...properties, ...routeFacts(live) };
+  return properties;
+}
+
+async function propertiesOf(live: Live, parts: RequestParts, facts: EventProperties): Promise<EventProperties> {
+  return { ...facts, ...(await routeFields(live, parts)), ...routeFacts(live) };
 }
 
 export type Answer = { status: number; body: unknown } | { redirect: string };
@@ -154,10 +166,10 @@ export function trackAfter(
 
 export function answerResponse(answer: Answer): Response {
   return "redirect" in answer
-    ? new Response(null, { status: 302, headers: { location: answer.redirect } })
+    ? new Response(null, { status: 302, headers: { location: answer.redirect, "cache-control": "no-store" } })
     : new Response(JSON.stringify(answer.body), {
         status: answer.status,
-        headers: { "content-type": "application/json" },
+        headers: { "content-type": "application/json", "cache-control": "no-store" },
       });
 }
 
@@ -180,10 +192,10 @@ function sameText(a: string, b: string): boolean {
 
 export async function signEdge(
   hash: Hash,
-  request: { method: string; path: string; decision?: Decision },
+  request: { method: string; path: string; decision?: Decision; fields?: EventProperties },
   now = Date.now(),
 ): Promise<string> {
-  const { decision } = request;
+  const { decision, fields } = request;
   const payload = base64url(
     JSON.stringify({
       t: now,
@@ -202,6 +214,7 @@ export async function signEdge(
             },
           }
         : {}),
+      ...(fields ? { f: fields } : {}),
     }),
   );
   return `${payload}.${await hash(`kairos-edge.${payload}`)}`;
@@ -212,11 +225,11 @@ export async function verifyEdge(
   header: string | undefined,
   request: { method: string; path: string },
   now = Date.now(),
-): Promise<{ decision?: Decision } | undefined> {
+): Promise<{ decision?: Decision; fields?: EventProperties } | undefined> {
   const [payload, signature, extra] = header?.split(".") ?? [];
   if (!payload || !signature || extra !== undefined) return undefined;
   if (!sameText(signature, await hash(`kairos-edge.${payload}`))) return undefined;
-  let claim: { t?: number; m?: string; p?: string; d?: Record<string, any> };
+  let claim: { t?: number; m?: string; p?: string; d?: Record<string, any>; f?: EventProperties };
   try {
     claim = JSON.parse(unbase64url(payload));
   } catch {
@@ -224,9 +237,11 @@ export async function verifyEdge(
   }
   if (typeof claim.t !== "number" || Math.abs(now - claim.t) > EDGE_MAX_AGE_MS) return undefined;
   if (claim.m !== request.method.toUpperCase() || claim.p !== request.path) return undefined;
-  const d = claim.d;
-  if (!d) return {};
+  const { d, f } = claim;
+  const fields = f && typeof f === "object" ? { fields: f } : {};
+  if (!d) return fields;
   return {
+    ...fields,
     decision: {
       decision: d.decision,
       riskScore: d.risk_score,
