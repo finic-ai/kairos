@@ -13,4 +13,4 @@ from .types import Decision, Moment, Outcome, Properties, Transport
 from .webhooks import KairosWebhookError, verify_webhook
 
 __all__ = ["Decision", "Kairos", "KairosApiError", "KairosError", "KairosTimeoutError", "KairosWebhookError", "Moment", "Outcome", "Properties", "Transport", "verify_webhook"]
-__version__ = "0.1.0"
+__version__ = "0.2.0"

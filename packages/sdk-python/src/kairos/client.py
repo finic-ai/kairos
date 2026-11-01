@@ -744,7 +744,7 @@ class Kairos:
     def _request(self, method: str, path: str, body: Any, deadline: float | None, limit: float) -> dict[str, Any]:
         """One request with retries. ``deadline`` is for the whole of it; without one, each attempt has ``limit``."""
         data = b"" if method == "GET" else _encode(body)
-        headers = {"Authorization": f"Bearer {self._api_key}", "User-Agent": "kairos-python/0.1.0"}
+        headers = {"Authorization": f"Bearer {self._api_key}", "User-Agent": "kairos-python/0.2.0"}
         if method != "GET":
             headers["Content-Type"] = "application/json"
         last: KairosError = KairosError("Request failed")
