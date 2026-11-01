@@ -849,6 +849,79 @@ describe("decision workflows", () => {
     });
   });
 
+  it("lists the decisions by what decided them: a workflow or a policy rule", async () => {
+    await defineAction();
+    await save(
+      "payout_rules",
+      [
+        {
+          id: "big",
+          name: "Big",
+          type: "condition",
+          when: "trigger.properties.amount >= 1000",
+          then: [
+            { id: "hold", name: "Hold", type: "return", value: { outcome: "block", rules: ["amount_over_1000"] } },
+          ],
+        },
+        ...approve,
+      ],
+      trigger,
+    );
+    await decide({ amount: 5000 });
+    await decide({ amount: 5 });
+    await call("PUT", "/v1/actions/refund", {
+      subject: "user",
+      hold: "Should this refund be held?",
+      reasons: { odd_refund: "The refund is odd", other: "Something else" },
+      policy: { rules: [{ id: "odd_refund_rule", allOf: ["odd_refund"], outcome: "review" }] },
+    });
+    const refund = await call("POST", "/v1/decide", { action: "refund", entities: { user: "u2" } });
+    expect(refund.body.rules).toEqual(["odd_refund_rule"]);
+
+    const list = async (query: string) =>
+      (await call("GET", `/v1/decisions?${query}`)).body.decisions.map((d: any) => [d.action, d.decision.decision]);
+    expect(await list("decided_by=workflow")).toEqual([
+      ["payout@1", "approve"],
+      ["payout@1", "block"],
+    ]);
+    expect(await list("workflow=payout_rules")).toHaveLength(2);
+    expect(await list("workflow=payout_rules@1")).toHaveLength(2);
+    expect(await list("workflow=payout_rules@2")).toEqual([]);
+    expect(await list("workflow=payout")).toEqual([]);
+    // The workflow's own rule is not a policy rule of the action.
+    expect(await list("decided_by=policy")).toEqual([["refund@1", "review"]]);
+    expect(await list("rule=odd_refund_rule")).toEqual([["refund@1", "review"]]);
+    expect(await list("rule=amount_over_1000")).toEqual([]);
+    // A workflow that passes the model step's policy rules on: those are the action's policy rules.
+    await save(
+      "refund_flow",
+      [
+        { id: "ask", name: "Ask", type: "assess" },
+        {
+          id: "done",
+          name: "Done",
+          type: "return",
+          value: { outcome: "{{ steps.ask.output.decision }}", rules: "{{ steps.ask.output.rules }}" },
+        },
+      ],
+      { type: "decision", action: "refund" },
+    );
+    expect((await call("POST", "/v1/decide", { action: "refund", entities: { user: "u3" } })).body.rules).toEqual([
+      "odd_refund_rule",
+    ]);
+    expect(await list("rule=odd_refund_rule")).toEqual([
+      ["refund@1", "review"],
+      ["refund@1", "review"],
+    ]);
+    expect(await list("decided_by=policy")).toHaveLength(2);
+    expect(await list("decided_by=workflow")).toHaveLength(3);
+
+    const listed = (await call("GET", "/v1/decisions?workflow=payout_rules")).body;
+    expect(listed.total).toBe(2);
+    expect(listed.decisions[0].metadata).toEqual({ decision_workflow: "payout_rules@1" });
+    expect((await call("GET", "/v1/decisions?action=refund")).body.decisions.at(-1).metadata).toBeUndefined();
+  });
+
   it("asks a question about the history before the moment that it decides as of", async () => {
     await defineAction();
     const login = (id: string, ts: string) => ({ id, type: "login", ts, entities: { user: "u1" }, properties: {} });

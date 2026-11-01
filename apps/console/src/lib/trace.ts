@@ -8,9 +8,19 @@ export type TraceItem =
       /** More than one for a step inside a loop. */
       entries: WorkflowRunStep[];
       depth: number;
+      /** The condition or loop that holds the step. */
+      parent: string | null;
       afterAnswer: boolean;
     }
-  | { kind: "not_run"; steps: WorkflowStep[]; depth: number; why: string };
+  | {
+      kind: "not_run";
+      steps: WorkflowStep[];
+      depth: number;
+      parent: string | null;
+      /** Set for the branch of a condition that the run did not take. */
+      branch?: "then" | "else";
+      why: string;
+    };
 
 const ANSWERS = new Set(["answer", "return"]);
 
@@ -23,8 +33,8 @@ export function traceOf(steps: WorkflowStep[], run: Pick<WorkflowRun, "steps">):
   const answered = run.steps.findIndex((e) => e.status === "done" && ANSWERS.has(types.get(e.id) ?? ""));
 
   const items: TraceItem[] = [];
-  const skip = (list: WorkflowStep[], depth: number, why: string) => {
-    if (list.length) items.push({ kind: "not_run", steps: list, depth, why });
+  const skip = (list: WorkflowStep[], depth: number, parent: string | null, why: string, branch?: "then" | "else") => {
+    if (list.length) items.push({ kind: "not_run", steps: list, depth, parent, why, ...(branch ? { branch } : {}) });
   };
   const ranInside = (list: unknown) =>
     walk((list as WorkflowStep[] | undefined) ?? []).some((e) => byId.has(e.step.id));
@@ -37,27 +47,33 @@ export function traceOf(steps: WorkflowStep[], run: Pick<WorkflowRun, "steps">):
   };
   const firstIndex = (step: WorkflowStep) =>
     Math.min(...walk([step]).flatMap((e) => (byId.get(e.step.id) ?? []).map((entry) => order.get(entry)!)));
-  const visit = (list: WorkflowStep[], depth: number) => {
+  const visit = (list: WorkflowStep[], depth: number, parent: string | null) => {
     for (const [i, step] of list.entries()) {
       let entries = byId.get(step.id) ?? [];
       const branch = step.type === "condition" ? branchOf(step, entries) : null;
       if (entries.length === 0 && branch)
         entries = [{ id: step.id, name: step.name, path: step.id, status: "done", output: { branch } }];
       if (entries.length === 0) {
-        skip(list.slice(i), depth, i === 0 ? "Not reached" : `Not run after "${list[i - 1]!.name}"`);
+        skip(list.slice(i), depth, parent, i === 0 ? "Not reached" : `Not run after "${list[i - 1]!.name}"`);
         return;
       }
       const after = answered >= 0 && firstIndex(step) > answered;
-      items.push({ kind: "ran", step, entries, depth, afterAnswer: after });
+      items.push({ kind: "ran", step, entries, depth, parent, afterAnswer: after });
       if (step.type === "condition") {
         const taken = branch ?? "else";
         const other = taken === "then" ? "else" : "then";
-        visit((step[taken] as WorkflowStep[] | undefined) ?? [], depth + 1);
-        skip((step[other] as WorkflowStep[] | undefined) ?? [], depth + 1, `The ${other} branch, not taken`);
-      } else if (step.type === "loop") visit((step.steps as WorkflowStep[] | undefined) ?? [], depth + 1);
+        visit((step[taken] as WorkflowStep[] | undefined) ?? [], depth + 1, step.id);
+        skip(
+          (step[other] as WorkflowStep[] | undefined) ?? [],
+          depth + 1,
+          step.id,
+          `The ${other} branch, not taken`,
+          other,
+        );
+      } else if (step.type === "loop") visit((step.steps as WorkflowStep[] | undefined) ?? [], depth + 1, step.id);
     }
   };
-  visit(steps, 0);
+  visit(steps, 0, null);
   return items;
 }
 
@@ -79,37 +95,6 @@ export function readsOf(expression: string, run: Pick<WorkflowRun, "steps" | "tr
     seen.set(path, value);
   }
   return [...seen];
-}
-
-const WORDS: Record<string, [string, string]> = {
-  ">=": ["is at least", "is below"],
-  ">": ["is above", "is at most"],
-  "<=": ["is at most", "is above"],
-  "<": ["is below", "is at least"],
-  "==": ["is", "is not"],
-  "!=": ["is not", "is"],
-};
-const COMPARISON = /^\s*([A-Za-z_][\w.]*)\s*(>=|<=|==|!=|>|<)\s*(.+?)\s*$/;
-
-const shown = (value: unknown) =>
-  typeof value === "number" ? value.toLocaleString(undefined, { maximumFractionDigits: 4 }) : String(value);
-
-/** A condition on the path, as words: "amount 7,200 is at least 5000". A condition that is not one comparison keeps its name. */
-export function conditionSentence(
-  step: WorkflowStep,
-  entry: WorkflowRunStep,
-  run: Pick<WorkflowRun, "steps" | "trigger">,
-) {
-  const out = entry.output as { branch?: string; passed?: boolean } | undefined;
-  const held = step.type === "filter" ? out?.passed === true : out?.branch === "then";
-  const when = String(step.when ?? "");
-  const match = COMPARISON.exec(when);
-  const words = match ? WORDS[match[2]!] : undefined;
-  if (!match || !words) return `"${step.name}" was ${held ? "true" : "false"}`;
-  const logged = (entry as WorkflowRunStep & { input?: { reads?: Record<string, unknown> } }).input?.reads;
-  const value = logged && match[1]! in logged ? logged[match[1]!] : new Map(readsOf(when, run)).get(match[1]!);
-  const label = match[1]!.split(".").at(-1)!.replaceAll("_", " ");
-  return `${label} ${value === undefined ? "" : `${shown(value)} `}${held ? words[0] : words[1]} ${match[3]}`;
 }
 
 /** The events that a model step read, oldest first, and what it was asked about. */

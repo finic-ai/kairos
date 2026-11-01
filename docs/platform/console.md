@@ -35,7 +35,7 @@ Pages of tiles that you build. Each tile is one number about decisions, events o
 
 ## Decisions
 
-Every decision, with its outcome, risk score, subject, action, typology and signals. Filter by outcome and by action; the filters are in the address, so you can share a filtered list.
+Every decision, with its outcome, risk score, subject, action, typology and signals. Filter by outcome, and with **Filter** by what decided: one action, one decision workflow, or one policy rule (or any workflow, or any policy rule). A decision that a workflow made names the workflow under its action. The filters are in the address, so you can share a filtered list.
 
 ![Decisions](../images/console/decisions.png)
 

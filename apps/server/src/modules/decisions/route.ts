@@ -113,7 +113,10 @@ export function decisionRoutes({ db, events, entities, transaction, decider, now
       action: q.action || undefined,
       session: q.session || undefined,
       subject: q.subject_type && q.subject_id ? { type: q.subject_type, id: q.subject_id } : undefined,
-    };
+      decided_by: q.decided_by === "workflow" || q.decided_by === "policy" ? q.decided_by : undefined,
+      workflow: q.workflow || undefined,
+      rule: q.rule || undefined,
+    } as const;
     const decisions = new DecisionsService(db, {
       workspaceId: c.get("workspaceId"),
       environmentId: c.get("environmentId"),

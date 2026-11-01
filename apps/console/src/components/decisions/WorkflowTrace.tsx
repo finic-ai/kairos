@@ -3,14 +3,14 @@ import { marksOf } from "../../hooks/useWorkflowRun";
 import { valueText } from "../../lib/format";
 import { slugOfRef } from "../../lib/models";
 import { href } from "../../lib/route";
-import { conditionSentence, eventsRead, readsOf, traceOf, type TraceItem } from "../../lib/trace";
+import { eventsRead, readsOf, traceOf, type TraceItem } from "../../lib/trace";
 import { kindOf, TRIGGER_KINDS } from "../../lib/workflows";
 import type {
+  KairosEvent,
   ModelScore,
   Outcome,
   WorkflowDefinition,
   WorkflowRun,
-  WorkflowRunStep,
   WorkflowStep,
 } from "../../types/interfaces";
 import { Pill } from "./Outcome";
@@ -21,14 +21,22 @@ import { StepIcon } from "../workflows/StepIcon";
 import { WorkflowCanvas } from "../workflows/WorkflowCanvas";
 
 type AskAnswer = { value?: unknown; values?: unknown[]; level?: string; probability?: number };
-type Ran = Extract<TraceItem, { kind: "ran" }>;
-type Context = { run: WorkflowRun; outcome?: Outcome; entityTypes?: Set<string> };
+export type Ran = Extract<TraceItem, { kind: "ran" }>;
+type Context = { run: WorkflowRun; outcome?: Outcome; entityTypes?: Set<string>; decision?: DecisionRead };
+/** What the model read for the decision itself: the fallback for a run that did not log its model input. */
+export type DecisionRead = {
+  action: string;
+  events: KairosEvent[];
+  pending?: Record<string, unknown>;
+  /** The decision's reason probabilities, highest first. */
+  signals?: [string, number][];
+};
 type Definition = { trigger: WorkflowDefinition["trigger"]; steps: WorkflowStep[] };
 
 const p = (value: unknown) => (typeof value === "number" ? value.toFixed(2) : "—");
 const answerText = (a: AskAnswer | undefined) =>
   a === undefined ? "—" : valueText(a.level ?? (a.values ? a.values.join(", ") : a.value));
-const ANSWERS = new Set(["answer", "return"]);
+export const ANSWERS = new Set(["answer", "return"]);
 
 function Pairs({ data }: { data: Record<string, unknown> }) {
   const entries = Object.entries(data).filter(([, v]) => v !== undefined);
@@ -45,21 +53,41 @@ function Pairs({ data }: { data: Record<string, unknown> }) {
   );
 }
 
-function Events({ entry, outcome, entityTypes }: { entry: WorkflowRunStep } & Omit<Context, "run">) {
+function modelRead(item: Ran, decision: DecisionRead | undefined) {
+  const entry = item.entries[0]!;
+  const logged = eventsRead(entry);
+  if (logged) return logged;
+  const action = (entry.output as { action?: unknown } | undefined)?.action;
+  if (item.step.type === "assess" && decision && action === decision.action)
+    return { events: decision.events, ...(decision.pending ? { pending: decision.pending } : {}) };
+  return null;
+}
+
+function Events({ item, outcome, entityTypes, decision }: { item: Ran } & Omit<Context, "run">) {
   const [open, setOpen] = useState(false);
-  const read = eventsRead(entry);
+  const read = modelRead(item, decision);
   if (!read) return null;
   return (
     <>
       <button type="button" className="linkish trace-toggle" onClick={() => setOpen(!open)}>
-        {open ? "Hide" : "Show"} the {read.events.length} {read.events.length === 1 ? "event" : "events"} it read
+        {open ? "Hide" : "Show"}{" "}
+        {read.events.length === 0
+          ? "the request it read (there were no earlier events)"
+          : `the ${read.events.length} ${read.events.length === 1 ? "event" : "events"} it read`}
       </button>
       {open && <Timeline events={read.events} pending={read.pending} outcome={outcome} entityTypes={entityTypes} />}
     </>
   );
 }
 
-function Input({ item, run, outcome, entityTypes }: { item: Ran } & Context): ReactNode {
+function Input({
+  item,
+  run,
+  outcome,
+  entityTypes,
+  decision,
+  events: withEvents = true,
+}: { item: Ran; events?: boolean } & Context): ReactNode {
   const { step } = item;
   const entry = item.entries[0]!;
   const input = entry.input;
@@ -80,7 +108,8 @@ function Input({ item, run, outcome, entityTypes }: { item: Ran } & Context): Re
     case "assess": {
       const context = entry.read?.context ?? {};
       const subject = context.subject as { type?: string; id?: string; labels?: string[] } | undefined;
-      const events = eventsRead(entry)?.events.length ?? 0;
+      const read = modelRead(item, decision);
+      const events = read?.events.length ?? 0;
       const about = subject?.id
         ? {
             about: `${subject.type} ${subject.id}`,
@@ -94,8 +123,8 @@ function Input({ item, run, outcome, entityTypes }: { item: Ran } & Context): Re
       return (
         <>
           <Pairs data={{ ...about, ...request }} />
-          {!entry.read && <span className="muted">Not kept: this run is older than the log of model inputs.</span>}
-          <Events entry={entry} outcome={outcome} entityTypes={entityTypes} />
+          {!read && <span className="muted">Not kept: this run is older than the log of model inputs.</span>}
+          {withEvents && <Events item={item} outcome={outcome} entityTypes={entityTypes} decision={decision} />}
         </>
       );
     }
@@ -203,10 +232,41 @@ function Output({ item }: { item: Ran }): ReactNode {
   }
 }
 
+const DEFAULT_MODEL = "grayson-1";
+const MODEL_STEPS = new Set(["assess", "ask", "score"]);
+
+export function modelOf(item: Ran): string | undefined {
+  if (!MODEL_STEPS.has(item.step.type)) return undefined;
+  const named = item.entries[0]?.read?.model ?? (typeof item.step.model === "string" ? item.step.model : undefined);
+  return named || (item.step.type === "score" ? undefined : DEFAULT_MODEL);
+}
+
+function ModelRef({ item }: { item: Ran }) {
+  const model = modelOf(item);
+  const action = (item.entries[0]?.output as { action?: unknown } | undefined)?.action;
+  if (!model) return null;
+  return (
+    <>
+      {" · "}
+      {model === DEFAULT_MODEL ? (
+        <span className="mono">{model}</span>
+      ) : (
+        <a className="mono" href={href("settings", "models", slugOfRef(model))}>
+          {model}
+        </a>
+      )}
+      {item.step.type === "assess" && typeof action === "string" && (
+        <>
+          {" for "}
+          <span className="mono">{action}</span>
+        </>
+      )}
+    </>
+  );
+}
+
 function StepCell({ item }: { item: Ran }) {
   const kind = kindOf(item.step.type);
-  const model =
-    item.entries[0]?.read?.model ?? (item.step.type === "score" ? String(item.step.model ?? "") : undefined);
   return (
     <div style={{ paddingLeft: item.depth * 16 }} className={item.depth ? "trace-nested" : ""}>
       <div className="trace-name">
@@ -215,35 +275,31 @@ function StepCell({ item }: { item: Ran }) {
       </div>
       <div className="trace-kind">
         {kind.label}
-        {model ? (
-          <>
-            {" · "}
-            {item.step.type === "score" ? <a href={href("settings", "models", slugOfRef(model))}>{model}</a> : model}
-          </>
-        ) : null}
+        <ModelRef item={item} />
       </div>
     </div>
   );
 }
 
-function TriggerCell({ definition }: { definition: Definition }) {
+function triggerKind(definition: Definition) {
   const kind = TRIGGER_KINDS.find((k) => k.type === definition.trigger.type);
   const action = typeof definition.trigger.action === "string" ? ` · ${definition.trigger.action}` : "";
+  return `${kind?.label ?? definition.trigger.type}${action}`;
+}
+
+function TriggerCell({ definition }: { definition: Definition }) {
   return (
     <div>
       <div className="trace-name">
         <StepIcon icon={definition.trigger.type === "decision" ? "decision" : "trigger"} />
         <b>Trigger</b>
       </div>
-      <div className="trace-kind">
-        {kind?.label ?? definition.trigger.type}
-        {action}
-      </div>
+      <div className="trace-kind">{triggerKind(definition)}</div>
     </div>
   );
 }
 
-function TriggerInput({ run }: { run: WorkflowRun }) {
+function triggerFacts(run: WorkflowRun): Record<string, unknown> {
   const {
     live_steps: _l,
     mock_outputs: _m,
@@ -254,87 +310,16 @@ function TriggerInput({ run }: { run: WorkflowRun }) {
     ts,
     ...rest
   } = run.trigger as Record<string, unknown>;
-  return (
-    <Pairs
-      data={{
-        ...(entities && typeof entities === "object" ? (entities as Record<string, unknown>) : {}),
-        ...(properties && typeof properties === "object" ? (properties as Record<string, unknown>) : {}),
-        ...rest,
-        ...(typeof ts === "string" ? { "decided as of": valueText(ts) } : {}),
-      }}
-    />
-  );
+  return {
+    ...(entities && typeof entities === "object" ? (entities as Record<string, unknown>) : {}),
+    ...(properties && typeof properties === "object" ? (properties as Record<string, unknown>) : {}),
+    ...rest,
+    ...(typeof ts === "string" ? { "decided as of": valueText(ts) } : {}),
+  };
 }
 
-function Ledger({ items, definition, ...context }: { items: TraceItem[]; definition: Definition } & Context) {
-  const before = items.filter((i) => i.kind === "not_run" || !i.afterAnswer);
-  const after = items.filter((i): i is Ran => i.kind === "ran" && i.afterAnswer);
-  const skipped = before.filter((i) => i.kind === "not_run");
-  let n = 0;
-  const row = (item: Ran) => {
-    const tone = ANSWERS.has(item.step.type) ? "answer" : item.entries[0]?.status === "failed" ? "failed" : "";
-    return [
-      <tr key={`${item.step.id}:head`} className={`head ${tone}`}>
-        <td colSpan={2}>
-          <span className="n">{++n}</span>
-          <StepCell item={item} />
-        </td>
-      </tr>,
-      <tr key={item.step.id} className={`io ${tone}`}>
-        <td style={{ paddingLeft: 34 + item.depth * 16 }}>
-          <Input item={item} {...context} />
-        </td>
-        <td>
-          <Output item={item} />
-        </td>
-      </tr>,
-    ];
-  };
-  return (
-    <table className="trace-table">
-      <thead>
-        <tr>
-          <th style={{ paddingLeft: 34 }}>Input</th>
-          <th>Output</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr className="head">
-          <td colSpan={2}>
-            <span className="n">0</span>
-            <TriggerCell definition={definition} />
-          </td>
-        </tr>
-        <tr className="io">
-          <td style={{ paddingLeft: 34 }}>
-            <TriggerInput run={context.run} />
-          </td>
-          <td>
-            <span className="muted">Started the run</span>
-          </td>
-        </tr>
-        {before.filter((i): i is Ran => i.kind === "ran").map(row)}
-        {skipped.length > 0 && (
-          <tr className="skip">
-            <td colSpan={2}>
-              Not run:{" "}
-              {skipped
-                .map(
-                  (s) => `${s.steps.map((x) => x.name).join(", ")} (${s.why.replace(/^The /, "the ").toLowerCase()})`,
-                )
-                .join(" · ")}
-            </td>
-          </tr>
-        )}
-        {after.length > 0 && (
-          <tr className="group">
-            <td colSpan={2}>After the answer, once the decision was saved</td>
-          </tr>
-        )}
-        {after.map(row)}
-      </tbody>
-    </table>
-  );
+function TriggerInput({ run }: { run: WorkflowRun }) {
+  return <Pairs data={triggerFacts(run)} />;
 }
 
 function Flow({ definition, items, ...context }: { definition: Definition; items: TraceItem[] } & Context) {
@@ -371,33 +356,412 @@ function Flow({ definition, items, ...context }: { definition: Definition; items
   );
 }
 
-function Summary({ items, run }: { items: TraceItem[]; run: WorkflowRun }) {
+type NotRun = Extract<TraceItem, { kind: "not_run" }>;
+type Decisive = { item: Ran; kind: "path" | "answer" };
+
+const shortName = (path: string) => path.split(".").at(-1)!;
+const shownValue = (v: unknown) =>
+  v === undefined || v === null ? "—" : typeof v === "object" ? JSON.stringify(v) : valueText(v);
+
+function readsFor(item: Ran, run: WorkflowRun): [string, unknown][] {
+  const logged = item.entries[0]?.input?.reads as Record<string, unknown> | undefined;
+  if (logged) return Object.entries(logged);
+  return readsOf(String(item.step.when ?? item.step.over ?? ""), run);
+}
+
+/** The step that settled the outcome: the model step the answer repeats, or the condition that led to the answer. */
+function decisiveOf(items: TraceItem[]): Decisive | null {
   const ran = items.filter((i): i is Ran => i.kind === "ran" && !i.afterAnswer);
   const answer = ran.find((i) => ANSWERS.has(i.step.type));
-  const outcome = (answer?.entries[0]?.output as { outcome?: Outcome } | undefined)?.outcome;
-  if (!answer || !outcome) return null;
-  const because = ran
-    .filter((i) => i.step.type === "condition" || i.step.type === "filter")
-    .map((i) => conditionSentence(i.step, i.entries[0]!, run));
+  if (!answer) return null;
+  const outcome = (answer.step.value as Record<string, unknown> | undefined)?.outcome;
+  const ref = typeof outcome === "string" ? /steps\.([A-Za-z_]\w*)\./.exec(outcome)?.[1] : undefined;
+  const source = ref ? ran.find((i) => i.step.id === ref) : undefined;
+  if (source) return { item: source, kind: "answer" };
+  const parent = ran.find((i) => i.step.id === answer.parent && i.step.type === "condition");
+  return parent ? { item: parent, kind: "path" } : null;
+}
+
+function Reads({ data, label = "read" }: { data: [string, unknown][]; label?: string }) {
+  if (data.length === 0) return null;
   return (
-    <div className="trace-summary">
-      <Pill outcome={outcome} />{" "}
-      {because.length
-        ? `because ${because.slice(0, -1).join(", ")}${because.length > 1 ? ", and " : ""}${because.at(-1)}.`
-        : `: the answer of "${answer.step.name}".`}
+    <div className="trace-reads">
+      {label && <span>{label}</span>}
+      {data.map(([k, v]) => (
+        <span key={k} title={k}>
+          {shortName(k)} <b className="mono">{shownValue(v)}</b>
+        </span>
+      ))}
     </div>
   );
 }
 
+function Result({ item }: { item: Ran }): ReactNode {
+  const entry = item.entries[0]!;
+  const out = (entry.output ?? {}) as Record<string, unknown>;
+  if (entry.error) return <span className="wh-failed">Failed</span>;
+  if (item.entries.length > 1 && item.step.type !== "loop") return <span>Ran {item.entries.length} times</span>;
+  switch (item.step.type) {
+    case "condition":
+      return (
+        <span>
+          <b>{out.branch === "then" ? "Yes" : "No"}</b> <span className="muted">→ {String(out.branch ?? "else")}</span>
+        </span>
+      );
+    case "filter":
+      return <b>{out.passed ? "Passed" : "Filtered out"}</b>;
+    case "assess":
+      return (
+        <span>
+          <b>{valueText(out.decision)}</b> <span className="mono muted">{p(out.probability)}</span>
+        </span>
+      );
+    case "score": {
+      const s = out as unknown as ModelScore;
+      return (
+        <span>
+          <b className="mono">{typeof s.score === "number" ? s.score.toFixed(4) : "—"}</b>{" "}
+          <span className="muted">risk score {s.risk_score}</span>
+        </span>
+      );
+    }
+    case "answer":
+    case "return":
+      return out.outcome ? <Pill outcome={out.outcome as Outcome} /> : null;
+    case "decide":
+      return (
+        <span>
+          <b>{valueText(out.decision)}</b>
+          {typeof out.decision_id === "string" && (
+            <>
+              {" "}
+              · <a href={href("decisions", out.decision_id)}>the decision</a>
+            </>
+          )}
+        </span>
+      );
+    case "case.create":
+      return typeof out.case_id === "string" ? (
+        <span>
+          <a className="mono" href={href("cases", out.case_id)}>
+            {out.case_id}
+          </a>{" "}
+          <span className="muted">· {out.created ? "new case" : "existing case"}</span>
+        </span>
+      ) : null;
+    case "http":
+      return <span className="mono">{valueText(out.status)}</span>;
+    case "record.search":
+    case "loop":
+      return <span>{Array.isArray(entry.output) ? entry.output.length : 0} found</span>;
+    default:
+      return null;
+  }
+}
+
+function Signals({ signals }: { signals: [string, number][] }) {
+  return (
+    <div className="trace-bars">
+      {signals.map(([code, value]) => (
+        <div key={code}>
+          <span>{code}</span>
+          <i>
+            <span style={{ width: `${Math.max(value * 100, 1.5)}%` }} />
+          </i>
+          <span className="mono">{value >= 0.995 ? "1.00" : value.toFixed(2)}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+const TOP_SIGNALS = 3;
+
+/** A "Get the model's decision" step's reason probabilities: its own when the run kept them, else the decision's. */
+function stepSignals(item: Ran, decision: DecisionRead | undefined): [string, number][] {
+  if (item.step.type !== "assess") return [];
+  const entry = item.entries[0]!;
+  const logged = (entry.read as { answers?: { reasons?: { probabilities?: Record<string, number> } } } | undefined)
+    ?.answers?.reasons?.probabilities;
+  if (logged) return Object.entries(logged).sort((a, b) => b[1] - a[1]);
+  const action = (entry.output as { action?: unknown } | undefined)?.action;
+  return decision?.signals && action === decision.action ? decision.signals : [];
+}
+
+function Body({ item, ...context }: { item: Ran } & Context): ReactNode {
+  const { run } = context;
+  const entry = item.entries[0]!;
+  const out = (entry.output ?? {}) as Record<string, unknown>;
+  if (entry.error) return <div className="wh-failed">{entry.error}</div>;
+  switch (item.step.type) {
+    case "condition":
+    case "filter":
+    case "loop":
+      return <Reads data={readsFor(item, run)} />;
+    case "assess": {
+      const signals = stepSignals(item, context.decision);
+      return (
+        <>
+          {signals.length ? (
+            <Signals signals={signals.slice(0, TOP_SIGNALS)} />
+          ) : Array.isArray(out.reasons) && out.reasons.length ? (
+            <Chips items={out.reasons.map(String)} max={6} />
+          ) : null}
+          <Events item={item} {...context} />
+        </>
+      );
+    }
+    case "score": {
+      const s = out as unknown as ModelScore;
+      return (
+        <>
+          <Reads data={Object.entries(s.features ?? {})} />
+          {s.missing?.length > 0 && <Chips items={s.missing.map((m) => `${m}: missing`)} tone="warn" max={6} />}
+        </>
+      );
+    }
+    case "ask":
+      return (
+        <>
+          <Output item={item} />
+          <Events item={item} {...context} />
+        </>
+      );
+    case "answer":
+    case "return": {
+      const {
+        outcome: _o,
+        rules,
+        reasons,
+        risk_score,
+        ...rest
+      } = out as {
+        outcome?: Outcome;
+        rules?: unknown[];
+        reasons?: unknown[];
+        risk_score?: number;
+      };
+      return (
+        <>
+          {(typeof risk_score === "number" || (Array.isArray(rules) && rules.length > 0)) && (
+            <div className="trace-reads">
+              {typeof risk_score === "number" && (
+                <span>
+                  risk score <b className="mono">{risk_score}</b>
+                </span>
+              )}
+              {Array.isArray(rules) && rules.length > 0 && (
+                <span>
+                  rules <Chips items={rules.map(String)} tone="accent" max={6} />
+                </span>
+              )}
+            </div>
+          )}
+          {Array.isArray(reasons) && reasons.length > 0 && (
+            <div className="trace-reads">
+              <span>
+                reasons <Chips items={reasons.map(String)} max={6} />
+              </span>
+            </div>
+          )}
+          <Pairs data={rest} />
+        </>
+      );
+    }
+    case "decide":
+    case "http":
+    case "case.create":
+    case "record.search":
+      return null;
+    default:
+      return entry.output === undefined ? null : <Output item={item} />;
+  }
+}
+
+function Details({ item, ...context }: { item: Ran } & Context) {
+  const [open, setOpen] = useState(false);
+  const type = item.step.type;
+  const rule = type === "condition" || type === "filter" || type === "loop";
+  const hasInput = rule || type === "ask" || type === "assess" || type === "score";
+  if (!hasInput || item.entries[0]?.error) return null;
+  const signals = stepSignals(item, context.decision);
+  const hidden = signals.length - TOP_SIGNALS;
+  const label = rule ? "the rule" : hidden > 0 ? `all ${signals.length} signals and the input` : "the input";
+  return (
+    <>
+      <button type="button" className="linkish trace-toggle" onClick={() => setOpen(!open)}>
+        {open ? "Hide" : "Show"} {label}
+      </button>
+      {open && (
+        <div className="trace-detail">
+          {rule ? (
+            <code className="trace-when">{String(item.step.when ?? item.step.over ?? "")}</code>
+          ) : (
+            <>
+              {hidden > 0 && <Signals signals={signals.slice(TOP_SIGNALS)} />}
+              <Input item={item} {...context} events={false} />
+            </>
+          )}
+        </div>
+      )}
+    </>
+  );
+}
+
+function Skipped({ item }: { item: NotRun }) {
+  return (
+    <div className="trace-skipped">
+      Not run: {item.steps.map((s) => s.name).join(" · ")} ({item.why.toLowerCase()})
+    </div>
+  );
+}
+
+function Branches({ item }: { item: Ran }) {
+  const taken = (item.entries[0]?.output as { branch?: string } | undefined)?.branch === "then" ? "then" : "else";
+  const names = (branch: "then" | "else") =>
+    ((item.step[branch] as WorkflowStep[] | undefined) ?? []).map((s) => s.name).join(" · ");
+  return (
+    <div className="trace-branches">
+      {(["then", "else"] as const).map((branch) => (
+        <div key={branch} className={branch === taken ? "taken" : ""}>
+          <span>{branch === "then" ? "If yes" : "If no"}</span>
+          <span>{names(branch) || "Nothing: the run goes on"}</span>
+          <span>{branch === taken ? "Taken" : "Skipped"}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function Steps({
+  items,
+  definition,
+  decisive,
+  ...context
+}: { items: TraceItem[]; definition: Definition; decisive: Decisive | null } & Context) {
+  const before = items.filter((i) => (i.kind === "not_run" ? !i.branch : !i.afterAnswer));
+  const after = items.filter((i): i is Ran => i.kind === "ran" && i.afterAnswer);
+  let n = 0;
+  const step = (item: Ran) => {
+    const answer = ANSWERS.has(item.step.type);
+    const failed = item.entries[0]?.status === "failed";
+    const decided = decisive?.item === item;
+    const kind = kindOf(item.step.type);
+    return (
+      <li
+        key={item.step.id}
+        className={`trace-step${answer && !item.afterAnswer ? " answer" : ""}${failed ? " failed" : ""}${decided || (answer && !item.afterAnswer) ? " decisive" : ""}`}
+      >
+        <span className="trace-n">{++n}</span>
+        <div className="trace-body">
+          <div className="trace-top">
+            <span className="trace-title">
+              <StepIcon icon={kind.icon} />
+              <b>{item.step.name}</b>
+              <span className="trace-kind">
+                {kind.label}
+                <ModelRef item={item} />
+              </span>
+              {decided && (
+                <span className="trace-tag">
+                  {decisive!.kind === "answer" ? "Gave the answer" : "Decided the path"}
+                </span>
+              )}
+            </span>
+            <span className="trace-result">
+              <Result item={item} />
+            </span>
+          </div>
+          <Body item={item} {...context} />
+          {item.step.type === "condition" && !item.entries[0]?.error && <Branches item={item} />}
+          <Details item={item} {...context} />
+        </div>
+      </li>
+    );
+  };
+  return (
+    <ol className="trace-steps">
+      <li className="trace-step">
+        <span className="trace-n">0</span>
+        <div className="trace-body">
+          <div className="trace-top">
+            <span className="trace-title">
+              <StepIcon icon={definition.trigger.type === "decision" ? "decision" : "trigger"} />
+              <b>Trigger</b>
+              <span className="trace-kind">{triggerKind(definition)}</span>
+            </span>
+          </div>
+          <Reads data={Object.entries(triggerFacts(context.run))} label="" />
+        </div>
+      </li>
+      {before.map((item) =>
+        item.kind === "ran" ? (
+          step(item)
+        ) : (
+          <li key={`skip:${item.steps[0]!.id}`} className="trace-step skip">
+            <span className="trace-n" />
+            <div className="trace-body">
+              <Skipped item={item} />
+            </div>
+          </li>
+        ),
+      )}
+      {after.length > 0 && <li className="trace-group">After the answer, once the decision was saved</li>}
+      {after.map(step)}
+    </ol>
+  );
+}
+
+function summaryOf(items: TraceItem[], decisive: Decisive | null, run: WorkflowRun) {
+  const answer = items.find((i): i is Ran => i.kind === "ran" && !i.afterAnswer && ANSWERS.has(i.step.type));
+  const outcome = (answer?.entries[0]?.output as { outcome?: Outcome } | undefined)?.outcome;
+  if (!answer || !outcome) return null;
+  let text = `The answer of "${answer.step.name}".`;
+  if (decisive?.kind === "answer") {
+    const out = (decisive.item.entries[0]?.output ?? {}) as Record<string, unknown>;
+    const said =
+      decisive.item.step.type === "assess"
+        ? `${valueText(out.decision)}, ${p(out.probability)}`
+        : decisive.item.step.type === "score" && typeof out.score === "number"
+          ? out.score.toFixed(4)
+          : "";
+    const model = modelOf(decisive.item);
+    text = `Decided by "${decisive.item.step.name}"${model ? ` (${model})` : ""}${said ? `: ${said}` : ""}.`;
+  } else if (decisive) {
+    const reads = readsFor(decisive.item, run)
+      .map(([k, v]) => `${shortName(k)} ${shownValue(v)}`)
+      .join(", ");
+    const held = (decisive.item.entries[0]?.output as { branch?: string } | undefined)?.branch === "then";
+    text = `Decided by "${decisive.item.step.name}"${reads ? `: ${reads}` : held ? ", which was true" : ", which was false"}.`;
+  }
+  return { outcome, text };
+}
+
 /** How a decision workflow reached its answer: each step it ran, with its input and its output. */
-export function WorkflowTrace({ run, definition, outcome, entityTypes }: { definition: Definition } & Context) {
+export function WorkflowTrace({
+  run,
+  definition,
+  outcome,
+  entityTypes,
+  decision,
+}: { definition: Definition } & Context) {
   const [view, setView] = useState<"steps" | "flow">("steps");
   const items = useMemo(() => traceOf(definition.steps, run), [definition.steps, run]);
-  const context = { run, outcome, entityTypes };
+  const decisive = useMemo(() => decisiveOf(items), [items]);
+  const summary = summaryOf(items, decisive, run);
+  const context = { run, outcome, entityTypes, decision };
   return (
     <div className="trace">
-      <div className="trace-bar">
-        <Summary items={items} run={run} />
+      <div className="trace-summary">
+        <span>
+          {summary ? (
+            <>
+              <Pill outcome={summary.outcome} /> {summary.text}
+            </>
+          ) : (
+            <span className="muted">The steps the run took, with what each one read and gave.</span>
+          )}
+        </span>
         <div className="seg" role="tablist">
           {(["steps", "flow"] as const).map((v) => (
             <button key={v} type="button" className={view === v ? "on" : ""} onClick={() => setView(v)}>
@@ -407,7 +771,7 @@ export function WorkflowTrace({ run, definition, outcome, entityTypes }: { defin
         </div>
       </div>
       {view === "steps" ? (
-        <Ledger items={items} definition={definition} {...context} />
+        <Steps items={items} definition={definition} decisive={decisive} {...context} />
       ) : (
         <Flow definition={definition} items={items} {...context} />
       )}

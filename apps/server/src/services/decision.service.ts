@@ -91,9 +91,12 @@ export class DecisionsService extends DatabaseService<"decisions"> {
       resolution: Resolution | null;
       final_outcome: string;
       automatic: boolean;
+      decision_workflow: string | null;
     }>(
       this.db,
-      sql`SELECT id, ts, action, subject_type, subject_id, decision, session_id, revision, resolution, final_outcome, automatic FROM decisions WHERE ${this.matching(filter)}
+      sql`SELECT id, ts, action, subject_type, subject_id, decision, session_id, revision, resolution, final_outcome, automatic,
+                 metadata ->> 'decision_workflow' AS decision_workflow
+            FROM decisions WHERE ${this.matching(filter)}
            ORDER BY ts DESC, id COLLATE "C" DESC LIMIT ${filter.limit} OFFSET ${filter.offset ?? 0}`,
     );
     return found.map((r) => ({
@@ -107,6 +110,7 @@ export class DecisionsService extends DatabaseService<"decisions"> {
       resolution: r.resolution,
       final_outcome: r.final_outcome,
       ...(r.automatic ? { automatic: true } : {}),
+      ...(r.decision_workflow ? { metadata: { decision_workflow: r.decision_workflow } } : {}),
     }));
   }
 
@@ -151,6 +155,20 @@ export class DecisionsService extends DatabaseService<"decisions"> {
     if (filter.action) where.push(sql`(action = ${filter.action} OR starts_with(action, ${`${filter.action}@`}))`);
     if (filter.session) where.push(sql`session_id = ${filter.session}`);
     if (filter.subject) where.push(sql`subject_type = ${filter.subject.type} AND subject_id = ${filter.subject.id}`);
+    if (filter.decided_by === "workflow" || filter.workflow) where.push(sql`metadata ? 'decision_workflow'`);
+    if (filter.workflow)
+      where.push(
+        sql`(metadata ->> 'decision_workflow' = ${filter.workflow} OR starts_with(metadata ->> 'decision_workflow', ${`${filter.workflow}@`}))`,
+      );
+    // Only the rules in the policy of the action version that decided count: a workflow's answer can name rules of its own.
+    if (filter.decided_by === "policy" || filter.rule)
+      where.push(sql`EXISTS (
+        SELECT 1 FROM definition_versions v, json_array_elements(v.definition -> 'policy' -> 'rules') r
+         WHERE v.workspace_id = decisions.workspace_id AND v.environment_id = decisions.environment_id
+           AND v.kind = 'action' AND v.name = split_part(decisions.action, '@', 1)
+           AND v.version = nullif(split_part(decisions.action, '@', 2), '')::int
+           AND decisions.decision -> 'rules' ? (r ->> 'id')
+           ${filter.rule ? sql`AND r ->> 'id' = ${filter.rule}` : sql``})`);
     return sql.join(where, sql` AND `);
   }
 }

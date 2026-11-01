@@ -105,6 +105,8 @@ describe("the log of a decision run", () => {
     });
     expect(big.output).toEqual({ branch: "then" });
     expect(run.steps[0].read.context.pending_action).toMatchObject({ amount: 7200 });
+    // The model's whole answer, so each step shows its own reasons and not the decision's.
+    expect(run.steps[0].read.answers.hold).toMatchObject({ probability: expect.any(Number) });
   });
 
   it("keeps what each model step read, beside its output", async () => {
