@@ -74,7 +74,7 @@ A person signs in to the console (see [Workspaces](workspaces.md#accounts)). Sig
 
 The console calls the same `/v1` API with that cookie and names its scope in two headers:
 
-```
+```http
 X-Kairos-Workspace: ws_…
 X-Kairos-Environment: env_…
 ```

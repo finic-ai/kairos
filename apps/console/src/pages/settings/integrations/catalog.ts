@@ -12,6 +12,7 @@ import lambda from "../../../assets/integrations/lambda.svg";
 import nodejs from "../../../assets/integrations/nodedotjs.svg";
 import python from "../../../assets/integrations/python.svg";
 import react from "../../../assets/integrations/react.svg";
+import type { CodeLang } from "../../../components/get-started/highlight";
 
 export type Kind = "web" | "mobile" | "server" | "edge";
 
@@ -24,6 +25,7 @@ export const KINDS: { id: Kind; title: string }[] = [
 
 export interface Step {
   title: string;
+  lang: CodeLang;
   /** Made when the page is shown: the key and the address of this server go in. */
   code: (key: string, origin: string) => string;
 }
@@ -62,15 +64,17 @@ const pyClient = (origin: string) =>
     : `Kairos(os.environ["KAIROS_API_KEY"], base_url="${origin}")`;
 const envStep: Step = {
   title: "Add your secret key to the server's environment",
+  lang: "bash",
   code: (key) => `KAIROS_API_KEY=${key}`,
 };
 const middlewareEnvStep: Step = {
   title: "Add your secret key, and a hash key of your own, to the server's environment",
+  lang: "bash",
   code: (key) => `KAIROS_API_KEY=${key}
 # The same on every server. Make one with: openssl rand -hex 32
 KAIROS_HASH_KEY=<A_LONG_RANDOM_SECRET>`,
 };
-const npmStep: Step = { title: "Install", code: () => "npm install @finic-ai/kairos" };
+const npmStep: Step = { title: "Install", lang: "bash", code: () => "npm install @finic-ai/kairos" };
 
 export const INTEGRATIONS: Integration[] = [
   {
@@ -89,10 +93,12 @@ export const INTEGRATIONS: Integration[] = [
     steps: [
       {
         title: "Add the script to every page",
+        lang: "html",
         code: (key, origin) => `<script src="${origin}/kairos.js" data-api-key="${key}" async></script>`,
       },
       {
         title: "Say who the user is, and send events of your own",
+        lang: "html",
         code: (key, origin) => `<script>
   window.kairos = { apiKey: "${key}", entities: { user: "user_123" }, calls: [] };
   for (const method of ["track", "setContext", "consent"])
@@ -106,6 +112,7 @@ export const INTEGRATIONS: Integration[] = [
       },
       {
         title: "Or, in a bundled app, from npm",
+        lang: "typescript",
         code: (key, origin) => `import { Kairos } from "@finic-ai/kairos/browser";
 
 const kairos = new Kairos({ apiKey: "${key}"${origin === HOSTED ? "" : `, baseUrl: "${origin}"`}, entities: { user: user.id } });`,
@@ -127,6 +134,7 @@ const kairos = new Kairos({ apiKey: "${key}"${origin === HOSTED ? "" : `, baseUr
     steps: [
       {
         title: "Add a Custom HTML tag that fires on every page",
+        lang: "html",
         code: (key, origin) => `<script>
   window.kairos = { apiKey: "${key}", baseUrl: "${origin}" };
 </script>
@@ -183,6 +191,7 @@ const kairos = new Kairos({ apiKey: "${key}"${origin === HOSTED ? "" : `, baseUr
       envStep,
       {
         title: "Send events and ask for a decision",
+        lang: "typescript",
         code: (_, origin) => `import { Kairos } from "@finic-ai/kairos";
 
 const kairos = ${tsClient(origin)};
@@ -213,6 +222,7 @@ const decision = await kairos.decide(
       middlewareEnvStep,
       {
         title: "Add the middleware after your body parsers",
+        lang: "typescript",
         code: (_, origin) => `import express, { type Request } from "express";
 import { Kairos } from "@finic-ai/kairos";
 import { express as kairosExpress } from "@finic-ai/kairos/middleware";
@@ -248,6 +258,7 @@ app.use(
       middlewareEnvStep,
       {
         title: "Add the middleware",
+        lang: "typescript",
         code: (_, origin) => `import { Hono, type Context } from "hono";
 import { Kairos } from "@finic-ai/kairos";
 import { hono as kairosHono, type KairosVariables } from "@finic-ai/kairos/middleware";
@@ -278,10 +289,11 @@ app.use(
     ],
     docs: "/docs/reference/clients/python",
     steps: [
-      { title: "Install", code: () => "pip install finic-kairos" },
+      { title: "Install", lang: "bash", code: () => "pip install finic-kairos" },
       envStep,
       {
         title: "Send events and ask for a decision",
+        lang: "python",
         code: (_, origin) => `import os
 from kairos import Kairos
 
@@ -305,10 +317,11 @@ decision = kairos.decide("bank_transfer", {"user_id": "user_123", "usd": 9500}, 
     docs: "/docs/reference/clients/python#routes-from-the-console",
     clientSettings: true,
     steps: [
-      { title: "Install", code: () => "pip install finic-kairos" },
+      { title: "Install", lang: "bash", code: () => "pip install finic-kairos" },
       middlewareEnvStep,
       {
         title: "Add the middleware",
+        lang: "python",
         code: (_, origin) => `import os
 from kairos import Kairos
 from kairos.middleware import KairosASGI
@@ -337,6 +350,7 @@ app.add_middleware(
     steps: [
       {
         title: "Send an event",
+        lang: "bash",
         code: (key, origin) => `curl -X POST ${origin}/v1/events \\
   -H "Authorization: Bearer ${key}" \\
   -H "Content-Type: application/json" \\
@@ -357,9 +371,10 @@ app.add_middleware(
     docs: "/docs/reference/clients/edge",
     clientSettings: true,
     steps: [
-      { title: "Install, in a Worker project", code: () => "npm install @finic-ai/kairos-edge" },
+      { title: "Install, in a Worker project", lang: "bash", code: () => "npm install @finic-ai/kairos-edge" },
       {
         title: "Put Kairos in front of your app",
+        lang: "typescript",
         code: () => `// src/index.ts
 import { cloudflare } from "@finic-ai/kairos-edge/cloudflare";
 
@@ -367,6 +382,7 @@ export default cloudflare();`,
       },
       {
         title: "Route the Worker on your domain",
+        lang: "toml",
         code: (_, origin) => `# wrangler.toml
 name = "kairos"
 main = "src/index.ts"
@@ -375,6 +391,7 @@ routes = [{ pattern = "example.com/*", zone_name = "example.com" }]${origin === 
       },
       {
         title: "Add your secret key, and your servers' hash key, then deploy",
+        lang: "bash",
         code: (key) => `npx wrangler secret put KAIROS_API_KEY   # ${key}
 npx wrangler secret put KAIROS_HASH_KEY  # the same as your servers'
 npx wrangler deploy`,
@@ -394,9 +411,14 @@ npx wrangler deploy`,
     docs: "/docs/reference/clients/edge#fastly-compute",
     clientSettings: true,
     steps: [
-      { title: "Install, in a Compute project for JavaScript", code: () => "npm install @finic-ai/kairos-edge" },
+      {
+        title: "Install, in a Compute project for JavaScript",
+        lang: "bash",
+        code: () => "npm install @finic-ai/kairos-edge",
+      },
       {
         title: "Put Kairos in front of your app",
+        lang: "javascript",
         code: () => `// src/index.js
 import { fastly } from "@finic-ai/kairos-edge/fastly";
 
@@ -404,6 +426,7 @@ addEventListener("fetch", fastly());`,
       },
       {
         title: "Add a backend named kairos, beside your app's backend named origin",
+        lang: "bash",
         code: (_, origin) => {
           const { hostname: host, port, protocol } = new URL(origin);
           const tls = protocol === "https:" ? ` --use-ssl --ssl-cert-hostname ${host}` : "";
@@ -412,6 +435,7 @@ addEventListener("fetch", fastly());`,
       },
       {
         title: "Put your secret key, and your servers' hash key, in a Secret Store named kairos, then publish",
+        lang: "bash",
         code: (key, origin) => `fastly secret-store create --name kairos
 fastly secret-store-entry create --store-id <STORE_ID> --name KAIROS_API_KEY   # ${key}
 fastly secret-store-entry create --store-id <STORE_ID> --name KAIROS_HASH_KEY  # the same as your servers'${
@@ -437,9 +461,10 @@ fastly compute publish`,
     docs: "/docs/reference/clients/edge#lambdaedge",
     clientSettings: true,
     steps: [
-      { title: "Install", code: () => "npm install @finic-ai/kairos-edge" },
+      { title: "Install", lang: "bash", code: () => "npm install @finic-ai/kairos-edge" },
       {
         title: "Write the two functions. Lambda@Edge has no environment variables, so the keys go in the code",
+        lang: "typescript",
         code: (key, origin) => `// index.ts
 import { lambdaEdge } from "@finic-ai/kairos-edge/lambda";
 
@@ -453,6 +478,7 @@ export const originResponse = kairos.originResponse;`,
       },
       {
         title: "Bundle it, and make two functions from the bundle in us-east-1",
+        lang: "bash",
         code: () => `npx esbuild index.ts --bundle --platform=node --format=esm --outfile=dist/index.mjs
 # Handler index.originRequest: CloudFront event "Origin request", with Include body
 # Handler index.originResponse: CloudFront event "Origin response"`,

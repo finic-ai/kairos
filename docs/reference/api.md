@@ -29,7 +29,7 @@ How keys and sign-in work, how to limit and rotate a key, and every error: [Auth
 
 Send an API key as a bearer token:
 
-```
+```http
 Authorization: Bearer ksk_…
 ```
 
@@ -227,7 +227,7 @@ With `?type=user`: the entities of that type.
 | `sort` | `active` (default), `events`, `risk` or `first_seen`. |
 | `limit`, `offset` | Default 50, at most 200. |
 
-```
+```http
 GET /v1/entities?type=user&prop=kyc_country:eq:GB&prop=age:gt:40&label=*&sort=risk
 ```
 
@@ -602,7 +602,7 @@ What a metric can be filtered and grouped by in this workspace: `{ actions, sign
 
 ## Client settings
 
-What the website script, the mobile SDKs, the edge and the SDK middleware collect, for the environment of the key. The console shows them in **Settings › Integrations › Client settings**. A secret key only.
+What the JavaScript tag, the mobile SDKs, the edge and the SDK middleware collect, for the environment of the key. The console shows them in **Settings › Integrations › Client settings**. A secret key only.
 
 | | |
 |---|---|

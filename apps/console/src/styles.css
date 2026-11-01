@@ -4824,6 +4824,20 @@ td.profile .chip {
   overflow-wrap: anywhere;
 }
 
+.code-card .shiki span {
+  color: var(--shiki-light);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .code-card .shiki span {
+    color: var(--shiki-dark);
+  }
+}
+
+:root[data-theme="dark"] .code-card .shiki span {
+  color: var(--shiki-dark);
+}
+
 @media (max-width: 1020px) {
   .start-split {
     grid-template-columns: minmax(0, 1fr);

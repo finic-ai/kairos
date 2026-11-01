@@ -60,7 +60,11 @@ export function IntegrationDetail({
             ))}
             {integration.steps?.map((step, n) => (
               <div key={step.title}>
-                <Code title={`${n + 1}. ${step.title}`} text={step.code(secret ?? placeholder, origin)} />
+                <Code
+                  title={`${n + 1}. ${step.title}`}
+                  text={step.code(secret ?? placeholder, origin)}
+                  lang={step.lang}
+                />
               </div>
             ))}
             {available && (

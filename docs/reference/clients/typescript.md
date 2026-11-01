@@ -555,8 +555,8 @@ app.use(
 - **Decide on response** is for the [edge](edge.md). The middleware skips such a route, because a handler has already started the response. Call `decide` in the handler instead, after the password check.
 - **Behind the Kairos edge**, the middleware sends the events of a route and the edge does not, and a route that decides on the request is decided once, by the edge. Give both the same hash key: see [With the middleware on your servers](edge.md#with-the-middleware-on-your-servers).
 - **Fields** are read from the parsed body, the query, the headers, the cookies and the route's parameters. Nothing else from the request is sent. A body is read only when it is JSON of at most 128 KB, so a file upload is never read; in Hono, only when the request has a `Content-Length`. A field of the kind **Hashed**, a cookie and the session cookie are sent only as an HMAC with `hashKey`: without it, they are left out, and `onError` says so once. Keep `hashKey` secret and the same on every server, or links break.
-- **The session** is what `session` gives, else the hash of the settings' session cookie, else the [visit](browser.md#the-visit) of the website script, from its `kairos_visit` cookie.
-- **The `kairos_device` cookie** of the [website script](browser.md#the-device) gives the `device` entity when `entities` gives none, so your server's events and the browser's name the same device.
+- **The session** is what `session` gives, else the hash of the settings' session cookie, else the [visit](browser.md#the-visit) of the JavaScript tag, from its `kairos_visit` cookie.
+- **The `kairos_device` cookie** of the [JavaScript tag](browser.md#the-device) gives the `device` entity when `entities` gives none, so your server's events and the browser's name the same device.
 
 
 ## Define an action

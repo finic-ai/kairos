@@ -1,4 +1,4 @@
-# Website script
+# JavaScript
 
 One script for your web pages. It gives each browser a device id, sends the pages that your [client settings](../api.md#client-settings) name as events, and sends the events that you track. It uses a public key, which can only send events.
 
@@ -84,7 +84,9 @@ The script watches each form with a sensitive field: a password, a card number, 
 | `trusted` | `false` when a script dispatched the submit event itself. A script that calls `requestSubmit()`, or clicks the button, still gives `true`: `duration_ms`, `keys` and `pointer` show it. |
 | `webdriver`, `headless` | Whether a tool drives the browser. Page events have these too. |
 
-What was typed or pasted is never read. The kind of a field comes from its type, `autocomplete`, name and id. A form that your code sends with `fetch`, and never submits, sends nothing: give it a `submit` event, or call `track`.
+> NOTE: **The values are never read or sent.** We do not read what was typed or pasted in a field: not a password, a card number or an email. It counts key presses and pastes, and reads only the kind of each field.
+
+The kind of a field comes from its type, `autocomplete`, name and id. A form that your code sends with `fetch`, and never submits, sends nothing: give it a `submit` event, or call `track`.
 
 ## The device
 

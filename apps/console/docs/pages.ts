@@ -228,7 +228,7 @@ export const groups: DocGroup[] = [
           },
           {
             slug: "reference/clients/browser",
-            title: "Website script",
+            title: "JavaScript",
             blurb: "kairos.js: the device of each visitor, the pages of your client settings, and events of your own.",
           },
           {

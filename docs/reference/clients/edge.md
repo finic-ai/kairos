@@ -8,7 +8,7 @@
 - [What the edge does](#what-the-edge-does)
 - [Who an event is about](#who-an-event-is-about)
 - [With the middleware on your servers](#with-the-middleware-on-your-servers)
-- [The website script](#the-website-script)
+- [JavaScript](#javascript)
 - [When something fails](#when-something-fails)
 - [Reference](#reference)
 
@@ -102,7 +102,7 @@ Lambda@Edge is not the same as the others in four ways:
 - **A request waits for its sends.** There is no work after the response, so a route that tracks adds the time of one call to Kairos.
 - **The response's body cannot be read.** CloudFront does not give it to the origin response function, so a route reads only the response's status and headers. The request's body reaches only the origin request function, which passes the route's fields of it on, signed with the hash key.
 - **The functions run only when CloudFront goes to the origin.** A response from CloudFront's cache runs neither. A route of a method that CloudFront caches, such as `GET`, runs only on a miss.
-- **There is no website script.** Add its tag to your pages.
+- **The JavaScript tag is not added for you.** Add it to your pages.
 
 ## What the edge does
 
@@ -122,9 +122,9 @@ The fields of a route are read as the [middleware](typescript.md#routes-from-the
 
 ## Who an event is about
 
-- **The device** comes from the `kairos_device` cookie of the [website script](browser.md#the-device).
+- **The device** comes from the `kairos_device` cookie of the [JavaScript tag](browser.md#the-device).
 - **The IP address** comes from the platform, as the `ip` entity.
-- **The session** is the hash of the settings' session cookie, else the [visit](browser.md#the-visit) of the website script.
+- **The session** is the hash of the settings' session cookie, else the [visit](browser.md#the-visit) of the JavaScript tag.
 - **The country and the ASN** that the platform gives are properties of each event, with the fields of the route.
 
 The edge does not know who is signed in. A field whose name ends in `Id` names an entity, so a field `userId`, from the response of a sign-in, names the user. For the user on every route, run the middleware on your servers too.
@@ -140,9 +140,9 @@ When your servers run the [TypeScript](typescript.md#routes-from-the-console) or
 
 Decide on response is for the edge only. The middleware skips such a route.
 
-## The website script
+## JavaScript
 
-On Cloudflare and Fastly, set `KAIROS_PUBLIC_KEY` to a public key, limited to your websites, and the edge adds the [website script](browser.md) to the `<head>` of each HTML page. Then each browser gets its device and visit cookies, and sends the pages of your client settings, with no change to your site. A page that already has the script tag runs the script once.
+On Cloudflare and Fastly, set `KAIROS_PUBLIC_KEY` to a public key, limited to your websites, and the edge adds the [JavaScript tag](browser.md) to the `<head>` of each HTML page. Then each browser gets its device and visit cookies, and sends the pages of your client settings, with no change to your site. A page that already has the script tag runs the script once.
 
 ## When something fails
 
@@ -156,7 +156,7 @@ On Cloudflare and Fastly, set `KAIROS_PUBLIC_KEY` to a public key, limited to yo
 |---|---|
 | `KAIROS_API_KEY` | A secret key (`ksk_`). Required. |
 | `KAIROS_HASH_KEY` | The same hash key as your servers'. Without it, hashed fields, cookies and the session cookie are left out, the middleware cannot tell that the edge sent a request, and Lambda@Edge loses the fields of the request's body. |
-| `KAIROS_PUBLIC_KEY` | A public key (`kpk_`). With it, the edge adds the website script to HTML pages. Not on Lambda@Edge. |
+| `KAIROS_PUBLIC_KEY` | A public key (`kpk_`). With it, the edge adds the JavaScript tag to HTML pages. Not on Lambda@Edge. |
 | `KAIROS_URL` | The address of a Kairos server of your own. Default: `https://kairos.finic.ai`. |
 
 On Cloudflare, these are the Worker's secrets and variables. On Fastly, they are entries of the Secret Store. On Lambda@Edge, they are `apiKey`, `hashKey` and `baseUrl`.

@@ -4,6 +4,7 @@ import claudeLogo from "../../assets/agents/claude.svg";
 import codexLogo from "../../assets/agents/codex.svg";
 import cursorLogo from "../../assets/agents/cursor.svg";
 import vscodeLogo from "../../assets/agents/vscode.png";
+import type { CodeLang } from "../../components/get-started/highlight";
 import { Code } from "../../components/get-started/Code";
 import { CopyButton } from "../../components/get-started/CopyButton";
 import { KeyModal } from "../../components/settings/KeyModal";
@@ -43,6 +44,7 @@ const PLACEHOLDER = "<YOUR_API_KEY>";
 interface Block {
   title: string;
   text: string;
+  lang?: CodeLang;
   /** What an agent must do with `text`, said in the prompt. */
   step: string;
 }
@@ -56,6 +58,7 @@ const setup = (client: Client, url: string, key: string): Block[] => {
       return [
         {
           title: ".cursor/mcp.json",
+          lang: "json",
           text: JSON.stringify({ mcpServers: { kairos: { url, headers } } }, null, 2),
           step: `Add this server to .cursor/mcp.json in this project. ${keep}`,
         },
@@ -64,11 +67,13 @@ const setup = (client: Client, url: string, key: string): Block[] => {
       return [
         {
           title: ".mcp.json",
+          lang: "json",
           text: JSON.stringify({ mcpServers: { kairos: { type: "http", url, headers } } }, null, 2),
           step: `Add this server to .mcp.json in the root of this project. ${keep}`,
         },
         {
           title: "Or in a terminal",
+          lang: "bash",
           text: `claude mcp add --transport http kairos ${url} --header "Authorization: Bearer ${key}"`,
           step: "Or run this command.",
         },
@@ -77,12 +82,14 @@ const setup = (client: Client, url: string, key: string): Block[] => {
       return [
         {
           title: "JSON",
+          lang: "json",
           text: JSON.stringify({ mcpServers: { kairos: { type: "http", url, headers } } }, null, 2),
           step: `Add this server to ~/.codex/config.toml as [mcp_servers.kairos], with url and http_headers. ${keep}`,
         },
         {
           // `codex mcp add` takes a bearer token only from an environment variable.
           title: "Or in a terminal",
+          lang: "bash",
           text: `export KAIROS_API_KEY="${key}"\ncodex mcp add kairos --url ${url} --bearer-token-env-var KAIROS_API_KEY`,
           step: "Or run these commands, and add the export line to the shell profile, so that KAIROS_API_KEY is set when Codex starts.",
         },
@@ -91,6 +98,7 @@ const setup = (client: Client, url: string, key: string): Block[] => {
       return [
         {
           title: ".vscode/mcp.json",
+          lang: "json",
           text: JSON.stringify({ servers: { kairos: { type: "http", url, headers } } }, null, 2),
           step: `Add this server to .vscode/mcp.json in this project. ${keep}`,
         },
@@ -201,7 +209,7 @@ export function McpPage({ workspace, environment }: SettingsPageProps) {
               </TabStrip>
               {shown.map((block) => (
                 <div key={block.title} style={{ marginTop: 12 }}>
-                  <Code title={block.title} text={block.text} />
+                  <Code title={block.title} text={block.text} lang={block.lang} />
                 </div>
               ))}
               <div style={{ display: "flex", alignItems: "center", gap: 16, marginTop: 12 }}>
