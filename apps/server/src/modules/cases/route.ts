@@ -12,7 +12,7 @@ import type { Webhooks } from "../../context";
 import { bounded, error, parse, type Env } from "../../platform/http";
 import { invalid } from "../../platform/error";
 import type { Repositories } from "../../repositories";
-import { assignBody, bulkBody, noteBody, queueBody, resolveBody } from "./schema";
+import { assignBody, bulkBody, noteBody, queueBody, reopenBody, resolveBody } from "./schema";
 import type { ViewTemplate } from "./types";
 import { MEDIA_ERROR, mediaHeaders } from "./libs";
 import {
@@ -215,7 +215,15 @@ export function caseRoutes({ repos, now, webhooks, templates = [] }: CasesDeps) 
     const body = await parse(c, assignBody);
     if ("response" in body) return body.response;
     const done = sent(
-      await assignCase(repos, scopeOf(c), c.req.param("id"), body.data.assignee, actorOf(c), c.get("userId"), now()),
+      await assignCase(
+        repos,
+        scopeOf(c),
+        c.req.param("id"),
+        body.data.assignee,
+        actorOf(c, body.data.by),
+        c.get("userId"),
+        now(),
+      ),
     );
     await logCase(c, "assigned", { assignee: body.data.assignee });
     return c.json(done.case);
@@ -230,7 +238,13 @@ export function caseRoutes({ repos, now, webhooks, templates = [] }: CasesDeps) 
   });
 
   app.post("/cases/:id/reopen", async (c) => {
-    const done = sent(await reopenCase(repos, scopeOf(c), c.req.param("id"), actorOf(c), c.get("userId"), now()));
+    // The console sends no body.
+    const raw = await c.req.json().catch(() => ({}));
+    const body = reopenBody.safeParse(raw ?? {});
+    if (!body.success) return error(c, 400, "invalid_request", "by: who reopened it, at most 200 characters");
+    const done = sent(
+      await reopenCase(repos, scopeOf(c), c.req.param("id"), actorOf(c, body.data.by), c.get("userId"), now()),
+    );
     await logCase(c, "reopened");
     return c.json(done.case);
   });

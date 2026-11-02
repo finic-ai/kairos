@@ -724,11 +724,11 @@ A queue's rules open cases for the decisions that need a person. The guides are 
 | `POST /v1/queues/:id/cases/bulk` | `{ ids, assign }` (a user id or null) or `{ ids, resolve }` (the body of `resolve` below). At most 200 ids. `{ results: [{ id, ok, error? }] }`: each case changes or fails on its own. |
 | `GET /v1/cases/:id` | `{ …case, queue, evidence, items, activity, decisions }`. |
 | `GET /v1/cases/:id/timeline` | `{ steps: [{ kind: "event" \| "decision", ts, item, event \| decision }] }`, oldest first. `item` is false for what happened around the case's entity. `?items_only=true` leaves those out. |
-| `POST /v1/cases/:id/assign` | `{ assignee }`: an active member's user id, or null. An open case that gets an assignee is in review; with null, the case is open. 409 `case_resolved` for a resolved case. |
+| `POST /v1/cases/:id/assign` | `{ assignee, by? }`: an active member's user id, or null. `by` is as for a note. An open case that gets an assignee is in review; with null, the case is open. 409 `case_resolved` for a resolved case. |
 | `POST /v1/cases/:id/take` | Assign to the signed-in person. |
 | `POST /v1/cases/:id/notes` | `{ text, by? }`, at most 5,000 characters. `by` names who wrote it when an API key calls; without it, `API`. A signed-in person is always named by their email address. |
 | `POST /v1/cases/:id/resolve` | `{ category, note?, apply_to_decisions?, label_target?, by? }`. `by` is as for a note. `category` is `approved`, `blocked`, `confirmed_fraud`, `false_positive` or `no_action`. `apply_to_decisions` only with `approved` or `blocked`; `label_target` only with `confirmed_fraud` or `false_positive`. `note` is at most 2,000 characters. Answers the case, with `decisions_resolved` and `labelled`. 409 `case_resolved` when the case is resolved already. |
-| `POST /v1/cases/:id/reopen` | Opens a resolved case again: in review with an assignee, else open. 409 `case_not_resolved`. |
+| `POST /v1/cases/:id/reopen` | `{ by? }`, optional. Opens a resolved case again: in review with an assignee, else open. `by` is as for a note. 409 `case_not_resolved`. |
 
 ```json
 {

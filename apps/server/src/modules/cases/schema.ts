@@ -21,15 +21,18 @@ export const queueBody = z.object({
   due_hours: z.record(z.unknown()).optional(),
 });
 
+/** Who did it, when an API key calls for someone. A signed-in person is always named by their email address. */
+const by = z.string().trim().min(1).max(200).optional();
+
 export const assignBody = z
   .object({
     /** A user id, or null to clear it. */
     assignee: z.string().min(1).max(200).nullable(),
+    by,
   })
   .strict();
 
-/** Who did it, when an API key calls for someone. A signed-in person is always named by their email address. */
-const by = z.string().trim().min(1).max(200).optional();
+export const reopenBody = z.object({ by }).strict();
 
 export const noteBody = z.object({ text: z.string().trim().min(1).max(5000), by }).strict();
 
