@@ -7,7 +7,7 @@ import { metricRequest } from "../../observe/schema";
 import type { McpGroup, McpToolInfo } from "../types";
 
 export interface RouteRequest {
-  method: "GET" | "POST" | "PUT" | "PATCH";
+  method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   path: string;
   query?: Record<string, string | number | boolean | undefined>;
   body?: unknown;
@@ -45,6 +45,14 @@ const limit = (fallback = 20, max = 50) =>
   z.number().int().min(1).max(max).default(fallback).describe(`At most ${max} rows. Default ${fallback}.`);
 const offset = z.number().int().min(0).optional().describe("Rows to skip, for the next page.");
 const caseId = z.string().min(1).describe("The case id, from list_queue_cases.");
+const queueId = z.string().min(1).describe("The queue id, from list_queues.");
+const entityType = z.string().min(1).describe("The entity type, such as user, from list_entity_types.");
+const workflowName = z.string().min(1).describe("The workflow's name, from list_workflows.");
+const queueDefinition = z
+  .record(z.unknown())
+  .describe(
+    "The queue: `name`, `description`, `visibility` (workspace or private), `enabled`, `sources` (`actions`, `event_types`), `intake` (up to 10 rules: `id`, `name`, `priority`, `conditions` with `all` or `any` of `{ field, op, value }`), `correlation` (`by`: subject, entity, request property, session or event; `window_days`, `reopen_days`, `when_missing`), `due_hours` by priority, `columns` and `sort`. Fields such as decision.outcome, decision.risk_score, signal.<code>, request.<property> and event.<property>.",
+  );
 
 const tools: Tool[] = [
   {
@@ -123,6 +131,37 @@ const tools: Tool[] = [
     input: z.object({}),
     annotations: read,
     request: () => ({ method: "GET", path: "/v1/entity-types" }),
+  },
+  {
+    name: "get_entity_type",
+    title: "Get an entity type",
+    group: "read",
+    description:
+      "Get one entity type's whole definition: kind, description, properties, link, display (icon, colour, the fields that name an entity, and `formats`: how each property shows), facts and lists. Read it before save_entity_type, which replaces the whole definition.",
+    input: z.object({ type: entityType }),
+    annotations: read,
+    request: (a) => ({ method: "GET", path: at("entity-types", a.type) }),
+  },
+  {
+    name: "get_entity_type_shape",
+    title: "Get the properties seen on an entity type",
+    group: "read",
+    description:
+      "Get the properties that entities of one type actually carry, with sample values: use it to choose the properties to document, the fields that name an entity, and their formats." +
+      DATA,
+    input: z.object({ type: entityType }),
+    annotations: read,
+    request: (a) => ({ method: "GET", path: at("entity-types", a.type, "shape") }),
+  },
+  {
+    name: "list_entity_templates",
+    title: "List entity type templates",
+    group: "read",
+    description:
+      "List the ready-made entity type definitions, such as user, device or merchant, to start a new type from with save_entity_type.",
+    input: z.object({}),
+    annotations: read,
+    request: () => ({ method: "GET", path: "/v1/entity-templates" }),
   },
   {
     name: "list_entities",
@@ -309,6 +348,25 @@ const tools: Tool[] = [
     request: (a) => ({ method: "GET", path: at("cases", a.id, "timeline") }),
   },
   {
+    name: "get_queue",
+    title: "Get a queue",
+    group: "read",
+    description:
+      "Get one queue's whole definition and its counts: sources, rules (intake), grouping (correlation), due hours, columns, sort and display. Read it before save_queue, which replaces the whole definition.",
+    input: z.object({ id: queueId }),
+    annotations: read,
+    request: (a) => ({ method: "GET", path: at("queues", a.id) }),
+  },
+  {
+    name: "list_case_view_templates",
+    title: "List case layout templates",
+    group: "read",
+    description: "List the ready-made case layouts that a queue can show its cases with.",
+    input: z.object({}),
+    annotations: read,
+    request: () => ({ method: "GET", path: "/v1/case-view-templates" }),
+  },
+  {
     name: "list_workflows",
     title: "List workflows",
     group: "read",
@@ -414,6 +472,23 @@ const tools: Tool[] = [
     annotations: write(),
     request: (a, actor) => ({ method: "POST", path: at("cases", a.id, "notes"), body: { text: a.text, by: actor } }),
   },
+  {
+    name: "assign_case",
+    title: "Assign a case",
+    group: "write",
+    description:
+      "Assign a case to a workspace member by their user id, or unassign it with null. An open case that gets an assignee is in review. The case's timeline names this agent as who did it.",
+    input: z.object({
+      id: caseId,
+      assignee: z.string().min(1).nullable().describe("An active member's user id, or null to unassign."),
+    }),
+    annotations: write({ idempotentHint: true }),
+    request: ({ id, assignee }, actor) => ({
+      method: "POST",
+      path: at("cases", id, "assign"),
+      body: { assignee, by: actor },
+    }),
+  },
 
   {
     name: "decide",
@@ -474,6 +549,16 @@ const tools: Tool[] = [
     }),
   },
   {
+    name: "reopen_case",
+    title: "Reopen a case",
+    group: "decide",
+    description:
+      "Open a resolved case again: in review when it has an assignee, else open. Its resolution is cleared and it gets a new due time. What the resolution did stays: its decisions keep their resolutions, and labels it added stay. This sends a case.reopened webhook to the customer's systems. Ask the person first.",
+    input: z.object({ id: caseId }),
+    annotations: write(),
+    request: (a, actor) => ({ method: "POST", path: at("cases", a.id, "reopen"), body: { by: actor } }),
+  },
+  {
     name: "start_workflow_run",
     title: "Start a workflow run",
     group: "decide",
@@ -490,14 +575,64 @@ const tools: Tool[] = [
     request: ({ name, ...body }) => ({ method: "POST", path: at("workflows", name, "runs"), body }),
   },
   {
+    name: "cancel_workflow_run",
+    title: "Cancel a workflow run",
+    group: "decide",
+    description:
+      "Cancel a run that is still open. No step starts after it; what a step already did stays done, such as an HTTP call that was sent. Ask the person first.",
+    input: z.object({ id: z.string().min(1).describe('The run id, "wfr_…".') }),
+    annotations: write({ destructiveHint: true }),
+    request: (a) => ({ method: "POST", path: at("workflow-runs", a.id, "cancel") }),
+  },
+  {
     name: "save_entity_type",
     title: "Save an entity type",
     group: "build",
     description:
-      "Create or change an entity type, such as user or loan: its name, its properties and how the console shows it. The body is the route's: see PUT /v1/entity-types/:type.",
+      "Create or change an entity type, such as user or loan. The definition replaces the whole saved one, so read it first with get_entity_type and send it back with your change. It has `kind`, `description`, `properties` (name → what it means), `link`, `display` and `facts` and `lists`. `display` has `icon`, `color`, `fields` (the properties that name an entity, in order) and `formats` (property → how it shows: a column format such as money, or image, document or link).",
     input: z.object({ type: z.string().min(1), definition: z.record(z.unknown()) }),
     annotations: write({ idempotentHint: true }),
     request: (a) => ({ method: "PUT", path: at("entity-types", a.type), body: a.definition }),
+  },
+  {
+    name: "create_queue",
+    title: "Create a queue",
+    group: "build",
+    description:
+      "Create a case queue: which decisions it watches, the rules that open a case, how decisions are grouped into one case, and due times. Try the definition with test_queue first. A private queue needs a signed-in person, so make it workspace-wide.",
+    input: z.object({ definition: queueDefinition }),
+    annotations: write(),
+    request: (a) => ({ method: "POST", path: "/v1/queues", body: a.definition }),
+  },
+  {
+    name: "save_queue",
+    title: "Save a queue",
+    group: "build",
+    description:
+      "Change a queue. The definition replaces the whole saved one, so read it first with get_queue and send it back with your change. A change to sources, rules or grouping makes a new version and applies to new decisions only. Set `enabled` false to stop new cases.",
+    input: z.object({ id: queueId, definition: queueDefinition }),
+    annotations: write({ idempotentHint: true }),
+    request: (a) => ({ method: "PUT", path: at("queues", a.id), body: a.definition }),
+  },
+  {
+    name: "test_queue",
+    title: "Test a queue definition",
+    group: "build",
+    description:
+      "Try a queue definition on the decisions of the last 30 days, with nothing saved and no case made: how many decisions it tested and matched, the cases it would have made, and samples.",
+    input: z.object({ definition: queueDefinition }),
+    annotations: read,
+    request: (a) => ({ method: "POST", path: "/v1/queues/test", body: a.definition }),
+  },
+  {
+    name: "delete_queue",
+    title: "Delete a queue",
+    group: "build",
+    description:
+      "Delete a queue that has no cases. A queue with cases cannot be deleted (queue_has_cases): disable it with save_queue and `enabled` false. Ask the person first.",
+    input: z.object({ id: queueId }),
+    annotations: write({ destructiveHint: true }),
+    request: (a) => ({ method: "DELETE", path: at("queues", a.id) }),
   },
   {
     name: "save_action",
@@ -549,6 +684,64 @@ const tools: Tool[] = [
     input: z.object({ name: z.string().min(1) }),
     annotations: write(),
     request: (a) => ({ method: "POST", path: at("workflows", a.name, "publish") }),
+  },
+  {
+    name: "test_workflow",
+    title: "Test a workflow",
+    group: "build",
+    description:
+      "Run a workflow definition once, with nothing saved: steps that act do not act, and show in their output what they would do. Give `mock_outputs` by step id for the steps that do not act, so the steps after them can read it. Returns the run with 202; read it with get_workflow_run.",
+    input: z.object({
+      definition: z.record(z.unknown()).describe("The workflow: `name`, `trigger` and `steps`."),
+      input: z.record(z.unknown()).optional().describe("The trigger's input, such as { event: { … } }."),
+      mock_outputs: z.record(z.unknown()).optional().describe("Step id → the output to use for it."),
+    }),
+    annotations: write(),
+    request: (a) => ({ method: "POST", path: "/v1/workflows/test", body: a }),
+  },
+  {
+    name: "update_workflow",
+    title: "Pause, activate, rename, archive or restore a workflow",
+    group: "build",
+    description: [
+      "Pause a workflow (`enabled` false: nothing new starts, and a decision workflow's action decides with its model), activate it again, or change its display name. No new version.",
+      "Or archive it (`archived` true: nothing new starts, open runs finish, its runs stay) or restore it as it was (`archived` false); restoring a decision workflow is refused when another published one decides its action. `archived` goes alone, without the other fields. Ask the person before pausing or archiving.",
+    ].join(" "),
+    input: z
+      .object({
+        name: workflowName,
+        enabled: z.boolean().optional(),
+        display_name: z.string().max(80).nullable().optional().describe("The name people see. null clears it."),
+        archived: z.boolean().optional().describe("true archives it, false restores it. Send it alone."),
+      })
+      .refine((a) => a.archived === undefined || (a.enabled === undefined && a.display_name === undefined), {
+        message: "archived goes alone: archive or restore in one call, and pause or rename in another",
+      })
+      .refine((a) => a.archived !== undefined || a.enabled !== undefined || a.display_name !== undefined, {
+        message: "Give enabled, display_name or archived",
+      }) as unknown as z.AnyZodObject,
+    annotations: write({ destructiveHint: true, idempotentHint: true }),
+    request: ({ name, enabled, display_name, archived }) =>
+      archived !== undefined
+        ? { method: "POST", path: at("workflows", name, archived ? "archive" : "restore") }
+        : {
+            method: "PATCH",
+            path: at("workflows", name),
+            body: {
+              ...(enabled !== undefined ? { enabled } : {}),
+              ...(display_name !== undefined ? { displayName: display_name } : {}),
+            },
+          },
+  },
+  {
+    name: "discard_workflow_draft",
+    title: "Discard a workflow draft",
+    group: "build",
+    description:
+      "Drop a workflow's draft, the unpublished changes. The live version does not change. Ask the person first.",
+    input: z.object({ name: workflowName }),
+    annotations: write({ destructiveHint: true }),
+    request: (a) => ({ method: "DELETE", path: at("workflows", a.name, "draft") }),
   },
   {
     name: "create_workflow_experiment",

@@ -20,12 +20,16 @@ import type { SettingsPageProps } from "./types";
 
 const GROUPS: { id: McpGroup; title: string; note: string }[] = [
   { id: "read", title: "Read", note: "View data. Changes nothing." },
-  { id: "write", title: "Write", note: "Send events, labels and case notes." },
-  { id: "decide", title: "Decide", note: "Make and resolve decisions, resolve cases, run workflows." },
+  { id: "write", title: "Write", note: "Send events and labels, add case notes, assign cases." },
+  {
+    id: "decide",
+    title: "Decide",
+    note: "Make and resolve decisions, resolve and reopen cases, start and cancel workflow runs.",
+  },
   {
     id: "build",
     title: "Build",
-    note: "Save entity types, actions and workflows, publish, and run and apply experiments.",
+    note: "Save entity types and actions, set up queues, build, test and publish workflows, run experiments.",
   },
 ];
 

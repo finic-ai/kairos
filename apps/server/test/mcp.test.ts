@@ -103,6 +103,7 @@ describe("the endpoint", () => {
     await setGroups("workspace_a", ["read", "write", "decide", "build"]);
     const { tools } = await client.listTools();
     expect(tools).toHaveLength(TOOLS.length);
+    for (const tool of tools) expect(tool.inputSchema.type, tool.name).toBe("object");
     expect(tools.find((t) => t.name === "publish_workflow")?.annotations).toMatchObject({ readOnlyHint: false });
     expect(tools.find((t) => t.name === "resolve_decision")?.annotations).toMatchObject({
       readOnlyHint: false,
@@ -216,6 +217,77 @@ describe("the tools", () => {
       await client.callTool({ name: "resolve_decision", arguments: { id, outcome: "block", note: "Mule pattern" } }),
     );
     expect(resolved.resolution).toMatchObject({ outcome: "block", note: "Mule pattern", by: "mcp:key_a" });
+  });
+
+  it("read an entity type in full, and change its formats without losing the rest", async () => {
+    await setGroups("workspace_a", ["read", "build"]);
+    const user = {
+      kind: "person",
+      description: "A customer",
+      properties: { photo_url: "Their photo", balance: "What they hold" },
+      display: { fields: ["photo_url"] },
+    };
+    expect((await call("PUT", "/v1/entity-types/user", user)).status).toBe(200);
+    const client = await mcpClient(app, "key_a");
+    const read = resultOf(await client.callTool({ name: "get_entity_type", arguments: { type: "user" } }));
+    expect(read).toMatchObject({ type: "user", description: "A customer" });
+    const { environment: _e, ...definition } = read;
+    const changed = { ...definition, display: { ...definition.display, formats: { photo_url: "image" } } };
+    const saved = await client.callTool({ name: "save_entity_type", arguments: { type: "user", definition: changed } });
+    expect(saved.isError).toBeFalsy();
+    expect(resultOf(await client.callTool({ name: "get_entity_type", arguments: { type: "user" } }))).toMatchObject({
+      description: "A customer",
+      properties: user.properties,
+      display: { fields: ["photo_url"], formats: { photo_url: "image" } },
+    });
+    const wrong = { ...changed, display: { formats: { photo_url: "hologram" } } };
+    expect(
+      (await client.callTool({ name: "save_entity_type", arguments: { type: "user", definition: wrong } })).isError,
+    ).toBe(true);
+    const shape = await client.callTool({ name: "get_entity_type_shape", arguments: { type: "user" } });
+    expect(shape.isError).toBeFalsy();
+    const templates = resultOf(await client.callTool({ name: "list_entity_templates", arguments: {} }));
+    expect(Array.isArray(templates.templates)).toBe(true);
+  });
+
+  it("test a workflow, pause, rename, archive and restore it, and drop its draft", async () => {
+    await setGroups("workspace_a", ["read", "decide", "build"]);
+    const client = await mcpClient(app, "key_a");
+    const tool = async (name: string, args: Record<string, unknown>) => {
+      const result = await client.callTool({ name, arguments: args });
+      // Input that breaks the tool's schema is refused by the MCP server, with a text message.
+      return { failed: !!result.isError, body: result.isError ? null : resultOf(result) };
+    };
+    const trigger = { type: "manual" };
+    const steps = [
+      { id: "hook", name: "Call out", type: "http", method: "POST", url: "https://example.com/hook" },
+      { id: "after", name: "Read it", type: "condition", when: "steps.hook.output.status == 200", then: [], else: [] },
+    ];
+    const tested = await tool("test_workflow", {
+      definition: { name: "triage", trigger, steps },
+      mock_outputs: { hook: { status: 200 } },
+    });
+    expect(tested.failed).toBe(false);
+    const run = (await tool("get_workflow_run", { id: tested.body.id })).body;
+    expect(run).toMatchObject({ id: tested.body.id, test: true });
+
+    expect((await tool("save_workflow_draft", { name: "triage", trigger, steps })).failed).toBe(false);
+    expect((await tool("publish_workflow", { name: "triage" })).failed).toBe(false);
+    expect(
+      (await tool("update_workflow", { name: "triage", enabled: false, display_name: "Triage" })).body,
+    ).toMatchObject({
+      enabled: false,
+      displayName: "Triage",
+    });
+    await tool("save_workflow_draft", { name: "triage", trigger, steps: steps.slice(0, 1) });
+    expect((await tool("discard_workflow_draft", { name: "triage" })).body.draft ?? null).toBeNull();
+    expect((await tool("update_workflow", { name: "triage", archived: true, enabled: true })).failed).toBe(true);
+    expect((await tool("update_workflow", { name: "triage" })).failed).toBe(true);
+    expect((await tool("update_workflow", { name: "triage", archived: true })).failed).toBe(false);
+    expect(((await (await call("GET", "/v1/workflows")).json()) as any).workflows).toHaveLength(0);
+    expect((await tool("update_workflow", { name: "triage", archived: false })).failed).toBe(false);
+    expect(((await (await call("GET", "/v1/workflows")).json()) as any).workflows).toHaveLength(1);
+    expect((await tool("cancel_workflow_run", { id: "wfr_missing" })).failed).toBe(true);
   });
 
   it("track events as the key does, once for each id", async () => {

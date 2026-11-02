@@ -404,6 +404,49 @@ describe("work on a case", () => {
     expect(timeline.environment).toBe("Production");
   });
 
+  it("is set up and worked by an agent through MCP, under its key's name", async () => {
+    const made = await call("POST", `/app/workspaces/${workspace}/keys`, { name: "Builder", kind: "secret" });
+    const mcp = `/app/workspaces/${workspace}/mcp`;
+    expect((await call("PUT", mcp, { enabled: true, groups: ["read", "write", "decide", "build"] })).status).toBe(200);
+    const agent = await mcpClient(app, made.body.secret);
+    const tool = async (name: string, args: Record<string, unknown>) => {
+      const result = await agent.callTool({ name, arguments: args });
+      return { error: result.isError ? resultOf(result).error : null, body: resultOf(result) };
+    };
+
+    const tried = await tool("test_queue", { definition: queue() });
+    expect(tried.error).toBeNull();
+    expect(tried.body).toMatchObject({ tested: 0, matched: 0 });
+    const created = await tool("create_queue", { definition: queue() });
+    const id = created.body.id as string;
+    expect(id).toMatch(/^que_/);
+    const read = (await tool("get_queue", { id })).body;
+    expect(read).toMatchObject({ id, name: "Onboarding review" });
+    expect(Array.isArray((await tool("list_case_view_templates", {})).body.templates)).toBe(true);
+
+    await decide({ user: "u1" });
+    const caseId = (await casesOf(id)).cases[0].id;
+    const me = (await call("GET", "/auth/me")).body.user.id as string;
+    expect((await tool("assign_case", { id: caseId, assignee: me })).body).toMatchObject({
+      status: "in_review",
+      assignee: { id: me },
+    });
+    await tool("resolve_case", { id: caseId, category: "no_action" });
+    expect((await tool("reopen_case", { id: caseId })).body.status).toBe("in_review");
+    const actors = (await call("GET", `/v1/cases/${caseId}`)).body.activity
+      .filter((a: any) => ["assigned", "reopened"].includes(a.type))
+      .map((a: any) => a.actor);
+    expect(actors).toEqual(["mcp:Builder", "mcp:Builder"]);
+
+    // A queue with cases is kept: it can only be disabled.
+    expect((await tool("delete_queue", { id })).error).toMatchObject({ type: "queue_has_cases" });
+    const saved = await tool("save_queue", { id, definition: { ...queue(), enabled: false } });
+    expect(saved.body).toMatchObject({ id, enabled: false });
+    const empty = (await tool("create_queue", { definition: queue({ name: "Spare" }) })).body.id;
+    expect((await tool("delete_queue", { id: empty })).error).toBeNull();
+    expect((await call("GET", "/v1/queues")).body.queues.map((q: any) => q.id)).toEqual([id]);
+  });
+
   it("labels the target of a case resolved as confirmed fraud", async () => {
     const id = await makeQueue();
     await decide({ user: "u1" });

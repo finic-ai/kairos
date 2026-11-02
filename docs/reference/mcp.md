@@ -102,10 +102,10 @@ An admin turns the groups on and off in **Settings › MCP**, for the whole work
 
 | Group  | What the tools do                                                                                                             |
 | ------ | ----------------------------------------------------------------------------------------------------------------------------- |
-| Read   | Read actions, decisions, entities, sessions, cases, workflows and metrics. Nothing changes.                                   |
-| Write  | Send events, label entities and add notes to cases. Events can start automatic decisions, as events from your server do.      |
-| Decide | Ask for decisions, resolve decisions and cases, and start workflow runs. These call the model, end reviews and send webhooks. |
-| Build  | Save entity types, actions, client settings and workflow drafts, publish workflows, and run and apply experiments. These change what Kairos decides and collects. |
+| Read   | Read actions, decisions, entities and entity types, sessions, queues and cases, workflows and metrics. Nothing changes.       |
+| Write  | Send events, label entities, add notes to cases and assign them. Events can start automatic decisions, as events from your server do. |
+| Decide | Ask for decisions, resolve and reopen cases and decisions, and start and cancel workflow runs. These call the model, end reviews and send webhooks. |
+| Build  | Save entity types, actions and client settings; set up queues; save, test, publish, pause and archive workflows; and run and apply experiments. These change what Kairos decides and collects. |
 
 `tools/list` shows only the tools of the groups that are on.
 
@@ -116,12 +116,15 @@ An admin turns the groups on and off in **Settings › MCP**, for the whole work
 | `list_actions`, `get_action`                               | Read   | `GET /v1/actions`, `GET /v1/actions/:name`                                       |
 | `list_decisions`, `get_decision`                           | Read   | `GET /v1/decisions`, `GET /v1/decisions/:id`                                     |
 | `list_entity_types`                                        | Read   | `GET /v1/entity-types`                                                           |
+| `get_entity_type`, `get_entity_type_shape`                 | Read   | `GET /v1/entity-types/:type`, `GET /v1/entity-types/:type/shape`                 |
+| `list_entity_templates`                                    | Read   | `GET /v1/entity-templates`                                                       |
 | `list_entities`, `get_entity`                              | Read   | `GET /v1/entities`, `GET /v1/entities/:type/:id`                                 |
 | `get_entity_facts`, `get_entity_list`                      | Read   | `GET /v1/entities/:type/:id/facts`, `GET /v1/entities/:type/:id/lists/:name`     |
 | `get_event`, `get_record`                                  | Read   | `GET /v1/events/:id`, `GET /v1/records/:id`                                      |
 | `list_sessions`, `get_session`                             | Read   | `GET /v1/sessions`, `GET /v1/sessions/:id`                                       |
 | `overview`, `query_metrics`                                | Read   | `GET /v1/overview`, `POST /v1/metrics/query`                                     |
 | `list_queues`, `list_queue_cases`                          | Read   | `GET /v1/queues`, `GET /v1/queues/:id/cases`                                     |
+| `get_queue`, `list_case_view_templates`                    | Read   | `GET /v1/queues/:id`, `GET /v1/case-view-templates`                              |
 | `get_case`, `get_case_timeline`                            | Read   | `GET /v1/cases/:id`, `GET /v1/cases/:id/timeline`                                |
 | `list_workflows`, `list_workflow_runs`, `get_workflow_run` | Read   | `GET /v1/workflows`, `GET /v1/workflows/:name/runs`, `GET /v1/workflow-runs/:id` |
 | `get_workflow`                                             | Read   | `GET /v1/workflows/:name`                                                        |
@@ -131,20 +134,32 @@ An admin turns the groups on and off in **Settings › MCP**, for the whole work
 | `track_events`                                             | Write  | `POST /v1/events`                                                                |
 | `label_entities`                                           | Write  | `POST /v1/labels`                                                                |
 | `add_case_note`                                            | Write  | `POST /v1/cases/:id/notes`                                                       |
+| `assign_case`                                              | Write  | `POST /v1/cases/:id/assign`                                                      |
 | `decide`                                                   | Decide | `POST /v1/decide`                                                                |
 | `decide_event`                                             | Decide | `POST /v1/events/decide`                                                         |
 | `resolve_decision`                                         | Decide | `POST /v1/decisions/:id/resolution`                                              |
 | `resolve_case`                                             | Decide | `POST /v1/cases/:id/resolve`                                                     |
+| `reopen_case`                                              | Decide | `POST /v1/cases/:id/reopen`                                                      |
 | `start_workflow_run`                                       | Decide | `POST /v1/workflows/:name/runs`                                                  |
+| `cancel_workflow_run`                                      | Decide | `POST /v1/workflow-runs/:id/cancel`                                              |
 | `save_entity_type`                                         | Build  | `PUT /v1/entity-types/:type`                                                     |
+| `create_queue`, `save_queue`, `delete_queue`               | Build  | `POST /v1/queues`, `PUT /v1/queues/:id`, `DELETE /v1/queues/:id`                 |
+| `test_queue`                                               | Build  | `POST /v1/queues/test`                                                           |
 | `save_action`                                              | Build  | `PUT /v1/actions/:name`                                                          |
 | `save_client_settings`                                     | Build  | `PUT /v1/client-settings`                                                        |
 | `save_workflow_draft`, `publish_workflow`                  | Build  | `PUT /v1/workflows/:name/draft`, `POST /v1/workflows/:name/publish`              |
+| `discard_workflow_draft`                                   | Build  | `DELETE /v1/workflows/:name/draft`                                               |
+| `test_workflow`                                            | Build  | `POST /v1/workflows/test`                                                        |
+| `update_workflow`                                          | Build  | `PATCH /v1/workflows/:name`, or `POST /v1/workflows/:name/archive` and `/restore` |
 | `create_workflow_experiment`                               | Build  | `POST /v1/workflows/:name/experiments`                                           |
 | `apply_workflow_experiment`                                | Build  | `POST /v1/workflow-experiments/:id/apply`                                        |
 | `rename_workflow_experiment`                               | Build  | `PATCH /v1/workflow-experiments/:id`                                             |
 
-Each tool has the MCP annotations `readOnlyHint` and `destructiveHint`. A client uses them to ask the person before a write. `resolve_decision` and `resolve_case` are destructive.
+Each tool has the MCP annotations `readOnlyHint` and `destructiveHint`. A client uses them to ask the person before a write. `resolve_decision`, `resolve_case`, `cancel_workflow_run`, `delete_queue`, `discard_workflow_draft` and `update_workflow` (which pauses and archives) are destructive.
+
+- `save_entity_type` and `save_queue` replace the whole definition: the agent reads it first with `get_entity_type` or `get_queue`.
+- `test_workflow` never acts: an HTTP, decide or record step only shows what it would do. Give it `mock_outputs` for the steps after it.
+- `take` is not a tool: only a signed-in person can take a case. `assign_case` assigns it to a member.
 
 ## Safety
 
