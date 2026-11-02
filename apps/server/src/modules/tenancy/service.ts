@@ -30,6 +30,22 @@ const toKey = (r: ApiKeyRow): ApiKey => ({
   revoked: r.revoked?.toISOString() ?? null,
 });
 
+/** The website restrictions as stored, after checking both lists. */
+function checkedRestrictions(kind: KeyKind, ips: string[], origins: string[]): string[] {
+  const bad = invalidIpRules(ips);
+  if (bad.length)
+    throw invalid(`allowed_ips: "${bad[0]}" is not an IP address or an IPv4 range such as 203.0.113.0/24`);
+  // Only a browser sends an Origin header that can be trusted, and only a public key belongs in a browser.
+  if (kind === "secret" && origins.length)
+    throw invalid("allowed_origins: only a public key can be limited to websites");
+  const { origins: normalized, invalid: wrong } = normalizeOrigins(origins);
+  if (wrong.length)
+    throw invalid(
+      `allowed_origins: "${wrong[0]}" is not a website address such as https://app.example.com or https://*.example.com`,
+    );
+  return normalized;
+}
+
 export function createTenancy({
   db,
   accounts,
@@ -177,17 +193,7 @@ export function createTenancy({
       userId: string,
       input: { name: string; kind: KeyKind; allowed_ips: string[]; allowed_origins: string[]; environment_id?: string },
     ) {
-      const bad = invalidIpRules(input.allowed_ips);
-      if (bad.length)
-        throw invalid(`allowed_ips: "${bad[0]}" is not an IP address or an IPv4 range such as 203.0.113.0/24`);
-      // Only a browser sends an Origin header that can be trusted, and only a public key belongs in a browser.
-      if (input.kind === "secret" && input.allowed_origins.length)
-        throw invalid("allowed_origins: only a public key can be limited to websites");
-      const { origins, invalid: wrong } = normalizeOrigins(input.allowed_origins);
-      if (wrong.length)
-        throw invalid(
-          `allowed_origins: "${wrong[0]}" is not a website address such as https://app.example.com or https://*.example.com`,
-        );
+      const origins = checkedRestrictions(input.kind, input.allowed_ips, input.allowed_origins);
       const target = await environment(workspaceId, input.environment_id);
       const { key, secret } = await keysIn(workspaceId).createWithSecret(
         {
@@ -201,6 +207,32 @@ export function createTenancy({
         now(),
       );
       return { key: toKey(key), secret };
+    },
+
+    /** A key's name and restrictions. The secret, kind and environment never change. */
+    async updateKey(
+      workspaceId: string,
+      environmentId: string | undefined,
+      keyId: string,
+      input: { name?: string; allowed_ips?: string[]; allowed_origins?: string[] },
+    ) {
+      const target = await environment(workspaceId, environmentId);
+      const keys = keysIn(workspaceId);
+      const found = await keys.findFirst({ where: { id: keyId, environmentId: target.id } });
+      if (!found) throw notFound("No such API key");
+      if (found.revoked) throw new AppError("conflict", "key_revoked", "A revoked key cannot be changed");
+      const ips = input.allowed_ips ?? found.allowedIps;
+      const origins = checkedRestrictions(found.kind, ips, input.allowed_origins ?? found.allowedOrigins ?? []);
+      const updated = await keys.update(
+        keyId,
+        {
+          ...(input.name !== undefined ? { name: input.name.trim() } : {}),
+          ...(input.allowed_ips !== undefined ? { allowedIps: ips.map((ip) => ip.trim()) } : {}),
+          ...(input.allowed_origins !== undefined ? { allowedOrigins: origins } : {}),
+        },
+        now(),
+      );
+      return { before: toKey(found), key: toKey(updated!) };
     },
 
     async revokeKey(workspaceId: string, environmentId: string | undefined, keyId: string) {

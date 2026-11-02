@@ -850,7 +850,8 @@ The role needed is in the last column. A workspace you are not in answers `404`.
 | | | |
 |---|---|---|
 | `GET /app/workspaces/:workspace/keys` | `{ keys }`, with a hint of each key, never the key. | admin |
-| `POST /app/workspaces/:workspace/keys` | `{ name, kind, allowed_ips?, allowed_origins? }`. Returns `{ key, secret }`. This is the only time the key itself is returned. | admin |
+| `POST /app/workspaces/:workspace/keys` | `{ name, kind, allowed_ips?, allowed_origins?, environment_id? }`. Returns `{ key, secret }`. This is the only time the key itself is returned. Without `environment_id`, the key is for the selected environment. | admin |
+| `PATCH /app/workspaces/:workspace/keys/:key` | `{ name?, allowed_ips?, allowed_origins? }`: only the fields given change, and the new limits apply to the next request. The key, its kind and its environment never change. A revoked key cannot be changed (409). Returns `{ key }`. | admin |
 | `DELETE /app/workspaces/:workspace/keys/:key` | Revoke a key. It stops working at once. | admin |
 
 `kind` is `secret` or `public`. `allowed_ips` is a list of IP addresses and IPv4 ranges such as `203.0.113.0/24`. `allowed_origins` is for a public key only: websites such as `https://app.example.com` or `https://*.example.com`.

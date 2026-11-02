@@ -6,16 +6,16 @@ export function Group({
   action,
   children,
 }: {
-  title: string;
+  title?: string;
   note?: ReactNode;
   action?: ReactNode;
   children: ReactNode;
 }) {
   return (
     <section className="set">
-      <div className="set-head">
+      <div className={`set-head ${title ? "" : "untitled"}`}>
         <div>
-          <h2>{title}</h2>
+          {title && <h2>{title}</h2>}
           {note && <p>{note}</p>}
         </div>
         {action}

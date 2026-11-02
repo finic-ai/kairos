@@ -116,11 +116,14 @@ const settingsPage = (Page: ComponentType<SettingsPageProps>) =>
 const ProfileRoute = settingsPage(ProfilePage);
 const GeneralRoute = settingsPage(GeneralPage);
 const MembersRoute = settingsPage(MembersPage);
-const KeysRoute = settingsPage(KeysPage);
 const McpRoute = settingsPage(McpPage);
 const UsageRoute = settingsPage(UsagePage);
 const JobsRoute = settingsPage(JobsPage);
 const ActivityRoute = settingsPage(ActivityPage);
+
+function KeysRoute() {
+  return <KeysPage {...settingsProps(useWorkspace())} id={useParams().id} />;
+}
 
 function IntegrationsRoute() {
   return <IntegrationsPage {...settingsProps(useWorkspace())} id={useParams().id} />;
@@ -237,7 +240,7 @@ export const createRouter = () =>
             { path: "environments", element: <EnvironmentsRoute /> },
             { path: "models", element: <ModelsPage /> },
             { path: "models/:slug", element: <ModelRoute /> },
-            { path: "keys", element: <KeysRoute /> },
+            { path: "keys/:id?", element: <KeysRoute /> },
             { path: "integrations/:id?", element: <IntegrationsRoute /> },
             { path: "mcp", element: <McpRoute /> },
             { path: "usage", element: <UsageRoute /> },

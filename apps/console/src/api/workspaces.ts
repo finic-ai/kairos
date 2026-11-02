@@ -50,8 +50,16 @@ export const workspaces = {
   keys: (id: string) => request<{ keys: ApiKey[] }>("GET", `${ws(id)}/keys`),
   createKey: (
     id: string,
-    input: { name: string; kind: "secret" | "public"; allowed_ips: string[]; allowed_origins: string[] },
+    input: {
+      name: string;
+      kind: "secret" | "public";
+      allowed_ips: string[];
+      allowed_origins: string[];
+      environment_id?: string;
+    },
   ) => request<{ key: ApiKey; secret: string }>("POST", `${ws(id)}/keys`, input),
+  updateKey: (id: string, key: string, input: { name?: string; allowed_ips?: string[]; allowed_origins?: string[] }) =>
+    request<{ key: ApiKey }>("PATCH", `${ws(id)}/keys/${encodeURIComponent(key)}`, input),
   revokeKey: (id: string, key: string) =>
     request<{ keys: ApiKey[] }>("DELETE", `${ws(id)}/keys/${encodeURIComponent(key)}`),
   /** A member gets only their own activity, whatever `user` is. */
