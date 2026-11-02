@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { INPUT_TYPES } from "../../lib/workflows";
 import type { WorkflowInput } from "../../types/interfaces";
 
@@ -15,10 +16,22 @@ export function InputsEditor({
   inputs,
   entityTypes,
   onChange,
+  types = INPUT_TYPES,
+  labelHint = "Label, as the run form shows it",
+  empty = "None. A run gets any JSON object as its input.",
+  note = (
+    <>
+      Steps read each input as <span className="mono">trigger.name</span>. A run without a required input is refused.
+    </>
+  ),
 }: {
   inputs: WorkflowInput[];
   entityTypes: string[];
   onChange: (inputs: WorkflowInput[]) => void;
+  types?: typeof INPUT_TYPES;
+  labelHint?: string;
+  empty?: string;
+  note?: ReactNode;
 }) {
   const change = (index: number, next: Partial<WorkflowInput>) =>
     onChange(
@@ -40,7 +53,7 @@ export function InputsEditor({
   return (
     <div className="field">
       <span>Inputs</span>
-      {inputs.length === 0 && <small>None. A run gets any JSON object as its input.</small>}
+      {inputs.length === 0 && <small>{empty}</small>}
       {inputs.map((input, index) => (
         <div key={index} className="wf-input">
           <div className="wf-input-head">
@@ -57,7 +70,7 @@ export function InputsEditor({
               value={input.type}
               onChange={(e) => change(index, { type: e.target.value as WorkflowInput["type"] })}
             >
-              {INPUT_TYPES.map((t) => (
+              {types.map((t) => (
                 <option key={t.value} value={t.value}>
                   {t.label}
                 </option>
@@ -91,7 +104,7 @@ export function InputsEditor({
           <input
             className="input"
             aria-label="Label"
-            placeholder="Label, as the run form shows it"
+            placeholder={labelHint}
             value={input.label ?? ""}
             onChange={(e) => change(index, { label: e.target.value })}
           />
@@ -154,9 +167,7 @@ export function InputsEditor({
       >
         + Add an input
       </button>
-      <small>
-        Steps read each input as <span className="mono">trigger.name</span>. A run without a required input is refused.
-      </small>
+      <small>{note}</small>
     </div>
   );
 }

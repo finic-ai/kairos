@@ -22,3 +22,5 @@ export * from "./xgboost";
 export * from "./logistic";
 export * from "./scoring";
 export * from "./gbdt";
+export * from "./rulesets";
+export * from "./ruleset-inputs";

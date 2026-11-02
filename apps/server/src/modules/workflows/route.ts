@@ -7,6 +7,7 @@ import { WorkflowRunsService, WorkflowsService } from "../../services/workflow.s
 import {
   cancelRun,
   checkModels,
+  checkRulesetsAndLists,
   discardDraft,
   exportTrainingData,
   newHookToken,
@@ -226,6 +227,7 @@ export function workflowRoutes({ repos, now, decider, allowPrivate, wake }: Work
     const problems = validateWorkflow(body.definition);
     if (problems.length) throw invalid(problems.join("; "));
     await checkModels(repos.db, scopeOf(c), body.definition.steps);
+    await checkRulesetsAndLists(repos.db, scopeOf(c), body.definition);
     const { displayName: _d, enabled: _e, ...definition } = body.definition;
     // A test of a saved workflow is one of its runs; a test of one never saved belongs to none.
     const saved = await workflowsOf(c).findByName(body.definition.name);

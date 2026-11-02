@@ -1,0 +1,61 @@
+{
+  "slug": "pass_through",
+  "name": "Money in, money out",
+  "category": "Payments",
+  "description": "Reject when most of the money that came in today goes out again, the pattern of a mule account.",
+  "definition": {
+    "inputs": [
+      {
+        "name": "money_in_24h",
+        "type": "number",
+        "required": true,
+        "description": "Money received in the last 24 hours"
+      },
+      {
+        "name": "money_out_24h",
+        "type": "number",
+        "required": true,
+        "description": "Money sent in the last 24 hours, with this transaction"
+      },
+      {
+        "name": "account_age_days",
+        "type": "number",
+        "description": "Days since the account was opened"
+      }
+    ],
+    "rules": [
+      {
+        "id": "passes_on",
+        "name": "Most of it goes out again",
+        "when": "input.money_in_24h >= 1000 && input.money_out_24h >= input.money_in_24h * 0.9",
+        "outcome": "reject",
+        "response": {
+          "reason": "pass_through"
+        }
+      }
+    ],
+    "default": {
+      "outcome": "approve"
+    },
+    "tests": [
+      {
+        "name": "In 3,000, out 2,900",
+        "input": {
+          "money_in_24h": 3000,
+          "money_out_24h": 2900
+        },
+        "outcome": "reject",
+        "rule": "passes_on"
+      },
+      {
+        "name": "In 3,000, out 500",
+        "input": {
+          "money_in_24h": 3000,
+          "money_out_24h": 500
+        },
+        "outcome": "approve",
+        "rule": null
+      }
+    ]
+  }
+}

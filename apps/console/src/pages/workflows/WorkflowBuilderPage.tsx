@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useBlocker, useNavigate } from "react-router";
-import { api, workflows } from "../../api/index";
+import { api, lists, rulesets, workflows } from "../../api/index";
 import { InTopbar } from "../../components/shell/InTopbar";
 import { StepPalette } from "../../components/workflows/StepPalette";
 import { RunModal } from "../../components/workflows/RunModal";
@@ -100,6 +100,8 @@ export function WorkflowBuilderPage({ name }: { name: string }) {
   const { data: typeList } = useEntityTypeList();
   const { data: queueList } = useQueues();
   const { data: modelList } = useModels();
+  const { data: rulesetList } = useApi(["rulesets", "published"], () => rulesets.list({ limit: 500 }));
+  const { data: listList } = useApi(["lists", "all"], () => lists.list({ limit: 500 }));
   const { draft, saved: lastSaved, dirty, canUndo, canRedo, change, undo, redo, reset } = useWorkflowDraft(BLANK);
   const { data: options } = useApi(["metric-options", undefined], () => api.metricOptions());
   const triggerEvent =
@@ -117,8 +119,17 @@ export function WorkflowBuilderPage({ name }: { name: string }) {
       eventProperties: eventOptions?.event_properties.map((p) => p.name) ?? [],
       queues: queueList?.queues.map((q) => ({ id: q.id, name: q.name })) ?? [],
       models: modelList?.models ?? [],
+      rulesets: (rulesetList?.rulesets ?? [])
+        .filter((r) => r.version > 0)
+        .map((r) => ({
+          slug: r.slug,
+          name: r.name,
+          version: r.version,
+          inputs: r.definition.inputs.map((i) => i.name),
+        })),
+      lists: listList?.lists.map((l) => l.slug) ?? [],
     }),
-    [actionList, typeList, options, eventOptions, queueList, modelList],
+    [actionList, typeList, options, eventOptions, queueList, modelList, rulesetList, listList],
   );
 
   const [server, setServer] = useState<ServerState | null>(null);
@@ -622,6 +633,7 @@ export function WorkflowBuilderPage({ name }: { name: string }) {
                 entityTypes={suggestions.entityTypes}
                 actions={suggestions.actions}
                 eventProperties={suggestions.eventProperties}
+                lists={suggestions.lists}
                 steps={steps}
                 decisionTaken={decisionTaken}
                 hook={server ? { hint: server.hookHint, live: server.hookLive } : undefined}

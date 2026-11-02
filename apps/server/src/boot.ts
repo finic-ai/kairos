@@ -8,6 +8,7 @@ import { loadPresets } from "./modules/webhooks/libs";
 import { loadTemplates } from "./modules/actions/service";
 import { loadEntityTemplates } from "./modules/catalog/service";
 import { loadViewTemplates } from "./modules/cases/service";
+import { loadRulesetTemplates } from "./modules/rulesets";
 
 export type { WorkerMode } from "./modules/jobs";
 
@@ -53,6 +54,7 @@ export async function boot(config: Config, { worker }: { worker?: WorkerMode } =
     templates: loadTemplates(config.templatesDir),
     entityTemplates: loadEntityTemplates(config.templatesDir),
     viewTemplates: loadViewTemplates(config.templatesDir),
+    rulesetTemplates: loadRulesetTemplates(config.templatesDir),
     presets: loadPresets(config.templatesDir),
     webhooks,
   });

@@ -1,0 +1,82 @@
+{
+  "slug": "velocity_limits",
+  "name": "Velocity limits",
+  "category": "Payments",
+  "description": "Reject when a customer makes too many transactions, or moves too much money, in a short time.",
+  "definition": {
+    "inputs": [
+      {
+        "name": "count_1h",
+        "type": "number",
+        "description": "Transactions in the last hour"
+      },
+      {
+        "name": "count_24h",
+        "type": "number",
+        "description": "Transactions in the last 24 hours"
+      },
+      {
+        "name": "sum_24h",
+        "type": "number",
+        "description": "The amount moved in the last 24 hours"
+      }
+    ],
+    "rules": [
+      {
+        "id": "burst",
+        "name": "Burst in one hour",
+        "when": "input.count_1h > 5",
+        "outcome": "reject",
+        "response": {
+          "reason": "velocity_1h",
+          "limit": 5
+        }
+      },
+      {
+        "id": "daily_count",
+        "name": "Too many in a day",
+        "when": "input.count_24h > 20",
+        "outcome": "reject",
+        "response": {
+          "reason": "velocity_24h",
+          "limit": 20
+        }
+      },
+      {
+        "id": "daily_amount",
+        "name": "Too much in a day",
+        "when": "input.sum_24h > 10000",
+        "outcome": "reject",
+        "response": {
+          "reason": "amount_24h",
+          "limit": 10000
+        }
+      }
+    ],
+    "default": {
+      "outcome": "approve"
+    },
+    "tests": [
+      {
+        "name": "Burst",
+        "input": {
+          "count_1h": 9,
+          "count_24h": 9,
+          "sum_24h": 300
+        },
+        "outcome": "reject",
+        "rule": "burst"
+      },
+      {
+        "name": "Usual day",
+        "input": {
+          "count_1h": 1,
+          "count_24h": 4,
+          "sum_24h": 250
+        },
+        "outcome": "approve",
+        "rule": null
+      }
+    ]
+  }
+}

@@ -17,6 +17,8 @@ import { workflowsModule } from "./modules/workflows";
 import { casesModule } from "./modules/cases";
 import { mcpModule } from "./modules/mcp";
 import { modelsModule } from "./modules/models";
+import { rulesetsModule } from "./modules/rulesets";
+import { listsModule } from "./modules/lists";
 import { experimentsModule } from "./modules/experiments";
 import { tenancyModule } from "./modules/tenancy";
 import { apiAuth } from "./platform/auth";
@@ -93,6 +95,8 @@ export function createApp(options: AppOptions) {
   });
   const caseModule = casesModule({ repos: options.repos, now, webhooks, templates: options.viewTemplates ?? [] });
   const modelModule = modelsModule({ db, now });
+  const rulesetModule = rulesetsModule({ db, now, templates: options.rulesetTemplates ?? [] });
+  const listModule = listsModule({ db, now });
   const experimentModule = experimentsModule({ db, now, wake: onQueued });
   const jobModule = jobsModule({
     db,
@@ -169,6 +173,8 @@ export function createApp(options: AppOptions) {
   app.route("/v1", workflowModule.routes);
   app.route("/v1", caseModule.routes);
   app.route("/v1", modelModule.routes);
+  app.route("/v1", rulesetModule.routes);
+  app.route("/v1", listModule.routes);
   app.route("/v1", experimentModule.routes);
   app.route("/v1", observe.routes);
   app.route("/v1", clients.routes);

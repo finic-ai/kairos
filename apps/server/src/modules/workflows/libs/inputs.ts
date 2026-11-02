@@ -1,31 +1,10 @@
+import { checkInputs, inputTypeProblem as typeProblem } from "@kairos/core";
 import { INPUT_TYPES, MAX_INPUTS, type WorkflowInputDef } from "../types";
 
 const NAME = /^[A-Za-z_][A-Za-z0-9_]{0,63}$/;
 
 const isObject = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === "object" && !Array.isArray(value);
-
-/** Why a value is not of an input's type, or null when it is. */
-function typeProblem(input: WorkflowInputDef, value: unknown): string | null {
-  switch (input.type) {
-    case "text":
-      return typeof value === "string" ? null : "must be text";
-    case "number":
-      return typeof value === "number" && Number.isFinite(value) ? null : "must be a number";
-    case "boolean":
-      return typeof value === "boolean" ? null : "must be true or false";
-    case "entity":
-      return typeof value === "string" && value.length > 0 && value.length <= 256
-        ? null
-        : `must be the id of ${input.entity ? `a ${input.entity}` : "an entity"}`;
-    case "list":
-      return Array.isArray(value) ? null : "must be a list";
-    case "object":
-      return isObject(value) ? null : "must be an object";
-    default:
-      return "has an unknown type";
-  }
-}
 
 /** The problems with a manual trigger's `inputs`, as `validateWorkflow` gives them. */
 export function inputsProblems(inputs: unknown): string[] {
@@ -67,26 +46,4 @@ export function inputsProblems(inputs: unknown): string[] {
   return problems;
 }
 
-/**
- * Check a run's input against the trigger's inputs, and add the defaults. Inputs that the
- * trigger does not name are kept: the steps can read them too.
- */
-export function checkInputs(
-  inputs: WorkflowInputDef[] | undefined,
-  given: Record<string, unknown>,
-): { values: Record<string, unknown>; problems: string[] } {
-  const values = { ...given };
-  const problems: string[] = [];
-  for (const input of inputs ?? []) {
-    const value = values[input.name];
-    if (value === undefined || value === null || value === "") {
-      if (input.default !== undefined) values[input.name] = input.default;
-      else if (input.required) problems.push(`input.${input.name}: is required`);
-      else delete values[input.name];
-      continue;
-    }
-    const problem = typeProblem(input, value);
-    if (problem) problems.push(`input.${input.name}: ${problem}`);
-  }
-  return { values, problems };
-}
+export { checkInputs };

@@ -23,9 +23,11 @@ const RESOURCES: [string, string][] = [
   ["invite", "Invite"],
   ["job", "Job"],
   ["label", "Label"],
+  ["list", "List"],
   ["member", "Member"],
   ["model", "Model"],
   ["queue", "Queue"],
+  ["ruleset", "Ruleset"],
   ["webhook", "Webhook"],
   ["workflow", "Workflow"],
   ["workflow_run", "Workflow run"],
@@ -53,8 +55,8 @@ const VERBS: Record<string, string> = {
   media_hosts_updated: "changed the media hosts of",
 };
 
-const ADDS = new Set(["created", "added", "joined", "invited", "version_uploaded", "started", "sent"]);
-const REMOVES = new Set(["deleted", "revoked", "removed", "left", "draft_discarded", "cancelled"]);
+const ADDS = new Set(["created", "added", "joined", "invited", "version_uploaded", "started", "sent", "items_added"]);
+const REMOVES = new Set(["deleted", "revoked", "removed", "left", "draft_discarded", "cancelled", "items_removed"]);
 
 const text = (value: unknown) => (typeof value === "string" && value ? value : undefined);
 
@@ -101,12 +103,38 @@ function describe(a: Activity, members: Map<string, Member>): Sentence {
       return { verb: typeof d.count === "number" && d.count > 1 ? `sent ${d.count} events` : "sent an event" };
     case "label.added":
       return { verb: typeof d.count === "number" && d.count > 1 ? `added ${d.count} labels` : "added a label" };
+    case "ruleset.published":
+      return {
+        verb: "published",
+        noun,
+        name: text(d.slug),
+        ...(typeof d.version === "number" ? { rest: `as version ${d.version}` } : {}),
+      };
+    case "list.items_added":
+    case "list.items_removed": {
+      const n = typeof d.count === "number" ? d.count : 0;
+      const items = `${n.toLocaleString()} ${n === 1 ? "item" : "items"}`;
+      return a.action === "list.items_added"
+        ? { verb: `added ${items} to`, noun, name: text(d.slug) }
+        : { verb: `removed ${items} from`, noun, name: text(d.slug) };
+    }
+    case "list.items_replaced":
+      return {
+        verb: "replaced the items of",
+        noun,
+        name: text(d.slug),
+        ...(typeof d.count === "number" ? { rest: `with ${d.count.toLocaleString()}` } : {}),
+      };
     case "entity.batch_updated":
       return { verb: `updated ${typeof d.count === "number" ? d.count : ""} entities` };
   }
   const member = a.resource_type === "member" && a.resource_id ? members.get(a.resource_id) : undefined;
   const name =
-    member?.name ?? text(d.name) ?? text(d.email) ?? (a.resource_type === "member" ? undefined : a.resource_id);
+    member?.name ??
+    text(d.name) ??
+    text(d.email) ??
+    text(d.slug) ??
+    (a.resource_type === "member" ? undefined : a.resource_id);
   return {
     verb: VERBS[verb] ?? verb.replaceAll("_", " "),
     noun: a.resource_type === "member" && !member ? "a member" : noun,

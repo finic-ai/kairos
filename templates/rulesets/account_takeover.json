@@ -1,0 +1,84 @@
+{
+  "slug": "account_takeover",
+  "name": "Account takeover signs",
+  "category": "Accounts",
+  "description": "Reject a sensitive action soon after the password or the contact details changed on a new device.",
+  "definition": {
+    "inputs": [
+      {
+        "name": "new_device",
+        "type": "boolean",
+        "description": "The customer has not used this device before"
+      },
+      {
+        "name": "password_reset_24h",
+        "type": "boolean",
+        "description": "The password was reset in the last 24 hours"
+      },
+      {
+        "name": "contact_changed_24h",
+        "type": "boolean",
+        "description": "The email or phone changed in the last 24 hours"
+      },
+      {
+        "name": "failed_logins_1h",
+        "type": "number",
+        "description": "Failed sign-ins in the last hour"
+      }
+    ],
+    "rules": [
+      {
+        "id": "reset_new_device",
+        "name": "Reset and new device",
+        "when": "input.password_reset_24h == true && input.new_device == true",
+        "outcome": "reject",
+        "response": {
+          "reason": "account_takeover"
+        }
+      },
+      {
+        "id": "contact_changed",
+        "name": "Contact changed and new device",
+        "when": "input.contact_changed_24h == true && input.new_device == true",
+        "outcome": "reject",
+        "response": {
+          "reason": "account_takeover"
+        }
+      },
+      {
+        "id": "brute_force",
+        "name": "Many failed sign-ins",
+        "when": "input.failed_logins_1h >= 5",
+        "outcome": "reject",
+        "response": {
+          "reason": "brute_force"
+        }
+      }
+    ],
+    "default": {
+      "outcome": "approve"
+    },
+    "tests": [
+      {
+        "name": "Reset on a new device",
+        "input": {
+          "new_device": true,
+          "password_reset_24h": true
+        },
+        "outcome": "reject",
+        "rule": "reset_new_device"
+      },
+      {
+        "name": "Usual sign-in",
+        "input": {
+          "new_device": false,
+          "password_reset_24h": false,
+          "contact_changed_24h": false,
+          "failed_logins_1h": 0
+        },
+        "outcome": "approve",
+        "rule": null
+      }
+    ]
+  }
+}

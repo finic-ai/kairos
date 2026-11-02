@@ -1,0 +1,86 @@
+{
+  "slug": "identity_mismatch",
+  "name": "Identity does not match",
+  "category": "Identity",
+  "description": "Reject an application when the name or the country on the document does not match what the customer gave.",
+  "definition": {
+    "inputs": [
+      {
+        "name": "name_match",
+        "type": "number",
+        "description": "How well the name matches the document, from 0 to 1"
+      },
+      {
+        "name": "document_country",
+        "type": "text",
+        "description": "The country of the document"
+      },
+      {
+        "name": "country",
+        "type": "text",
+        "description": "The country the customer gave"
+      },
+      {
+        "name": "document_expired",
+        "type": "boolean",
+        "description": "The document is expired"
+      }
+    ],
+    "rules": [
+      {
+        "id": "expired",
+        "name": "Expired document",
+        "when": "input.document_expired == true",
+        "outcome": "reject",
+        "response": {
+          "reason": "document_expired"
+        }
+      },
+      {
+        "id": "name",
+        "name": "Name does not match",
+        "when": "input.name_match < 0.7",
+        "outcome": "reject",
+        "response": {
+          "reason": "name_mismatch"
+        }
+      },
+      {
+        "id": "country",
+        "name": "Country does not match",
+        "when": "input.document_country != input.country",
+        "outcome": "reject",
+        "response": {
+          "reason": "country_mismatch"
+        }
+      }
+    ],
+    "default": {
+      "outcome": "approve"
+    },
+    "tests": [
+      {
+        "name": "Weak name match",
+        "input": {
+          "name_match": 0.4,
+          "document_country": "GB",
+          "country": "GB",
+          "document_expired": false
+        },
+        "outcome": "reject",
+        "rule": "name"
+      },
+      {
+        "name": "All match",
+        "input": {
+          "name_match": 0.95,
+          "document_country": "GB",
+          "country": "GB",
+          "document_expired": false
+        },
+        "outcome": "approve",
+        "rule": null
+      }
+    ]
+  }
+}

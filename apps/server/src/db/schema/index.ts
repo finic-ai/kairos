@@ -20,6 +20,7 @@ export * from "./jobs";
 export * from "./cases";
 export * from "./models";
 export * from "./activities";
+export * from "./rulesets";
 
 export const ALL_TABLES = [
   "events",
@@ -41,6 +42,8 @@ export const ALL_TABLES = [
   "models",
   "model_artifacts",
   "workflow_experiments",
+  "rulesets",
+  "lists",
   "users",
   "workspaces",
   "environments",

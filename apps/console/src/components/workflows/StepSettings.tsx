@@ -17,6 +17,10 @@ export interface Suggestions {
   eventProperties: string[];
   queues: { id: string; name: string }[];
   models: ModelSummary[];
+  /** The published rulesets, with the inputs of their live version. */
+  rulesets: { slug: string; name: string; version: number; inputs: string[] }[];
+  /** The slugs of the lists. */
+  lists: string[];
 }
 
 function ModelSelect({
@@ -62,7 +66,7 @@ function ModelSelect({
 const COMMON = new Set(["id", "name", "type", "retry", "on_fail", "then", "else", "steps", "record"]);
 
 /** A JSON field keeps its text while it is not valid JSON yet; the step gets the value once it is. */
-function JsonField({
+export function JsonField({
   value,
   onChange,
   placeholder,
@@ -200,6 +204,7 @@ function Field({
           <ConditionBuilder
             value={text}
             fields={fieldsForCondition}
+            lists={suggestions.lists}
             placeholder={def.placeholder}
             onChange={(cel) => set(def.field, cel)}
           />
@@ -220,6 +225,33 @@ function Field({
         return <QuestionsEditor stepId={step.id} value={raw} onChange={(v) => set(def.field, v)} />;
       case "model":
         return <ModelSelect def={def} text={text} models={suggestions.models} onChange={(v) => set(def.field, v)} />;
+      case "ruleset":
+        return (
+          <select className="input mono" value={text} onChange={(e) => set(def.field, e.target.value)}>
+            <option value="">Choose a ruleset</option>
+            {suggestions.rulesets.flatMap((r) => [
+              <option key={`${r.slug}@${r.version}`} value={`${r.slug}@${r.version}`}>
+                {r.name} · version {r.version}
+              </option>,
+              <option key={r.slug} value={r.slug}>
+                {r.name} · the latest version
+              </option>,
+            ])}
+            {text && !suggestions.rulesets.some((r) => text === r.slug || text === `${r.slug}@${r.version}`) && (
+              <option value={text}>{text}</option>
+            )}
+          </select>
+        );
+      case "listref":
+        return (
+          <ChoiceSelect
+            mono
+            value={text}
+            options={suggestions.lists}
+            placeholder="Choose a list"
+            onChange={(v) => set(def.field, v)}
+          />
+        );
       case "features": {
         const model = modelOfStep(step, suggestions.models);
         return (
@@ -324,6 +356,20 @@ export function StepSettings({
     const next: WorkflowStep = { ...step };
     if (value === undefined || value === "") delete next[field];
     else next[field] = value;
+    if (step.type === "ruleset" && field === "ruleset" && typeof value === "string") {
+      const ruleset = suggestions.rulesets.find((r) => r.slug === value.split("@")[0]);
+      const given = (next.input as Record<string, unknown> | undefined) ?? {};
+      const source = (name: string) =>
+        draft.trigger.type === "event"
+          ? `{{ event.properties.${name} }}`
+          : draft.trigger.type === "decision"
+            ? `{{ trigger.properties.${name} }}`
+            : `{{ trigger.${name} }}`;
+      next.input = {
+        ...Object.fromEntries((ruleset?.inputs ?? []).map((name) => [name, source(name)])),
+        ...given,
+      };
+    }
     if (step.type === "score" && field === "model" && typeof value === "string") {
       const model = suggestions.models.find((m) => m.slug === slugOfRef(value));
       const suggested = model && isUploaded(model) ? (model.definition.suggested_features ?? {}) : {};

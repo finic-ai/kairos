@@ -59,6 +59,7 @@ export function TriggerSettings({
   entityTypes,
   actions,
   eventProperties,
+  lists,
   choose = false,
   hook,
   onNewHook,
@@ -73,6 +74,8 @@ export function TriggerSettings({
   entityTypes: string[];
   actions: string[];
   eventProperties: string[];
+  /** The slugs of the lists that "is in the list" offers. */
+  lists?: string[];
   /** Open on the list of trigger types, as for a new workflow, not on the trigger's settings. */
   choose?: boolean;
   /** The webhook URL of a saved workflow: absent until the workflow is saved. */
@@ -170,6 +173,7 @@ export function TriggerSettings({
       <ConditionBuilder
         value={text("when")}
         fields={fields}
+        lists={lists}
         placeholder={placeholder}
         onChange={(cel) => set("when", cel)}
       />

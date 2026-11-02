@@ -3,7 +3,7 @@ import { workflows } from "../../api/index";
 import { InTopbar } from "../../components/shell/InTopbar";
 import { KV } from "../../components/ui/KV";
 import { Failure, Loading } from "../../components/ui/states";
-import { RunSteps } from "../../components/workflows/RunSteps";
+import { MatchedTerms, RunSteps } from "../../components/workflows/RunSteps";
 import { WorkflowCanvas } from "../../components/workflows/WorkflowCanvas";
 import { useApi } from "../../hooks/useApi";
 import { useWorkflowRun } from "../../hooks/useWorkflowRun";
@@ -101,7 +101,10 @@ export function WorkflowRunPage({ id }: { id: string }) {
               </div>
               <div className="wf-panel-body">
                 {selected === "trigger" ? (
-                  <KV data={run.trigger} />
+                  <>
+                    <MatchedTerms terms={run.trigger_terms} />
+                    <KV data={run.trigger} />
+                  </>
                 ) : selected === "output" ? (
                   <pre className="wf-json">{JSON.stringify(run.output, null, 2)}</pre>
                 ) : (

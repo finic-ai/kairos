@@ -9,6 +9,8 @@ export interface TemplateOption {
   meta?: string;
   preview?: ReactNode;
   suggested?: boolean;
+  /** With groups, the list of templates has a filter by group. */
+  group?: string;
 }
 
 /** Without `scratch`, the dialog opens on the list of templates. With `details`, a chosen template can be previewed. */
@@ -34,6 +36,9 @@ export function TemplateModal({
   const [listing, setListing] = useState(!scratch);
   const [chosen, setChosen] = useState<string | null>(null);
   const [previewing, setPreviewing] = useState(false);
+  const [group, setGroup] = useState<string | null>(null);
+  const groups = [...new Set(options.map((o) => o.group).filter((g): g is string => !!g))];
+  const listed = group ? options.filter((o) => o.group === group) : options;
   const shown = options.find((o) => o.id === chosen);
 
   if (details && previewing && shown)
@@ -78,11 +83,23 @@ export function TemplateModal({
   return (
     <Modal title="Choose a template" onClose={onClose} wide>
       <form className="modal-body" onSubmit={submit}>
+        {groups.length > 1 && (
+          <div className="seg tight" role="group" aria-label="Groups">
+            <button type="button" className={group === null ? "on" : ""} onClick={() => setGroup(null)}>
+              All
+            </button>
+            {groups.map((g) => (
+              <button key={g} type="button" className={group === g ? "on" : ""} onClick={() => setGroup(g)}>
+                {g}
+              </button>
+            ))}
+          </div>
+        )}
         {options.length === 0 ? (
           <p className="note">No templates yet.</p>
         ) : (
           <div className="preset-grid template-options" role="radiogroup" aria-label="Templates">
-            {options.map((o) => (
+            {listed.map((o) => (
               <button
                 key={o.id}
                 type="button"

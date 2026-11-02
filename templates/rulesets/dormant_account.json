@@ -1,0 +1,56 @@
+{
+  "slug": "dormant_account",
+  "name": "Dormant account wakes up",
+  "category": "Accounts",
+  "description": "Reject a large transaction from an account with no activity for six months.",
+  "definition": {
+    "inputs": [
+      {
+        "name": "amount",
+        "type": "number",
+        "required": true,
+        "description": "The amount of the transaction"
+      },
+      {
+        "name": "days_since_last_activity",
+        "type": "number",
+        "required": true,
+        "description": "Days since the account's last activity"
+      }
+    ],
+    "rules": [
+      {
+        "id": "dormant_large",
+        "name": "Large after six months",
+        "when": "input.days_since_last_activity >= 180 && input.amount >= 1000",
+        "outcome": "reject",
+        "response": {
+          "reason": "dormant_reactivation"
+        }
+      }
+    ],
+    "default": {
+      "outcome": "approve"
+    },
+    "tests": [
+      {
+        "name": "First in a year",
+        "input": {
+          "amount": 2500,
+          "days_since_last_activity": 365
+        },
+        "outcome": "reject",
+        "rule": "dormant_large"
+      },
+      {
+        "name": "Active account",
+        "input": {
+          "amount": 2500,
+          "days_since_last_activity": 2
+        },
+        "outcome": "approve",
+        "rule": null
+      }
+    ]
+  }
+}

@@ -110,6 +110,11 @@ export const groups: DocGroup[] = [
         blurb: "Question models such as Grayson, and scoring models such as XGBoost that you train on your outcomes.",
       },
       {
+        slug: "platform/rulesets",
+        title: "Rulesets",
+        blurb: "Rules that read only their input and answer approve or reject, and the lists of terms they read.",
+      },
+      {
         slug: "platform/console",
         title: "The console",
         blurb: "The web interface: the sidebar, the pages, and the settings.",

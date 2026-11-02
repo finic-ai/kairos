@@ -54,6 +54,8 @@ const SCOPES = {
   models: "environment",
   modelArtifacts: "environment",
   workflowExperiments: "environment",
+  rulesets: "environment",
+  lists: "environment",
   webhooks: "environment",
   webhookDeliveries: "environment",
   // Keys are listed for the workspace, or for one environment: the environment is a value of the key.
@@ -88,6 +90,8 @@ const PREFIXES: Record<TableKey, string> = {
   models: "mdl",
   modelArtifacts: "art",
   workflowExperiments: "wfx",
+  rulesets: "rls",
+  lists: "lst",
   webhooks: "wh",
   webhookDeliveries: "whd",
   apiKeys: "key",
