@@ -11,21 +11,40 @@ import { entityName, stamp } from "../../lib/format";
 import { CATEGORY_LABEL, STATUS_LABEL } from "../../lib/queues";
 import { href } from "../../lib/route";
 import type { CaseDetail, CaseViewData } from "../../types/interfaces";
+import { CommandCard, type CommandGroup } from "../../components/entities/Commands";
 import { AssignMenu } from "./AssignMenu";
 import { CaseBlock, TargetName, ValueText, type CaseContext } from "./CaseBlocks";
 import { ResolveModal } from "./ResolveModal";
 
-function CaseLayout({ c, view, ctx }: { c: CaseDetail; view: CaseViewData; ctx: CaseContext }) {
+function CaseLayout({
+  c,
+  view,
+  ctx,
+  commands,
+}: {
+  c: CaseDetail;
+  view: CaseViewData;
+  ctx: CaseContext;
+  commands: CommandGroup[];
+}) {
   const main = view.blocks.filter((b) => b.region === "main");
   const side = view.blocks.filter((b) => b.region === "side");
+  const timelineAt = main.findIndex((b) => b.type === "timeline");
+  const before = timelineAt === -1 ? main : main.slice(0, timelineAt);
+  const after = timelineAt === -1 ? [] : main.slice(timelineAt);
+  const block = (b: (typeof main)[number]) => (
+    <div key={b.id} className="view-block" style={{ gridColumn: `span ${b.w ?? 12}` }}>
+      <CaseBlock block={b} ctx={ctx} />
+    </div>
+  );
   return (
     <div className="split detail" key={c.id}>
       <div className="view-main">
-        {main.map((b) => (
-          <div key={b.id} className="view-block" style={{ gridColumn: `span ${b.w ?? 12}` }}>
-            <CaseBlock block={b} ctx={ctx} />
-          </div>
-        ))}
+        {before.map(block)}
+        <div className="view-block" style={{ gridColumn: "span 12" }}>
+          <CommandCard page="case" groups={commands} />
+        </div>
+        {after.map(block)}
       </div>
       <aside className="stack">
         {side.map((b) => (
@@ -123,26 +142,26 @@ export function CasePage({ id }: { id: string }) {
             )}
           </div>
         </div>
-        {resolved ? (
-          <div className="row">
+        <div className="row">
+          {resolved ? (
             <button className="btn" disabled={busy} onClick={() => act(() => queues.reopen(c.id))}>
               Reopen
             </button>
-          </div>
-        ) : (
-          <div className="row">
-            <AssignMenu
-              me={me}
-              assignee={c.assignee}
-              members={memberList?.members ?? []}
-              disabled={busy}
-              onAssign={(userId) => act(() => (userId === me ? queues.take(c.id) : queues.assign(c.id, userId)))}
-            />
-            <button className="btn primary" onClick={() => setResolving(true)}>
-              Resolve
-            </button>
-          </div>
-        )}
+          ) : (
+            <>
+              <AssignMenu
+                me={me}
+                assignee={c.assignee}
+                members={memberList?.members ?? []}
+                disabled={busy}
+                onAssign={(userId) => act(() => (userId === me ? queues.take(c.id) : queues.assign(c.id, userId)))}
+              />
+              <button className="btn primary" onClick={() => setResolving(true)}>
+                Resolve
+              </button>
+            </>
+          )}
+        </div>
       </header>
       {c.resolution && (
         <div className="banner ok">
@@ -177,7 +196,31 @@ export function CasePage({ id }: { id: string }) {
         />
       )}
 
-      {view.data && <CaseLayout c={c} view={view.data} ctx={ctx} />}
+      {view.data && (
+        <CaseLayout
+          c={c}
+          view={view.data}
+          ctx={ctx}
+          commands={[
+            {
+              entity: c.target,
+              name: c.target_name,
+              commands: definitions[c.target.type]?.commands,
+              caseId: c.id,
+              onDone: reload,
+            },
+            ...c.items
+              .filter((item) => item.kind === "entity" && !(item.type === c.target.type && item.id === c.target.id))
+              .map((item) => ({
+                entity: { type: item.type!, id: item.id },
+                name: c.names[`${item.type} ${item.id}`],
+                commands: definitions[item.type!]?.commands,
+                caseId: c.id,
+                onDone: reload,
+              })),
+          ]}
+        />
+      )}
     </>
   );
 }

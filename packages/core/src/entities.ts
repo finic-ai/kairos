@@ -1,3 +1,4 @@
+import { validateCommands, type EntityCommand } from "./commands";
 import { COLUMN_FORMATS, validateFacts, validateLists, type EntityFact, type EntityList } from "./facts";
 
 /**
@@ -27,6 +28,11 @@ export interface EntityDefinition {
   display?: EntityDisplay;
   facts?: EntityFact[];
   lists?: EntityList[];
+  /**
+   * Buttons a person can press on an entity of this type. A click sends a webhook. Not shown to
+   * the model, and not a new version: a save changes the buttons at once.
+   */
+  commands?: EntityCommand[];
 }
 
 export interface EntityDisplay {
@@ -213,5 +219,6 @@ export function validateEntity(definition: EntityDefinition): string[] {
     }
   }
   problems.push(...validateFacts(definition.facts), ...validateLists(definition.lists));
+  problems.push(...validateCommands(definition.commands));
   return problems;
 }

@@ -18,6 +18,7 @@ export const WEBHOOK_EVENTS: { id: WebhookEvent; note: string }[] = [
   { id: "case.assigned", note: "A case got an assignee, or lost one." },
   { id: "case.resolved", note: "A person or a workflow resolved a case." },
   { id: "case.reopened", note: "A resolved case was opened again." },
+  { id: "command.issued", note: "A person issued a command, such as block user." },
 ];
 
 const hook = (id: string, webhook: string) => `${ws(id)}/webhooks/${encodeURIComponent(webhook)}`;

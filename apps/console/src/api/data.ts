@@ -6,6 +6,7 @@ import type {
   DecisionSummary,
   Entity,
   EntityDefinition,
+  IssuedCommand,
   EntityFilters,
   EntityList,
   EntityRef,
@@ -78,6 +79,17 @@ export const api = {
   deleteDashboard: (id: string) => request<unknown>("DELETE", `/v1/dashboards/${encodeURIComponent(id)}`),
   entityShape: (type: string) => request<EntityShape>("GET", `/v1/entity-types/${encodeURIComponent(type)}/shape`),
   entityType: (type: string) => request<EntityDefinition>("GET", `/v1/entity-types/${encodeURIComponent(type)}`),
+  entityCommands: (ref: EntityRef) =>
+    request<{ commands: IssuedCommand[] }>(
+      "GET",
+      `/v1/entities/${encodeURIComponent(ref.type)}/${encodeURIComponent(ref.id)}/commands`,
+    ),
+  issueCommand: (ref: EntityRef, name: string, body: { inputs?: Record<string, unknown>; case_id?: string }) =>
+    request<{ id: string; command: string; label: string; queued: number }>(
+      "POST",
+      `/v1/entities/${encodeURIComponent(ref.type)}/${encodeURIComponent(ref.id)}/commands/${encodeURIComponent(name)}`,
+      body,
+    ),
   entityTemplates: () => request<{ templates: EntityDefinition[] }>("GET", "/v1/entity-templates"),
   saveEntityType: ({ type, ...definition }: EntityDefinition) =>
     request<EntityDefinition>("PUT", `/v1/entity-types/${encodeURIComponent(type)}`, definition),

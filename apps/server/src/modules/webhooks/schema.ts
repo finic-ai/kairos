@@ -11,6 +11,7 @@ const filter = z
     min_risk_score: z.number().int().min(0).max(100).optional(),
     labels: z.array(z.string().trim().min(1)).max(50).optional(),
     queues: z.array(z.string().trim().min(1)).max(50).optional(),
+    commands: z.array(z.string().trim().min(1)).max(50).optional(),
   })
   .strict();
 

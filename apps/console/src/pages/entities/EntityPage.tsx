@@ -4,6 +4,7 @@ import { api } from "../../api/index";
 import { ActionRef } from "../../components/actions/ActionRef";
 import { Pill, Score } from "../../components/decisions/Outcome";
 import { EditInfoModal } from "../../components/entities/EditInfoModal";
+import { CommandCard } from "../../components/entities/Commands";
 import { EntityFacts } from "../../components/entities/EntityFacts";
 import { EntityLists } from "../../components/entities/EntityLists";
 import { EntityIcon, TypeIcon } from "../../components/entities/EntityIcon";
@@ -130,6 +131,7 @@ export function EntityPage({ type, id }: { type: string; id: string }) {
             </div>
           )}
           <EntityLists entity={{ type, id }} lists={definition?.lists ?? []} />
+          <CommandCard page="entity" groups={[{ entity: { type, id }, commands: definition?.commands }]} />
           <Card title={`History · last ${events.length} events, newest first`} className="o-timeline">
             {events.length ? (
               <Timeline events={events} entityTypes={new Set(e.events.flatMap((ev) => Object.keys(ev.entities)))} />

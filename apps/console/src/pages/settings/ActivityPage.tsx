@@ -103,6 +103,8 @@ function describe(a: Activity, members: Map<string, Member>): Sentence {
       return { verb: typeof d.count === "number" && d.count > 1 ? `added ${d.count} labels` : "added a label" };
     case "entity.batch_updated":
       return { verb: `updated ${typeof d.count === "number" ? d.count : ""} entities` };
+    case "command.issued":
+      return { verb: "issued", name: text(d.label) ?? text(d.command), noun: "on", rest: a.resource_id ?? undefined };
   }
   const member = a.resource_type === "member" && a.resource_id ? members.get(a.resource_id) : undefined;
   const name =
