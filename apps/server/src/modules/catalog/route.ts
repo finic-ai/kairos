@@ -1,7 +1,7 @@
 import { validateEntity, type EntityDefinition } from "@kairos/core";
 import { Hono, type Context } from "hono";
 import type { Webhooks } from "../../context";
-import { bounded, error, parse, type Env } from "../../platform/http";
+import { bounded, checked, error, parse, type Env } from "../../platform/http";
 import type { Repositories } from "../../repositories";
 import { DecisionsService } from "../../services/decision.service";
 import { EntitiesService } from "../../services/entities.service";
@@ -9,6 +9,7 @@ import { LabelsService } from "../../services/label.service";
 import { ObjectsService } from "../../services/object.service";
 import { name } from "../../platform/fields";
 import { entityBody, labelsBody, objectsBody } from "../ingest/schema";
+import { issueCommand, issueCommandBody, listCommands } from "./commands";
 import { addLabel, entityFacts, entityList, upsertObject } from "./service";
 import { eraseEntity } from "./repo";
 import { atLeast } from "../tenancy/repo";
@@ -194,6 +195,38 @@ export function entityRoutes({ db, entities, events, transaction, now, webhooks,
       entities.countEntities(c.get("workspaceId"), c.get("environmentId"), filter),
     ]);
     return c.json({ types, type, entities: found, total, next_offset: found.length === limit ? offset + limit : null });
+  });
+
+  app.get("/entities/:type/:id/commands", async (c) =>
+    c.json({ commands: await listCommands(db, scopeOf(c), c.req.param("type"), c.req.param("id")) }),
+  );
+
+  app.post("/entities/:type/:id/commands/:key", async (c) => {
+    const raw = await c.req.json().catch(() => ({}));
+    const body = checked(issueCommandBody, raw ?? {});
+    const userId = c.get("userId");
+    const key = c.get("apiKey");
+    const actor = userId ? c.get("user").email : (body.by ?? key?.name ?? "API");
+    return c.json(
+      await issueCommand(
+        { db, transaction },
+        scopeOf(c),
+        {
+          type: c.req.param("type"),
+          id: c.req.param("id"),
+          key: c.req.param("key"),
+          inputs: body.inputs,
+          caseId: body.case_id,
+          actor,
+          userId,
+          apiKeyId: key?.id,
+          source: userId ? "dashboard" : "api_key",
+          userAgent: c.req.header("user-agent") ?? null,
+        },
+        now(),
+        webhooks,
+      ),
+    );
   });
 
   app.get("/entities/:type/:id", async (c) => {

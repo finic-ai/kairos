@@ -5,6 +5,7 @@ import {
   KINDS,
   suggestKind,
   PROPERTY_FORMATS,
+  type EntityCommand,
   type EntityFact,
   type EntityList as ListDefinition,
   type PropertyFormat,
@@ -12,6 +13,7 @@ import {
 import { api } from "../../api/index";
 import type { EntityDefinition } from "../../types/interfaces";
 import { DisplayCard } from "../../components/entities/DisplayCard";
+import { cleanCommand, CommandsEditor } from "../../components/entities/Commands";
 import { FactsEditor, ListsEditor } from "../../components/entities/FactsListsEditor";
 import { Card } from "../../components/ui/Card";
 import { type Pair, Pairs } from "../../components/ui/Pairs";
@@ -116,6 +118,7 @@ export function EntityTypeEditorPage({ type }: { type: string }) {
     formats: Record<string, PropertyFormat>;
     facts: EntityFact[];
     lists: ListDefinition[];
+    commands: EntityCommand[];
   }>({
     type: isNew ? "" : type,
     kind: "",
@@ -128,6 +131,7 @@ export function EntityTypeEditorPage({ type }: { type: string }) {
     formats: {},
     facts: [],
     lists: [],
+    commands: [],
   });
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -152,6 +156,7 @@ export function EntityTypeEditorPage({ type }: { type: string }) {
         formats: existing.display?.formats ?? {},
         facts: existing.facts ?? [],
         lists: existing.lists ?? [],
+        commands: existing.commands ?? [],
       });
   }, [existing]);
   const set = (patch: Partial<typeof draft>) => (setDraft({ ...draft, ...patch }), setSaved(false));
@@ -190,6 +195,7 @@ export function EntityTypeEditorPage({ type }: { type: string }) {
         : {}),
       ...(draft.facts.length ? { facts: draft.facts } : {}),
       ...(draft.lists.length ? { lists: draft.lists } : {}),
+      ...(draft.commands.length ? { commands: draft.commands.map(cleanCommand) } : {}),
     };
     try {
       const stored = await api.saveEntityType(definition);
@@ -354,6 +360,7 @@ export function EntityTypeEditorPage({ type }: { type: string }) {
             templates={templates}
             type={draft.type.trim()}
           />
+          <CommandsEditor commands={draft.commands} onChange={(commands) => set({ commands })} />
         </div>
         <aside className="stack">
           <DisplayCard

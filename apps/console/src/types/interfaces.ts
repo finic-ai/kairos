@@ -4,6 +4,8 @@ import type {
   CaseStatus,
   CaseView,
   ColumnFormat,
+  CommandState,
+  EntityCommand,
   EntityDisplay,
   EntityFact,
   EntityList as ListDefinition,
@@ -250,6 +252,19 @@ export interface EntityDefinition {
   display?: EntityDisplay;
   facts?: EntityFact[];
   lists?: ListDefinition[];
+  commands?: EntityCommand[];
+}
+
+export interface IssuedCommand {
+  id: string;
+  command: string | undefined;
+  label: string | undefined;
+  inputs: unknown;
+  case_id: string | undefined;
+  by: string | null;
+  created: string;
+  state: CommandState;
+  answers: { webhook: string; status: number | null; body: string | null; state: string }[];
 }
 
 export interface FactValue {
@@ -582,7 +597,8 @@ export type WebhookEvent =
   | "case.created"
   | "case.assigned"
   | "case.resolved"
-  | "case.reopened";
+  | "case.reopened"
+  | "command.issued";
 
 /** An outgoing webhook: a URL that Kairos calls. Its secret is shown once and never again. */
 export interface Webhook {
@@ -591,7 +607,14 @@ export interface Webhook {
   name: string;
   url: string | null;
   events?: WebhookEvent[];
-  filter?: { actions?: string[]; outcomes?: Outcome[]; min_risk_score?: number; labels?: string[]; queues?: string[] };
+  filter?: {
+    actions?: string[];
+    outcomes?: Outcome[];
+    min_risk_score?: number;
+    labels?: string[];
+    queues?: string[];
+    commands?: string[];
+  };
   include_properties?: boolean;
   /** Inbound: the preset it started from ("stripe@1"), how deliveries are verified, and the mapping. */
   preset?: string | null;
@@ -1048,7 +1071,8 @@ export interface CaseActivity {
     | "resolved"
     | "reopened"
     | "viewed"
-    | "checked";
+    | "checked"
+    | "command";
   actor: string;
   payload: Record<string, unknown>;
   created: string;

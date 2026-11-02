@@ -700,6 +700,107 @@ tbody tr.link:hover {
   background: var(--line-2);
 }
 
+.btn.cmd-btn {
+  color: var(--ent-fg);
+  background: var(--ent-bg);
+  border-color: transparent;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.btn.cmd-btn .ent-icon {
+  width: 15px;
+  height: 15px;
+  background: none;
+  color: inherit;
+}
+.btn.cmd-btn .ent-icon svg {
+  width: 15px;
+  height: 15px;
+}
+.btn.cmd-btn:hover {
+  filter: brightness(0.97);
+}
+.command-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+}
+.command-group + .command-group {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+.command-who {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.o-commands .note {
+  margin: 12px 0 0;
+}
+@media (max-width: 1020px) {
+  .o-commands {
+    order: 6;
+  }
+}
+.command-list {
+  margin-top: 14px;
+}
+.command-add {
+  margin-top: 14px;
+}
+.command-list th {
+  background: none;
+  padding: 0 16px 8px 0;
+}
+.command-list td {
+  padding: 10px 16px 10px 0;
+}
+.command-list th:last-child,
+.command-list td:last-child {
+  width: 1%;
+  padding-right: 0;
+  text-align: right;
+}
+.command-list .btn.cmd-btn {
+  pointer-events: none;
+}
+.command-list .icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.command-list .icon-btn svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.command-section {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+.command-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.command-fields.three {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.modal.command-editor {
+  width: min(720px, 100%);
+}
+.modal.command-editor .command-remove {
+  margin-right: auto;
+}
 .btn.danger {
   color: var(--block-text);
 }

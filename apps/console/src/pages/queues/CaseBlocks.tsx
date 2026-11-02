@@ -425,6 +425,11 @@ function activityText(a: CaseActivity, members: Record<string, string>): string 
       return `Opened ${String(p.title ?? "a sensitive block")}`;
     case "checked":
       return `${p.checked ? "Checked" : "Cleared"}: ${String(p.point)}`;
+    case "command": {
+      const subject = p.subject as { type?: string; id?: string } | undefined;
+      const who = subject?.id ? `${subject.type ?? ""} ${subject.id}`.trim() : "";
+      return `Issued ${String(p.label ?? p.command ?? "a command")}${who ? ` on ${who}` : ""}`;
+    }
   }
 }
 

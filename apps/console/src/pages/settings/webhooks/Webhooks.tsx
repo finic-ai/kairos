@@ -57,6 +57,7 @@ function filterText(w: Webhook): string {
   const f = w.filter ?? {};
   const decisions = (w.events ?? []).some((e) => e.startsWith("decision."));
   const parts = [
+    f.commands?.length ? f.commands.join(", ") : null,
     f.actions?.length ? f.actions.join(", ") : null,
     f.outcomes?.length ? f.outcomes.map((o) => OUTCOME_LABEL[o].toLowerCase()).join(" or ") : null,
     f.min_risk_score !== undefined ? `risk ≥ ${f.min_risk_score}` : null,
@@ -294,6 +295,7 @@ function WebhookForm({
   const wantsDecisions = events.some((e) => e.startsWith("decision."));
   const wantsLabels = events.includes("label.created");
   const wantsCases = events.some((e) => e.startsWith("case."));
+  const wantsCommands = events.includes("command.issued");
   const filter = webhook?.filter ?? {};
   const [actions, setActions] = useState(filter.actions ?? []);
   const [allActions, setAllActions] = useState(!filter.actions?.length);
@@ -304,6 +306,8 @@ function WebhookForm({
   const [allLabels, setAllLabels] = useState(!filter.labels?.length);
   const [queueIds, setQueueIds] = useState(filter.queues ?? []);
   const [allQueues, setAllQueues] = useState(!filter.queues?.length);
+  const [commandNames, setCommandNames] = useState(filter.commands ?? []);
+  const [allCommands, setAllCommands] = useState(!filter.commands?.length);
   const [properties, setProperties] = useState(webhook?.include_properties ?? true);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -322,6 +326,7 @@ function WebhookForm({
     wantsDecisions && !allOutcomes && outcomes.length === 0 && "an outcome",
     wantsLabels && !allLabels && labels.length === 0 && "a label",
     wantsCases && !allQueues && queueIds.length === 0 && "a queue",
+    wantsCommands && !allCommands && commandNames.length === 0 && "a command",
   ].filter(Boolean);
 
   // The filters in use, for the summary on the closed section.
@@ -330,7 +335,8 @@ function WebhookForm({
     wantsDecisions && !allOutcomes && "outcomes",
     wantsDecisions && minRisk.trim() && `risk ${minRisk.trim()}+`,
     wantsLabels && !allLabels && "labels",
-    wantsCases && !allQueues && "queues",
+    (wantsCases || wantsCommands) && !allQueues && "queues",
+    wantsCommands && !allCommands && "commands",
   ].filter(Boolean) as string[];
   const [filtersOpen, setFiltersOpen] = useState(used.length > 0);
   const filtersSummary = filtersOpen
@@ -352,7 +358,8 @@ function WebhookForm({
         ...(wantsDecisions && !allOutcomes ? { outcomes } : {}),
         ...(wantsDecisions && minRisk.trim() ? { min_risk_score: Number(minRisk) } : {}),
         ...(wantsLabels && !allLabels ? { labels } : {}),
-        ...(wantsCases && !allQueues ? { queues: queueIds } : {}),
+        ...((wantsCases || wantsCommands) && !allQueues ? { queues: queueIds } : {}),
+        ...(wantsCommands && !allCommands ? { commands: commandNames } : {}),
       },
       include_properties: properties,
     };
@@ -514,8 +521,32 @@ function WebhookForm({
                   />
                 </FilterRow>
               )}
-              {wantsCases && (
-                <FilterRow title="Queues" of="Cases" all={allQueues} onAll={setAllQueues}>
+              {wantsCommands && (
+                <FilterRow
+                  title="Commands"
+                  of="command.issued"
+                  all={allCommands}
+                  onAll={setAllCommands}
+                  note={allCommands ? undefined : "The command name, such as block_user."}
+                >
+                  <MultiSelect
+                    label="Commands"
+                    mono
+                    custom
+                    value={commandNames}
+                    onChange={setCommandNames}
+                    options={[]}
+                    placeholder="block_user…"
+                  />
+                </FilterRow>
+              )}
+              {(wantsCases || wantsCommands) && (
+                <FilterRow
+                  title="Queues"
+                  of={wantsCommands ? "Cases and commands" : "Cases"}
+                  all={allQueues}
+                  onAll={setAllQueues}
+                >
                   <MultiSelect
                     label="Queues"
                     value={queueIds}

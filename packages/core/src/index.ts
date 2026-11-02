@@ -9,6 +9,7 @@ export * from "./grayson";
 export * from "./policy";
 export * from "./actions";
 export * from "./entities";
+export * from "./commands";
 export * from "./templates";
 export * from "./decide";
 export * from "./webhooks";

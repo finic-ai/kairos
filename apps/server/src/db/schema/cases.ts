@@ -193,7 +193,8 @@ export type CaseActivityType =
   | "resolved"
   | "reopened"
   | "viewed"
-  | "checked";
+  | "checked"
+  | "command";
 
 /** What happened to a case after it was made. A row never changes. */
 export const caseActivity = pgTable(

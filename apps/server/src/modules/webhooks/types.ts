@@ -59,6 +59,7 @@ export const EVENT_TYPES = [
   "case.assigned",
   "case.resolved",
   "case.reopened",
+  "command.issued",
 ] as const;
 export type EventType = (typeof EVENT_TYPES)[number];
 export const OUTCOMES = ["approve", "step_up", "review", "block"] as const;
@@ -71,13 +72,14 @@ export interface InboundConfig {
 
 export interface OutboundConfig {
   events: EventType[];
-  /** `actions`, `outcomes` and `min_risk_score` apply to decision.*; `labels` to label.created; `queues` to case.*. */
+  /** `actions`, `outcomes` and `min_risk_score` apply to decision.*; `labels` to label.created; `queues` to case.* and to command.issued; `commands` to command.issued. */
   filter?: {
     actions?: string[];
     outcomes?: (typeof OUTCOMES)[number][];
     min_risk_score?: number;
     labels?: string[];
     queues?: string[];
+    commands?: string[];
   };
   include_properties: boolean;
   version: 1;
@@ -87,7 +89,11 @@ export interface OutboundEvent {
   type: EventType | "webhook.test";
   subjectRef?: string;
   data: Record<string, unknown>;
-  match?: { action: string; outcome: string; riskScore: number } | { label: string } | { queue: string };
+  match?:
+    | { action: string; outcome: string; riskScore: number }
+    | { label: string }
+    | { queue: string }
+    | { command: string; queue?: string };
 }
 
 export function matches(config: OutboundConfig, event: OutboundEvent): boolean {
@@ -96,6 +102,12 @@ export function matches(config: OutboundConfig, event: OutboundEvent): boolean {
   const m = event.match;
   if (!m) return true;
   if ("label" in m) return !filter.labels?.length || filter.labels.includes(m.label);
+  if ("command" in m) {
+    if (filter.commands?.length && !filter.commands.includes(m.command)) return false;
+    // A click on the entity page has no queue. A queues filter does not send it.
+    if (!m.queue) return !filter.queues?.length;
+    return !filter.queues?.length || filter.queues.includes(m.queue);
+  }
   if ("queue" in m) return !filter.queues?.length || filter.queues.includes(m.queue);
   // "withdrawal" in a filter is every version of the action.
   if (filter.actions?.length && !filter.actions.includes(m.action.split("@")[0]!)) return false;
@@ -197,6 +209,22 @@ export const caseEvent = (
   subjectRef: `case:${data.case_id}`,
   data,
   match: { queue: data.queue_id },
+});
+
+/** A person issued a command. `command_id` is the activity row. The subject ref finds its deliveries. */
+export const commandIssued = (data: {
+  command_id: string;
+  command: string;
+  subject: { type: string; id: string };
+  inputs: Record<string, unknown>;
+  by: string;
+  case_id?: string;
+  queue_id?: string;
+}): OutboundEvent => ({
+  type: "command.issued",
+  subjectRef: `activity:${data.command_id}`,
+  data,
+  match: { command: data.command, ...(data.queue_id ? { queue: data.queue_id } : {}) },
 });
 
 export const testEvent = (webhookId: string): OutboundEvent => ({
