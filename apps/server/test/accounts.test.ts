@@ -767,6 +767,54 @@ describe("API keys", () => {
     );
   });
 
+  it("changes a key's name and restrictions, and the new restrictions apply at once", async () => {
+    const ada = await signup("ada@example.com");
+    const ben = await signup("ben@example.com");
+    const edit = (id: string, body: unknown, as = ada) =>
+      call("PATCH", `/app/workspaces/${as.workspace}/keys/${id}`, body, { cookie: as.cookie });
+    const { secret, key } = await makeKey(ada, { name: "backend", kind: "secret" });
+    expect((await call("GET", "/v1/stats", undefined, { key: secret, ip: "192.0.2.4" })).status).toBe(200);
+
+    const changed = await (await edit(key.id, { name: " Backend (EU) ", allowed_ips: ["203.0.113.0/24"] })).json();
+    expect(changed.key).toMatchObject({
+      id: key.id,
+      name: "Backend (EU)",
+      allowed_ips: ["203.0.113.0/24"],
+      hint: key.hint,
+    });
+    expect((await call("GET", "/v1/stats", undefined, { key: secret, ip: "192.0.2.4" })).status).toBe(403);
+    expect((await call("GET", "/v1/stats", undefined, { key: secret, ip: "203.0.113.9" })).status).toBe(200);
+    // Only the fields given change.
+    expect((await (await edit(key.id, { allowed_ips: [] })).json()).key).toMatchObject({
+      name: "Backend (EU)",
+      allowed_ips: [],
+    });
+
+    const site = await makeKey(ada, { name: "website", kind: "public" });
+    expect(
+      (await (await edit(site.key.id, { allowed_origins: ["shop.example.com"] })).json()).key.allowed_origins,
+    ).toEqual(["https://shop.example.com"]);
+
+    const refused = async (id: string, body: unknown, as = ada) => {
+      const response = await edit(id, body, as);
+      return [response.status, (await response.json()).error.message];
+    };
+    expect(await refused(key.id, { allowed_origins: ["https://example.com"] })).toEqual([
+      400,
+      expect.stringContaining("only a public key"),
+    ]);
+    expect(await refused(key.id, { allowed_ips: ["the office"] })).toEqual([
+      400,
+      expect.stringContaining("the office"),
+    ]);
+    expect((await refused(key.id, {}))[0]).toBe(400);
+    expect((await refused(key.id, { kind: "public" }))[0]).toBe(400);
+    expect((await refused("key_unknown", { name: "x" }))[0]).toBe(404);
+    expect((await refused(key.id, { name: "x" }, ben))[0]).toBe(404);
+    await call("DELETE", `/app/workspaces/${ada.workspace}/keys/${key.id}`, undefined, { cookie: ada.cookie });
+    expect(await refused(key.id, { name: "x" })).toEqual([409, "A revoked key cannot be changed"]);
+  });
+
   it("stops a revoked key at once", async () => {
     const ada = await signup("ada@example.com");
     const { secret, key } = await makeKey(ada, { name: "backend", kind: "secret" });

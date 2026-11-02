@@ -209,7 +209,7 @@ A decision can be made **as of a past moment**: it then sees only the events up 
 
 More: [Decisions](decisions.md).
 
-## API keys
+## API Keys
 
 | Kind | Starts with | Can do | Where it lives |
 |---|---|---|---|

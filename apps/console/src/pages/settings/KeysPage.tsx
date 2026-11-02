@@ -1,14 +1,16 @@
 import { useState } from "react";
 import { workspaces } from "../../api/index";
 import type { ApiKey } from "../../types/interfaces";
+import { KeyDetail, KindIcon } from "../../components/settings/KeyDetail";
 import { KeyModal } from "../../components/settings/KeyModal";
 import { Group } from "../../components/ui/Group";
 import { Empty, Loading } from "../../components/ui/states";
 import { useApi } from "../../hooks/useApi";
 import { dayOf, stamp } from "../../lib/format";
+import { go, href } from "../../lib/route";
 import type { SettingsPageProps } from "./types";
 
-export function KeysPage({ workspace, environment }: SettingsPageProps) {
+export function KeysPage({ workspace, environment, id }: SettingsPageProps & { id?: string }) {
   const member = workspace.role === "member";
   const {
     data,
@@ -27,14 +29,25 @@ export function KeysPage({ workspace, environment }: SettingsPageProps) {
       (e: Error) => setError(e.message),
     );
 
+  if (id && !member) {
+    const found = data?.keys.find((k) => k.id === id);
+    if (!data) return <Loading />;
+    if (!found)
+      return (
+        <Empty title="No such API key">
+          It may be in another environment. <a href={href("settings", "keys")}>Back to API Keys</a>
+        </Empty>
+      );
+    return <KeyDetail workspace={workspace} environment={environment} apiKey={found} onChanged={() => reload()} />;
+  }
+
   return (
     <>
-      <h1>API keys</h1>
+      <h1>API Keys</h1>
       {(error ?? loadError) && <div className="banner">{error ?? loadError?.message}</div>}
 
       <Group
-        title={`Keys for ${environment.name}`}
-        note="Each key selects its environment automatically. Secret keys have full API access within that environment. Public keys can only send events."
+        note="Create, modify, and revoke API Keys for this workspace."
         action={
           !member && (
             <button className="btn primary" onClick={() => setCreating(true)}>
@@ -45,11 +58,11 @@ export function KeysPage({ workspace, environment }: SettingsPageProps) {
       >
         <div className="card table-wrap">
           {member ? (
-            <Empty title="You don't have access to API keys">Ask a workspace owner or admin for a key.</Empty>
+            <Empty title="You don't have access to API Keys">Ask a workspace owner or admin for a key.</Empty>
           ) : !data ? (
             <Loading />
           ) : data.keys.length === 0 ? (
-            <Empty title="No API keys yet">Create a secret key to start sending events from your server.</Empty>
+            <Empty title="No API Keys yet">Create a secret key to start sending events from your server.</Empty>
           ) : (
             <table>
               <thead>
@@ -64,13 +77,22 @@ export function KeysPage({ workspace, environment }: SettingsPageProps) {
               </thead>
               <tbody>
                 {data.keys.map((key) => (
-                  <tr key={key.id} className={key.revoked ? "off" : ""}>
+                  <tr
+                    key={key.id}
+                    className={`link ${key.revoked ? "off" : ""}`}
+                    onClick={() => go("settings", "keys", key.id)}
+                  >
                     <td>
-                      <b>{key.name}</b>
+                      <a href={href("settings", "keys", key.id)} onClick={(e) => e.stopPropagation()}>
+                        <b>{key.name}</b>
+                      </a>
                       <div className="muted">Created {dayOf(key.created)}</div>
                     </td>
                     <td>
-                      <span className={`chip ${key.kind === "public" ? "accent" : ""}`}>{key.kind}</span>
+                      <span className="key-kind">
+                        <KindIcon kind={key.kind} />
+                        {key.kind === "public" ? "Public" : "Secret"}
+                      </span>
                     </td>
                     <td className="mono">{key.hint}</td>
                     <td className="hide-md mono">
@@ -87,7 +109,13 @@ export function KeysPage({ workspace, environment }: SettingsPageProps) {
                       {key.revoked ? (
                         <span className="muted">Revoked {dayOf(key.revoked)}</span>
                       ) : (
-                        <button className="btn ghost" onClick={() => revoke(key)}>
+                        <button
+                          className="btn ghost"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            revoke(key);
+                          }}
+                        >
                           Revoke
                         </button>
                       )}
@@ -104,6 +132,7 @@ export function KeysPage({ workspace, environment }: SettingsPageProps) {
         <KeyModal
           workspace={workspace}
           environment={environment}
+          chooseEnvironment
           onClose={() => setCreating(false)}
           onCreated={() => reload()}
         />

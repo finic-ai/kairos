@@ -15,5 +15,14 @@ export const keyBody = z.object({
   allowed_origins: z.array(z.string().trim().min(1)).max(50).default([]),
 });
 
+export const keyUpdateBody = z
+  .object({
+    name: z.string().trim().min(1).max(80).optional(),
+    allowed_ips: z.array(z.string().trim().min(1)).max(50).optional(),
+    allowed_origins: z.array(z.string().trim().min(1)).max(50).optional(),
+  })
+  .strict()
+  .refine((b) => Object.keys(b).length > 0, "Change at least one of name, allowed_ips and allowed_origins");
+
 /** How long the workspace keeps its history: 7 days to 10 years, or null for forever. */
 export const dataRetentionBody = z.object({ retention_days: z.number().int().min(7).max(3650).nullable() }).strict();

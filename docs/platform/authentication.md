@@ -19,9 +19,9 @@ A key belongs to one workspace and one environment. It chooses both, so a reques
 
 ### Make a key
 
-An owner or an admin makes keys for the environment that is selected:
+An owner or an admin makes keys. Each key belongs to one environment, the selected one unless you choose another:
 
-- In the console: **Settings › API keys › Create key**.
+- In the console: **Settings › API keys › Create key**. Choose the environment there; the selected one comes first.
 - With the CLI, signed in with an email address: `kairos keys create payments --kind secret`.
 - With the API: [`POST /app/workspaces/:workspace/keys`](../reference/api.md#api-keys).
 
@@ -59,6 +59,10 @@ Keep a secret key in your server's environment or secret store, never in a brows
 
 - **IP addresses.** A key can have a list of IP addresses and IPv4 ranges (`203.0.113.7`, `198.51.100.0/24`). A request from another address gets 403 `ip_not_allowed`. IPv6 ranges are not supported; a single IPv6 address works.
 - **Websites**, for a public key. A public key can have a list of allowed websites (`https://www.example.com`, `https://*.example.com` for every subdomain, `http://localhost:3000`). The server compares the list with the `Origin` header, and a request from another website, or with no `Origin`, gets 403 `origin_not_allowed`. A mobile app sends no `Origin`: give its key no website list.
+
+### Change a key
+
+In **Settings › API keys**, click a key to see its details: its hint, type, environment, when it was made and last used. You can change its name, its IP addresses and, for a public key, its websites. The new limits apply to the next request. The key itself, its type and its environment never change: for those, make a new key.
 
 ### Rotate and revoke
 

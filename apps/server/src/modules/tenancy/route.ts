@@ -1,7 +1,15 @@
 import { Hono, type Context } from "hono";
 import { parse, type Env } from "../../platform/http";
 import { requireSession } from "../../platform/auth";
-import { dataRetentionBody, deleteWorkspaceBody, inviteBody, keyBody, memberBody, workspaceBody } from "./schema";
+import {
+  dataRetentionBody,
+  deleteWorkspaceBody,
+  inviteBody,
+  keyBody,
+  keyUpdateBody,
+  memberBody,
+  workspaceBody,
+} from "./schema";
 import type { SessionsService } from "../../services/session.service";
 import type { Tenancy } from "./service";
 import type { Role } from "../../types";
@@ -172,6 +180,31 @@ export function workspaceRoutes({
     });
     // The only time the key itself is returned.
     return c.json({ key, secret });
+  });
+
+  app.patch("/workspaces/:workspace/keys/:key", async (c) => {
+    const a = await access(c, "admin");
+    const input = await parse(c, keyUpdateBody);
+    if ("response" in input) return input.response;
+    const { before, key } = await tenancy.updateKey(
+      a.workspace,
+      c.req.header("x-kairos-environment"),
+      c.req.param("key"),
+      input.data,
+    );
+    const changes = Object.fromEntries(
+      (["name", "allowed_ips", "allowed_origins"] as const)
+        .filter((field) => JSON.stringify(before[field]) !== JSON.stringify(key[field]))
+        .map((field) => [field, { from: before[field], to: key[field] }]),
+    );
+    if (Object.keys(changes).length)
+      await c.var.logActivity({
+        environmentId: key.environment_id,
+        action: "api_key.updated",
+        resource: { type: "api_key", id: key.id },
+        details: { name: key.name, changes },
+      });
+    return c.json({ key });
   });
 
   app.delete("/workspaces/:workspace/keys/:key", async (c) => {

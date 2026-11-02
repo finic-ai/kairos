@@ -14,6 +14,7 @@ export function KeyModal({
   onCreated,
   kind: fixed,
   defaultName = "",
+  chooseEnvironment = false,
 }: {
   workspace: Workspace;
   environment: Environment;
@@ -22,11 +23,15 @@ export function KeyModal({
   /** Make only this kind of key, with no choice. */
   kind?: ApiKey["kind"];
   defaultName?: string;
+  /** Offer the workspace's other environments. The current one is chosen first. */
+  chooseEnvironment?: boolean;
 }) {
   const [name, setName] = useState(defaultName);
   const [kind, setKind] = useState<ApiKey["kind"]>(fixed ?? "secret");
   const [ips, setIps] = useState("");
   const [sites, setSites] = useState("");
+  const [environmentId, setEnvironmentId] = useState(environment.id);
+  const target = workspace.environments.find((e) => e.id === environmentId) ?? environment;
   const [created, setCreated] = useState<{ key: ApiKey; secret: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const submit = (event: FormEvent) => {
@@ -37,6 +42,7 @@ export function KeyModal({
         kind,
         allowed_ips: splitIps(ips),
         allowed_origins: kind === "public" ? splitIps(sites) : [],
+        environment_id: target.id,
       })
       .then(
         (result) => (setCreated(result), onCreated(result)),
@@ -51,6 +57,11 @@ export function KeyModal({
             Copy <b>{created.key.name}</b> and store it somewhere safe. You won't be able to see it again.
           </p>
           <Copy value={created.secret} />
+          {target.id !== environment.id && (
+            <p className="note">
+              The key is for <b>{target.name}</b>. Switch to {target.name} to see it in the list of keys.
+            </p>
+          )}
           <div className="modal-foot">
             <button className="btn primary" onClick={onClose}>
               Done
@@ -63,7 +74,7 @@ export function KeyModal({
     <Modal title="Create API key" onClose={onClose}>
       <form className="modal-body" onSubmit={submit}>
         <p>
-          This key will access <b>{environment.name}</b> in {workspace.name}.
+          This key will access <b>{target.name}</b> in {workspace.name}.
         </p>
         {error && (
           <div className="banner" style={{ margin: 0 }}>
@@ -91,6 +102,19 @@ export function KeyModal({
               <small className="mono">kpk_…</small>
             </button>
           </div>
+        )}
+        {chooseEnvironment && workspace.environments.length > 1 && (
+          <label className="field">
+            <span>Environment</span>
+            <select className="input" value={environmentId} onChange={(e) => setEnvironmentId(e.target.value)}>
+              {workspace.environments.map((e) => (
+                <option key={e.id} value={e.id}>
+                  {e.name}
+                  {e.id === environment.id ? " (current)" : ""}
+                </option>
+              ))}
+            </select>
+          </label>
         )}
         <label className="field">
           <span>Name</span>

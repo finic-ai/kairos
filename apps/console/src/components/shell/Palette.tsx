@@ -43,7 +43,7 @@ const SETTINGS: [string, string][] = [
   ["Members", "members"],
   ["Environments", "environments"],
   ["Models", "models"],
-  ["API keys", "keys"],
+  ["API Keys", "keys"],
   ["Webhooks", "webhooks"],
   ["Usage", "usage"],
 ];
