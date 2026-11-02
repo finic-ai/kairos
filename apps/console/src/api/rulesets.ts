@@ -44,7 +44,10 @@ export const lists = {
     request<{ lists: ListSummary[]; total: number }>("GET", `/v1/lists?${params(query)}`),
   get: (ref: string) => request<ListDetail>("GET", `/v1/lists/${enc(ref)}`),
   readers: (ref: string) =>
-    request<{ rulesets: { slug: string; name: string }[] }>("GET", `/v1/lists/${enc(ref)}/readers`),
+    request<{
+      rulesets: { slug: string; name: string }[];
+      workflows: { name: string; display_name?: string }[];
+    }>("GET", `/v1/lists/${enc(ref)}/readers`),
   save: (
     ref: string,
     body: { name?: string; description?: string | null; match?: ListMatch; case_sensitive?: boolean },

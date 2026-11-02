@@ -8161,7 +8161,7 @@ th.pick input {
   min-width: 110px;
 }
 .wf-toolbar-name > .chip.mono {
-  max-width: 180px;
+  max-width: 150px;
   overflow: hidden;
   text-overflow: ellipsis;
 }
@@ -10655,4 +10655,19 @@ tr.picked td {
 .wf-run-terms {
   margin: 6px 0;
   font-size: 12.5px;
+}
+
+/* Crypto addresses and ids are long and have no spaces: they wrap anywhere. */
+.ls-item {
+  max-width: 320px;
+  word-break: break-all;
+}
+.ls-note {
+  min-width: 140px;
+}
+.ls-by {
+  max-width: 150px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }

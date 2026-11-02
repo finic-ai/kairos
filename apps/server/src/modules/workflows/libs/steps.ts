@@ -24,7 +24,7 @@ import { addItems, removeItems } from "../../lists";
 import { scoreFeatures, type ScoreResult, type StepScore } from "../../models";
 import { evaluateRef } from "../../rulesets";
 import { guardedLookup, urlProblem } from "../../webhooks/libs";
-import { resolveValue, type Variables } from "./expressions";
+import { ExpressionError, resolveValue, type Variables } from "./expressions";
 import { readFeatures } from "./models";
 import type { WorkflowStepDef } from "../types";
 
@@ -848,9 +848,13 @@ async function caseResolve(step: WorkflowStepDef, vars: Variables, ctx: StepCont
 
 /** A ruleset reads only its input and writes nothing, so it runs for real in a test run too. */
 async function rulesetStep(step: WorkflowStepDef, vars: Variables, ctx: StepContext) {
-  const f = fields(step, vars, ["ruleset", "input"]);
-  const ref = text(f.ruleset, "ruleset");
-  const input = f.input === undefined ? {} : record(f.input, "input");
+  const ref = text(resolveValue(step.ruleset, vars), "ruleset");
+  const input =
+    step.input && typeof step.input === "object" && !Array.isArray(step.input)
+      ? rulesetInput(step.input as Record<string, unknown>, vars)
+      : step.input === undefined
+        ? {}
+        : record(resolveValue(step.input, vars), "input");
   try {
     return await evaluateRef(
       ctx.repos.db,
@@ -862,6 +866,24 @@ async function rulesetStep(step: WorkflowStepDef, vars: Variables, ctx: StepCont
     if (cause instanceof AppError) throw new StepFailure(cause.message);
     throw cause;
   }
+}
+
+const NOT_THERE = /^field not found: /;
+
+/**
+ * Each input on its own: a template that reads a field the run does not have gives no value, so
+ * the ruleset sees a missing input, and refuses it only when it is required.
+ */
+function rulesetInput(mapping: Record<string, unknown>, vars: Variables): Record<string, unknown> {
+  const input: Record<string, unknown> = {};
+  for (const [name, value] of Object.entries(mapping)) {
+    try {
+      input[name] = resolveValue(value, vars);
+    } catch (cause) {
+      if (!(cause instanceof ExpressionError && NOT_THERE.test(cause.message))) throw cause;
+    }
+  }
+  return input;
 }
 
 const ITEM_MATCHES = new Set(["exact", "prefix", "suffix", "contains", "word"]);

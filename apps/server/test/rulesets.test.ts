@@ -413,6 +413,7 @@ describe("lists", () => {
     expect(refused.body.error.message).toContain('"Payout rules"');
     expect((await call("GET", "/v1/lists/blocked_domains/readers")).body).toEqual({
       rulesets: [{ slug: "payout_rules", name: "Payout rules" }],
+      workflows: [],
     });
     await call("POST", "/v1/rulesets/payout_rules/archive");
     expect((await call("DELETE", "/v1/lists/blocked_domains")).status).toBe(200);

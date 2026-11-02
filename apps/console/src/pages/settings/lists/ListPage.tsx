@@ -52,7 +52,18 @@ export function ListPage({ slug }: { slug: string }) {
 
   if (error) return <Failure message={error.message} />;
   if (!list) return <Loading />;
-  const readBy = readers?.rulesets ?? [];
+  const usedBy = [
+    ...(readers?.rulesets ?? []).map((r) => ({
+      kind: "Ruleset",
+      label: r.name,
+      href: href("settings", "rulesets", r.slug),
+    })),
+    ...(readers?.workflows ?? []).map((w) => ({
+      kind: "Workflow",
+      label: w.display_name ?? w.name,
+      href: href("workflows", w.name),
+    })),
+  ];
 
   const allPicked = onPage.length > 0 && onPage.every((i) => picked.includes(i.value));
   const pick = (value: string) =>
@@ -186,14 +197,18 @@ export function ListPage({ slug }: { slug: string }) {
                           onChange={() => pick(item.value)}
                         />
                       </td>
-                      <td className="mono">{item.value}</td>
-                      <td style={{ whiteSpace: "nowrap" }}>
+                      <td className="mono ls-item">{item.value}</td>
+                      <td>
                         {matchText(m)} {m.own ? <span className="chip">Its own</span> : null}
                       </td>
-                      <td className="wrap muted">{item.note ?? ""}</td>
+                      <td className="wrap muted ls-note">{item.note ?? ""}</td>
                       <td className="muted" style={{ whiteSpace: "nowrap" }}>
                         {item.added ? stamp(item.added) : ""}
-                        {item.added_by?.startsWith("workflow:") && <div className="note">{item.added_by}</div>}
+                        {item.added_by?.startsWith("workflow:") && (
+                          <div className="note ls-by" title={item.added_by}>
+                            {item.added_by.slice("workflow:".length)}
+                          </div>
+                        )}
                       </td>
                       <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
                         <button
@@ -224,16 +239,16 @@ export function ListPage({ slug }: { slug: string }) {
           )}
         </div>
 
-        <Card title={`Read by · ${readBy.length}`}>
-          {readBy.length === 0 ? (
+        <Card title={`Used by · ${usedBy.length}`}>
+          {usedBy.length === 0 ? (
             <p className="note" style={{ margin: 0 }}>
-              No ruleset reads this list.
+              No ruleset or workflow uses this list.
             </p>
           ) : (
             <div className="stack" style={{ gap: 6 }}>
-              {readBy.map((r) => (
-                <a key={r.slug} href={href("settings", "rulesets", r.slug)}>
-                  {r.name}
+              {usedBy.map((u) => (
+                <a key={u.href} href={u.href}>
+                  {u.label} <span className="muted">· {u.kind}</span>
                 </a>
               ))}
             </div>

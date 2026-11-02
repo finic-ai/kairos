@@ -126,9 +126,9 @@ On the list's page, **Add items** opens a window with two ways to add:
 
 An item that is on the list already takes the new match, case and note. Items with the same text are the same item, in any case unless the item is case sensitive.
 
-The table shows each item with the match it uses, and **Its own** when it does not use the list's. **✎** changes an item's match, case and note. To remove items, select them with their boxes, also on more than one page, and choose **Delete**. **Edit** changes the list's name, description, and default match and case, and says how many items the change affects. **Read by** names the rulesets that read the list.
+The table shows each item with the match it uses, and **Its own** when it does not use the list's. **✎** changes an item's match, case and note. To remove items, select them with their boxes, also on more than one page, and choose **Delete**. **Edit** changes the list's name, description, and default match and case, and says how many items the change affects. **Used by** names the rulesets and the workflows that use the list.
 
-On **Settings › Lists**, the **Actions** of each list edit it or delete it. A list that a ruleset reads cannot be deleted: change the ruleset first.
+On **Settings › Lists**, the **Actions** of each list edit it or delete it. A list that a ruleset or a workflow uses cannot be deleted: change them first, or archive them. **Used by** on the list's page names them.
 
 ### Make a list with the API
 
@@ -185,11 +185,11 @@ Each request needs a secret key, or the console's session, and works in the key'
 | `GET /v1/lists` | `{ lists, total }`: the lists, with their item counts. `?q=`, `?limit=` and `?offset=` as for rulesets. |
 | `PUT /v1/lists/:list` | `{ name?, description?, match?, case_sensitive? }`. Makes a list, with a new slug and a name, or changes one. |
 | `GET /v1/lists/:list` | The list with its items. |
-| `GET /v1/lists/:list/readers` | `{ rulesets: [{ slug, name }] }`: the rulesets that read the list. |
+| `GET /v1/lists/:list/readers` | `{ rulesets: [{ slug, name }], workflows: [{ name, display_name }] }`: what uses the list. |
 | `POST /v1/lists/:list/items` | `{ items: [{ value, match?, case_sensitive?, note? }] }`. Adds items: `{ added, updated, list }`. An item that is there already takes the new match, case and note. |
 | `DELETE /v1/lists/:list/items` | `{ values }`. Removes items. |
 | `PUT /v1/lists/:list/items` | `{ items }`. Replaces every item, for a sync from another system. |
-| `DELETE /v1/lists/:list` | Refused with 409 while a ruleset reads it. |
+| `DELETE /v1/lists/:list` | Refused with 409 while a ruleset or a workflow that is not archived uses it. |
 
 The definition of a ruleset:
 

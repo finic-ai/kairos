@@ -97,6 +97,24 @@ describe("a ruleset step", () => {
     expect(done.error).toBe("Step 'Payout rules' failed: input.amount: must be a number");
   });
 
+  it("gives the ruleset no value for a field the run does not have, as for an input that is not there", async () => {
+    await save("check", [
+      {
+        id: "rules",
+        name: "Payout rules",
+        type: "ruleset",
+        ruleset: "payout_rules",
+        input: { amount: "{{ trigger.amount }}", payee: "{{ trigger.payee }}" },
+      },
+    ]);
+    const optional = await run("check", { amount: 10 });
+    expect(optional.status).toBe("done");
+    expect(optional.output).toMatchObject({ outcome: "approve", missing: ["blocked_payee"] });
+    const required = await run("check", { payee: "p1" });
+    expect(required.status).toBe("failed");
+    expect(required.error).toBe("Step 'Payout rules' failed: input.amount: is required");
+  });
+
   it("is refused at save for a ruleset that is not there, or an input that it needs and is not given", async () => {
     const missing = await save("check", [{ id: "rules", name: "Rules", type: "ruleset", ruleset: "nope" }]);
     expect(missing.body.error.message).toBe('steps.rules.ruleset: there is no ruleset "nope"');

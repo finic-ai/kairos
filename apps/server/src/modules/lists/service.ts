@@ -1,5 +1,6 @@
 import {
   itemKey,
+  listSlugsIn,
   listSlugProblem,
   MAX_LIST_ITEMS,
   normalizeItem,
@@ -12,6 +13,7 @@ import type { Executor } from "../../platform/database";
 import { AppError, invalid, notFound } from "../../platform/error";
 import { LIST_ID, ListsService, toListDetail, type ListDetail } from "../../services/list.service";
 import { RulesetsService } from "../../services/ruleset.service";
+import { WorkflowsService } from "../../services/workflow.service";
 import type { ListQuery, PutBody } from "./schema";
 import type { ItemInput } from "./types";
 
@@ -196,23 +198,49 @@ export async function replaceItems(
   }));
 }
 
-async function readersOf(db: Executor, scope: Scope, slug: string): Promise<{ slug: string; name: string }[]> {
-  const rulesets = await new RulesetsService(db, scope).listLive();
-  return rulesets
-    .filter((r) => [r.definition, r.draft].some((d) => d && rulesetListSlugs(d).includes(slug)))
-    .map((r) => ({ slug: r.slug, name: r.name }));
+/** The slugs of the lists that a workflow reads with `inList` or changes with a list step. */
+function listsOfWorkflow(value: unknown, into = new Set<string>()): Set<string> {
+  if (typeof value === "string") for (const slug of listSlugsIn(value)) into.add(slug);
+  else if (Array.isArray(value)) for (const v of value) listsOfWorkflow(v, into);
+  else if (value && typeof value === "object") {
+    const node = value as Record<string, unknown>;
+    if (typeof node.type === "string" && node.type.startsWith("list.") && typeof node.list === "string")
+      into.add(node.list);
+    for (const v of Object.values(node)) listsOfWorkflow(v, into);
+  }
+  return into;
+}
+
+/** The rulesets and the workflows whose live version or draft reads or changes the list. Archived ones do not count. */
+async function readersOf(db: Executor, scope: Scope, slug: string) {
+  const [rulesets, workflows] = await Promise.all([
+    new RulesetsService(db, scope).listLive(),
+    new WorkflowsService(db, scope).listAll(),
+  ]);
+  return {
+    rulesets: rulesets
+      .filter((r) => [r.definition, r.draft].some((d) => d && rulesetListSlugs(d).includes(slug)))
+      .map((r) => ({ slug: r.slug, name: r.name })),
+    workflows: workflows
+      .filter((w) => listsOfWorkflow([w.trigger, w.steps, w.draft]).has(slug))
+      .map((w) => ({ name: w.name, ...(w.displayName ? { display_name: w.displayName } : {}) })),
+  };
 }
 
 export async function deleteList(db: Executor, scope: Scope, ref: string): Promise<ListDetail> {
   const lists = new ListsService(db, scope);
   const row = await lists.findRow(ref);
   if (!row) throw missingList(ref);
-  const readers = await readersOf(db, scope, row.slug);
+  const { rulesets, workflows } = await readersOf(db, scope, row.slug);
+  const readers = [
+    ...rulesets.map((r) => `the ruleset "${r.name}"`),
+    ...workflows.map((w) => `the workflow "${w.display_name ?? w.name}"`),
+  ];
   if (readers.length)
     throw new AppError(
       "conflict",
       "conflict",
-      `The list "${row.slug}" is read by the ruleset${readers.length > 1 ? "s" : ""} ${readers.map((r) => `"${r.name}"`).join(", ")}: change ${readers.length > 1 ? "them" : "it"} first`,
+      `The list "${row.slug}" is used by ${readers.join(", ")}: change ${readers.length > 1 ? "them" : "it"} first`,
     );
   await lists.delete(row.id);
   return toListDetail(row);
@@ -221,5 +249,5 @@ export async function deleteList(db: Executor, scope: Scope, ref: string): Promi
 export async function listReaders(db: Executor, scope: Scope, ref: string) {
   const row = await new ListsService(db, scope).findRow(ref);
   if (!row) throw missingList(ref);
-  return { rulesets: await readersOf(db, scope, row.slug) };
+  return readersOf(db, scope, row.slug);
 }

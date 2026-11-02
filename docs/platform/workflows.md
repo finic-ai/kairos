@@ -367,7 +367,7 @@ Scores values from the run with a [scoring model](models.md), such as an XGBoost
 Runs a [ruleset](rulesets.md): its rules in order, and the first that matches gives the outcome. It saves nothing, so it can come before the answer of a decision workflow, and a test run runs it for real.
 
 - **`ruleset`** is a slug and a version, `payout_screen@2`, or the slug alone for the live version.
-- **`input`** has a value or a template for each input of the ruleset. When you choose a ruleset in the builder, it fills the input with a template for each one, from the trigger.
+- **`input`** has a value or a template for each input of the ruleset. When you choose a ruleset in the builder, it fills the input with a template for each one, from the trigger. A template that reads a field the run does not have gives the ruleset no value for that input: the ruleset refuses it only when it is required, and its rules that read it do not match.
 - **The output** is the ruleset's result: read `steps.screen.output.outcome` in a condition, and `steps.screen.output.response` for the rule's response.
 - When you publish, Kairos refuses a ruleset that is not there, is archived or was never published, and an input that the ruleset requires and the step does not give. An input of the wrong type fails the step when it runs.
 
