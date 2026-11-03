@@ -1,0 +1,55 @@
+{
+  "slug": "round_amounts",
+  "name": "Large round amounts",
+  "category": "Payments",
+  "description": "Reject large round amounts from new accounts. Fraud often moves whole thousands.",
+  "definition": {
+    "inputs": [
+      {
+        "name": "amount",
+        "type": "number",
+        "required": true,
+        "description": "The amount of the transaction"
+      },
+      {
+        "name": "account_age_days",
+        "type": "number",
+        "description": "Days since the account was opened"
+      }
+    ],
+    "rules": [
+      {
+        "id": "round_new_account",
+        "name": "Round amount, new account",
+        "when": "int(input.amount) % 1000 == 0 && input.amount >= 5000 && input.account_age_days < 30",
+        "outcome": "reject",
+        "response": {
+          "reason": "round_amount_new_account"
+        }
+      }
+    ],
+    "default": {
+      "outcome": "approve"
+    },
+    "tests": [
+      {
+        "name": "5,000 from a new account",
+        "input": {
+          "amount": 5000,
+          "account_age_days": 3
+        },
+        "outcome": "reject",
+        "rule": "round_new_account"
+      },
+      {
+        "name": "5,000 from an old account",
+        "input": {
+          "amount": 5000,
+          "account_age_days": 400
+        },
+        "outcome": "approve",
+        "rule": null
+      }
+    ]
+  }
+}

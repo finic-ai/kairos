@@ -21,6 +21,8 @@ export const SETTINGS_TABS: { title: string; items: { id: string; label: string 
       { id: "members", label: "Members" },
       { id: "environments", label: "Environments" },
       { id: "models", label: "Models" },
+      { id: "rulesets", label: "Rulesets" },
+      { id: "lists", label: "Lists" },
       { id: "usage", label: "Usage" },
       { id: "activity", label: "Activity" },
     ],

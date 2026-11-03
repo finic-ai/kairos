@@ -17,14 +17,16 @@ export type StepIcon =
   | "assess"
   | "ask"
   | "score"
-  | "case";
+  | "case"
+  | "ruleset"
+  | "list";
 
 export interface StepKind {
   type: string;
   label: string;
   /** What the step does, in the list of steps to add. */
   about: string;
-  group: "Flow" | "Records" | "Decisions" | "Models" | "Cases" | "Integrations";
+  group: "Flow" | "Records" | "Decisions" | "Rules" | "Models" | "Cases" | "Integrations";
   icon: StepIcon;
   defaults: Record<string, unknown>;
 }
@@ -112,6 +114,30 @@ export const STEP_KINDS: StepKind[] = [
     defaults: { action: "", entities: {} },
   },
   {
+    type: "ruleset",
+    label: "Run a ruleset",
+    about: "Approve or reject with your rules, with nothing saved",
+    group: "Rules",
+    icon: "ruleset",
+    defaults: { ruleset: "", input: {} },
+  },
+  {
+    type: "list.add",
+    label: "Add to a list",
+    about: "Put an item on a list that rules read",
+    group: "Rules",
+    icon: "list",
+    defaults: { list: "", value: "" },
+  },
+  {
+    type: "list.remove",
+    label: "Remove from a list",
+    about: "Take an item off a list",
+    group: "Rules",
+    icon: "list",
+    defaults: { list: "", value: "" },
+  },
+  {
     type: "assess",
     label: "Get the model's decision",
     about: "What an action's model and thresholds say, with nothing saved",
@@ -169,7 +195,7 @@ export const STEP_KINDS: StepKind[] = [
   },
 ];
 
-export const STEP_GROUPS = ["Flow", "Records", "Decisions", "Models", "Cases", "Integrations"] as const;
+export const STEP_GROUPS = ["Flow", "Records", "Decisions", "Rules", "Models", "Cases", "Integrations"] as const;
 
 export const kindOf = (type: string): StepKind =>
   STEP_KINDS.find((k) => k.type === type) ?? {
@@ -199,7 +225,9 @@ export type FieldKind =
   | "boolean"
   | "questions"
   | "model"
-  | "features";
+  | "features"
+  | "ruleset"
+  | "listref";
 
 export interface FieldDef {
   field: string;
@@ -348,6 +376,46 @@ export function fieldsOf(step: WorkflowStep): FieldDef[] {
         },
         { field: "questions", label: "Questions", kind: "questions" },
         QUESTION_MODEL,
+      ];
+    case "ruleset":
+      return [
+        {
+          field: "ruleset",
+          label: "Ruleset",
+          kind: "ruleset",
+          hint: "A pinned version answers the same until you change it. The latest version changes when the ruleset is published.",
+        },
+        {
+          field: "input",
+          label: "Input",
+          kind: "json",
+          placeholder: '{ "amount": "{{ trigger.amount }}" }',
+          hint: "A value or a template for each input of the ruleset.",
+        },
+      ];
+    case "list.add":
+      return [
+        { field: "list", label: "List", kind: "listref" },
+        { field: "value", label: "Item", kind: "template", placeholder: "{{ trigger.entities.payee }}" },
+        { field: "note", label: "Note", kind: "template", placeholder: "Chargeback on {{ trigger.entity.id }}" },
+        {
+          field: "match",
+          label: "Match",
+          kind: "select",
+          options: [
+            { value: "", label: "The list's" },
+            { value: "exact", label: "Is the item" },
+            { value: "prefix", label: "Starts with" },
+            { value: "suffix", label: "Ends with" },
+            { value: "contains", label: "Contains" },
+            { value: "word", label: "Contains as a word" },
+          ],
+        },
+      ];
+    case "list.remove":
+      return [
+        { field: "list", label: "List", kind: "listref" },
+        { field: "value", label: "Item", kind: "template", placeholder: "{{ trigger.payee }}" },
       ];
     case "score":
       return [
@@ -576,6 +644,12 @@ export function stepSummary(step: WorkflowStep): string {
       return text("action") || "The action's model";
     case "score":
       return text("model");
+    case "ruleset":
+      return text("ruleset");
+    case "list.add":
+      return text("list") && `${text("value")} to ${text("list")}`;
+    case "list.remove":
+      return text("list") && `${text("value")} from ${text("list")}`;
     case "ask": {
       const asked = Object.values((step.questions ?? {}) as Record<string, { question?: string }>);
       return asked.length === 1 ? (asked[0]!.question ?? "") : `${asked.length} questions`;
@@ -708,6 +782,9 @@ const OUTPUTS: Record<string, string[]> = {
   decide: ["decision", "risk_score", "decision_id", "reasons"],
   assess: ["decision", "risk_score", "probability", "reasons", "typology"],
   score: ["score", "risk_score", "model", "missing", "invalid"],
+  ruleset: ["outcome", "matched", "rule", "response"],
+  "list.add": ["added"],
+  "list.remove": ["removed"],
   http: ["status", "body"],
   "record.get": ["id", "type", "properties"],
   "record.search": [],

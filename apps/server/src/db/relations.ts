@@ -121,6 +121,12 @@ export const relations = defineRelations(schema, (r) => {
     workflowExperiments: {
       environment: environmentOf(r.workflowExperiments),
     },
+    rulesets: {
+      environment: environmentOf(r.rulesets),
+    },
+    lists: {
+      environment: environmentOf(r.lists),
+    },
     workflows: {
       environment: environmentOf(r.workflows),
     },

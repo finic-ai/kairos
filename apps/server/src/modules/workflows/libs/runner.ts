@@ -4,12 +4,17 @@ import type { Executor } from "../../../platform/database";
 import type { JobKind } from "../../../platform/jobs/worker";
 import { WorkflowRunsService, WorkflowsService } from "../../../services/workflow.service";
 import type { StepScore } from "../../models";
+import { loadLists } from "../../rulesets";
 import {
   evaluate,
   evaluateCondition,
   ExpressionError,
+  listSlugsOf,
   parseDuration,
   resolveValue,
+  TERMS,
+  withLists,
+  type Term,
   type Variables,
 } from "./expressions";
 import { runStep, StepFailure } from "./steps";
@@ -33,6 +38,8 @@ export interface StepEntry {
   input?: unknown;
   /** What a model step showed the model. */
   read?: unknown;
+  /** The list items that `inList` matched in the step's expressions and templates. */
+  terms?: Term[];
   error?: string | null;
   started?: string;
   finished?: string;
@@ -73,6 +80,17 @@ export interface RunMode {
 
 type EntryFields = Omit<StepEntry, "path" | "id" | "name" | "attempt"> & { attempt?: number };
 const stamp = () => new Date().toISOString();
+const MAX_TERMS = 20;
+
+/** Each item once: the logged input fills the same templates again. */
+export function termsOf(terms: readonly Term[]): { terms?: Term[] } {
+  const seen = new Set<string>();
+  const unique = terms.filter((t) => {
+    const key = `${t.list}\u0000${t.item}`;
+    return seen.has(key) ? false : (seen.add(key), true);
+  });
+  return unique.length ? { terms: unique.slice(0, MAX_TERMS) } : {};
+}
 
 /**
  * Enqueue the next job of a run, in the caller's transaction when there is one. The run's
@@ -114,7 +132,12 @@ export function runVariables(
   name: string,
   version: number,
 ): Variables {
-  const { live_steps: _live, mock_outputs: _mocks, ...triggerInput } = run.trigger as Record<string, unknown>;
+  const {
+    live_steps: _live,
+    mock_outputs: _mocks,
+    trigger_terms: _terms,
+    ...triggerInput
+  } = run.trigger as Record<string, unknown>;
   // An app event run reads the event as both `trigger` and `event`, as the trigger's `when` does.
   // A record trigger's run reads `{ record, on, … }` as `trigger`, and the record by its name too.
   const appEvent = triggerInput.event !== undefined && triggerInput.record === undefined;
@@ -271,7 +294,10 @@ export async function executeRun(
   const triggerInput = run.trigger as Record<string, unknown>;
   const liveSteps = new Set((triggerInput.live_steps as string[] | undefined) ?? []);
   const mockOutputs = (triggerInput.mock_outputs as Record<string, unknown> | undefined) ?? {};
-  const baseVars = runVariables(run, name, version);
+  const listSlugs = listSlugsOf(steps);
+  const baseVars = listSlugs.length
+    ? withLists(runVariables(run, name, version), await loadLists(deps.repos.db, scope, listSlugs))
+    : runVariables(run, name, version);
   const exec = new Execution(
     deps,
     run.id,
@@ -397,10 +423,11 @@ async function execList(
       return;
     }
     const path = prefix ? `${prefix}.${step.id}` : step.id;
-    const here: Variables = { ...vars, steps: exec.outputs() };
+    const terms: Term[] = [];
+    const here: Variables = Object.assign({ ...vars, steps: exec.outputs() }, { [TERMS]: terms });
     const done = exec.entry(path);
     const record = (fields: EntryFields, options?: Parameters<Execution["record"]>[3]) =>
-      exec.record(step, path, fields, options);
+      exec.record(step, path, { ...fields, ...termsOf(terms) }, options);
     try {
       if (step.type === "condition") {
         // Logged before its branch, so the log is in the order things happened, and a run that
@@ -475,7 +502,7 @@ async function execList(
         const withRead = () => ({ ...(input ? { input } : {}), ...(read === undefined ? {} : { read }) });
         try {
           // A record write and its checkpoint are one transaction: the write happens once.
-          if (step.type.startsWith("record.") || step.type.startsWith("case.")) {
+          if (step.type.startsWith("record.") || step.type.startsWith("case.") || step.type.startsWith("list.")) {
             await deps.repos.transaction(async (tx) => {
               const output = await runStep(step, here, { ...ctx, ...reads, repos: tx, path });
               await record(

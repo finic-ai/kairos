@@ -22,7 +22,15 @@ export interface AnswerPaths {
 
 type Reach = AnswerPaths["answered"];
 const merge = (a: Reach, b: Reach): Reach => (a === b ? a : "some");
-const WRITES = new Set(["record.create", "record.update", "decide", "case.create", "case.resolve"]);
+const WRITES = new Set([
+  "record.create",
+  "record.update",
+  "decide",
+  "case.create",
+  "case.resolve",
+  "list.add",
+  "list.remove",
+]);
 
 /**
  * Walk the paths of a workflow's steps, as a run can take them, and find what concerns its

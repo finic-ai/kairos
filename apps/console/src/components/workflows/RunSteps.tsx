@@ -1,6 +1,26 @@
 import { durationText, stamp } from "../../lib/format";
 import { RUN_STATUS_LABEL } from "../../lib/workflows";
-import type { WorkflowRunStep } from "../../types/interfaces";
+import { href } from "../../lib/route";
+import type { ListTerm, WorkflowRunStep } from "../../types/interfaces";
+
+/** The list items that an `inList` matched, each with a link to its list. */
+export function MatchedTerms({ terms }: { terms?: ListTerm[] }) {
+  if (!terms?.length) return null;
+  return (
+    <div className="wf-run-terms">
+      <span className="muted">Matched in a list:</span>{" "}
+      {terms.map((t, i) => (
+        <span key={`${t.list}:${t.item}`}>
+          {i > 0 && ", "}
+          <span className="mono">{t.item}</span>{" "}
+          <a href={href("settings", "lists", t.list)} className="muted">
+            ({t.list})
+          </a>
+        </span>
+      ))}
+    </div>
+  );
+}
 
 const took = (s: WorkflowRunStep) => {
   if (!s.started || !s.finished) return null;
@@ -27,6 +47,7 @@ export function RunSteps({ steps, empty = "No step has run yet." }: { steps: Wor
               {took(s) ? ` · ${took(s)}` : ""}
               {s.wake ? ` · until ${stamp(s.wake)} UTC` : ""}
             </div>
+            <MatchedTerms terms={s.terms} />
             {s.error ? (
               <div className="wh-failed">{s.error}</div>
             ) : (

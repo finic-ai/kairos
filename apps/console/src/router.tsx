@@ -48,6 +48,10 @@ import { WorkflowRunsPage } from "./pages/workflows/WorkflowRunsPage";
 import { WorkflowsPage } from "./pages/workflows/WorkflowsPage";
 import { ModelPage } from "./pages/settings/models/ModelPage";
 import { ModelsPage } from "./pages/settings/models/ModelsPage";
+import { ListPage } from "./pages/settings/lists/ListPage";
+import { ListsPage } from "./pages/settings/lists/ListsPage";
+import { RulesetBuilderPage } from "./pages/settings/rulesets/RulesetBuilderPage";
+import { RulesetsPage } from "./pages/settings/rulesets/RulesetsPage";
 import { NewWorkspacePage } from "./pages/workspaces/NewWorkspacePage";
 
 function FirstPage() {
@@ -195,6 +199,16 @@ function ModelRoute() {
   return <ModelPage key={slug} slug={slug!} />;
 }
 
+function ListRoute() {
+  const { slug } = useParams();
+  return <ListPage key={slug} slug={slug!} />;
+}
+
+function RulesetBuilderRoute() {
+  const slug = useParams().slug ?? "new";
+  return <RulesetBuilderPage key={slug} slug={slug} />;
+}
+
 function NewWorkspaceRoute() {
   const { onChoose, onRefresh } = useWorkspace();
   const navigate = useNavigate();
@@ -240,6 +254,11 @@ export const createRouter = () =>
             { path: "environments", element: <EnvironmentsRoute /> },
             { path: "models", element: <ModelsPage /> },
             { path: "models/:slug", element: <ModelRoute /> },
+            { path: "rulesets", element: <RulesetsPage /> },
+            { path: "rulesets/new", element: <RulesetBuilderRoute /> },
+            { path: "rulesets/:slug", element: <RulesetBuilderRoute /> },
+            { path: "lists", element: <ListsPage /> },
+            { path: "lists/:slug", element: <ListRoute /> },
             { path: "keys/:id?", element: <KeysRoute /> },
             { path: "integrations/:id?", element: <IntegrationsRoute /> },
             { path: "mcp", element: <McpRoute /> },

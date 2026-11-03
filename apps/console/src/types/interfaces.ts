@@ -1,4 +1,8 @@
 import type {
+  ListItem,
+  ListMatch,
+  RulesetDefinition,
+  RulesetResult,
   CaseCategory,
   CasePriority,
   CaseStatus,
@@ -908,11 +912,18 @@ export interface WorkflowRunStep {
   input?: Record<string, unknown> & { reads?: Record<string, unknown>; truncated?: boolean };
   /** What an ask or assess step showed the model: `{ model, context, questions? }`. */
   read?: { model?: string; context?: Record<string, unknown>; questions?: Record<string, { question?: string }> };
+  /** The list items that `inList` matched in the step's expressions and templates. */
+  terms?: ListTerm[];
   error?: string;
   started?: string;
   finished?: string;
   /** A waiting delay: when it ends. */
   wake?: string;
+}
+
+export interface ListTerm {
+  list: string;
+  item: string;
 }
 
 /** One input of a manual trigger. The steps read it as `trigger.<name>`. */
@@ -935,6 +946,8 @@ export interface WorkflowRun {
   workflow: string;
   status: string;
   trigger: Record<string, unknown>;
+  /** The list items that `inList` in the trigger's condition matched to start the run. */
+  trigger_terms?: ListTerm[];
   steps: WorkflowRunStep[];
   /** What the run gave, once it is done: a Return step's value, else the output of the last step. */
   output?: unknown;
@@ -1197,3 +1210,63 @@ export interface ModelScore {
 export interface DecisionModelScore extends ModelScore {
   step: string;
 }
+
+export type {
+  ListItem,
+  ListMatch,
+  RulesetDefinition,
+  RulesetInput,
+  RulesetOutcome,
+  RulesetResult,
+  RulesetRule,
+  RulesetTest,
+} from "@kairos/core";
+
+export interface RulesetSummary {
+  id: string;
+  slug: string;
+  name: string;
+  description?: string;
+  settings: Record<string, unknown>;
+  version: number;
+  status: "draft" | "published" | "archived";
+  definition: RulesetDefinition;
+  draft?: RulesetDefinition;
+  published_at?: string;
+  created_by: string | null;
+  updated_by: string | null;
+  created: string;
+  updated: string;
+}
+
+export interface RulesetTemplate {
+  slug: string;
+  name: string;
+  category?: string;
+  description?: string;
+  definition: RulesetDefinition;
+}
+
+export interface RulesetTestRun {
+  problems: string[];
+  result?: RulesetResult;
+  error?: string;
+  tests: { name: string; passed: boolean; result?: RulesetResult; error?: string }[];
+}
+
+export interface ListSummary {
+  id: string;
+  slug: string;
+  name: string;
+  description?: string;
+  /** The match and case of each item that has none of its own. */
+  match: ListMatch;
+  case_sensitive: boolean;
+  item_count: number;
+  created_by: string | null;
+  updated_by: string | null;
+  created: string;
+  updated: string;
+}
+
+export type ListDetail = ListSummary & { items: ListItem[] };

@@ -1,0 +1,81 @@
+{
+  "slug": "card_testing",
+  "name": "Card testing",
+  "category": "Payments",
+  "description": "Approve known good customers first. Then reject the small, repeated attempts with many cards that show card testing.",
+  "definition": {
+    "inputs": [
+      {
+        "name": "amount",
+        "type": "number",
+        "required": true
+      },
+      {
+        "name": "attempts_10m",
+        "type": "number",
+        "description": "Payment attempts in the last 10 minutes"
+      },
+      {
+        "name": "cards_10m",
+        "type": "number",
+        "description": "Different cards in the last 10 minutes"
+      },
+      {
+        "name": "trusted",
+        "type": "boolean",
+        "description": "The customer has a history of good payments"
+      }
+    ],
+    "rules": [
+      {
+        "id": "trusted_customer",
+        "name": "Trusted customer",
+        "when": "input.trusted == true",
+        "outcome": "approve"
+      },
+      {
+        "id": "many_cards",
+        "name": "Many cards in 10 minutes",
+        "when": "input.cards_10m >= 3",
+        "outcome": "reject",
+        "response": {
+          "reason": "card_testing"
+        }
+      },
+      {
+        "id": "small_repeats",
+        "name": "Small repeated attempts",
+        "when": "input.attempts_10m >= 5 && input.amount < 5",
+        "outcome": "reject",
+        "response": {
+          "reason": "card_testing"
+        }
+      }
+    ],
+    "default": {
+      "outcome": "approve"
+    },
+    "tests": [
+      {
+        "name": "Trusted customer with many cards",
+        "input": {
+          "amount": 20,
+          "cards_10m": 4,
+          "trusted": true
+        },
+        "outcome": "approve",
+        "rule": "trusted_customer"
+      },
+      {
+        "name": "Card testing",
+        "input": {
+          "amount": 1,
+          "attempts_10m": 8,
+          "cards_10m": 5
+        },
+        "outcome": "reject",
+        "rule": "many_cards"
+      }
+    ]
+  }
+}

@@ -1,0 +1,69 @@
+{
+  "slug": "elder_scam",
+  "name": "Older customer, new device and payee",
+  "category": "Payments",
+  "description": "Reject a transfer by an older customer to a new payee from a new device, the pattern of an investment or romance scam.",
+  "definition": {
+    "inputs": [
+      {
+        "name": "amount",
+        "type": "number",
+        "required": true,
+        "description": "The amount of the transaction"
+      },
+      {
+        "name": "customer_age",
+        "type": "number",
+        "description": "The customer's age in years"
+      },
+      {
+        "name": "new_device",
+        "type": "boolean",
+        "description": "The customer has not used this device before"
+      },
+      {
+        "name": "new_payee",
+        "type": "boolean",
+        "description": "The payee was added in the last 24 hours"
+      }
+    ],
+    "rules": [
+      {
+        "id": "older_new_device_payee",
+        "name": "Over 65, new device and payee",
+        "when": "input.customer_age >= 65 && input.new_device == true && input.new_payee == true && input.amount >= 2000",
+        "outcome": "reject",
+        "response": {
+          "reason": "elder_scam"
+        }
+      }
+    ],
+    "default": {
+      "outcome": "approve"
+    },
+    "tests": [
+      {
+        "name": "72, new device and payee",
+        "input": {
+          "amount": 4000,
+          "customer_age": 72,
+          "new_device": true,
+          "new_payee": true
+        },
+        "outcome": "reject",
+        "rule": "older_new_device_payee"
+      },
+      {
+        "name": "72, known payee",
+        "input": {
+          "amount": 4000,
+          "customer_age": 72,
+          "new_device": true,
+          "new_payee": false
+        },
+        "outcome": "approve",
+        "rule": null
+      }
+    ]
+  }
+}

@@ -13,13 +13,19 @@ import { canStartAutomatic } from "../decisions/libs";
 import type { Assessment, DecideRequest, DecisionFlowOptions } from "../decisions/service";
 import type { EventVia, StoredEvent } from "../ingest/types";
 import { describeModel, type StepScore } from "../models";
+import { describeRuleset, loadLists } from "../rulesets";
 import {
   createWorkflowRunner,
   csvLine,
   enqueueRunJob,
   executeRun,
   evaluateCondition,
+  listSlugsOf,
   modelProblems,
+  termsOf,
+  TERMS,
+  withLists,
+  type Term,
   outcomeOf,
   parseDuration,
   parseExpression,
@@ -50,6 +56,8 @@ export interface WorkflowRunView {
   workflow: string;
   status: WorkflowRunRow["status"];
   trigger: Record<string, unknown>;
+  /** The list items that `inList` in the trigger's `when` matched to start the run. */
+  trigger_terms?: Term[];
   steps: unknown[];
   /** What the run gave, once it is done: a Return step's value, else the output of the last step. */
   output: unknown;
@@ -63,13 +71,19 @@ export interface WorkflowRunView {
 }
 
 export const toRunView = (r: WorkflowRunRow): WorkflowRunView => {
-  const { live_steps: _live, mock_outputs: _mocks, ...trigger } = r.trigger as Record<string, unknown>;
+  const {
+    live_steps: _live,
+    mock_outputs: _mocks,
+    trigger_terms: triggerTerms,
+    ...trigger
+  } = r.trigger as Record<string, unknown>;
   return {
     id: r.id,
     workflow_id: r.workflowId,
     workflow: r.workflow,
     status: r.status,
     trigger,
+    ...(Array.isArray(triggerTerms) ? { trigger_terms: triggerTerms as Term[] } : {}),
     steps: (r.steps ?? []) as unknown[],
     output: r.output ?? null,
     error: r.error,
@@ -86,6 +100,48 @@ export async function checkModels(db: Executor, scope: Scope, steps: unknown): P
   if (problems.length) throw invalid(problems.join("; "));
 }
 
+type StepWithPath = { step: WorkflowDefinitionDef["steps"][number]; at: string };
+
+function allSteps(steps: unknown, where = "steps", into: StepWithPath[] = []): StepWithPath[] {
+  if (!Array.isArray(steps)) return into;
+  for (const step of steps as WorkflowDefinitionDef["steps"]) {
+    if (!step || typeof step !== "object") continue;
+    const at = `${where}.${step.id}`;
+    into.push({ step, at });
+    for (const branch of ["then", "else", "steps"]) allSteps(step[branch], `${at}.${branch}`, into);
+  }
+  return into;
+}
+
+/** The rulesets that the steps run and the lists that the workflow reads or writes must exist. */
+export async function checkRulesetsAndLists(
+  db: Executor,
+  scope: Scope,
+  definition: Pick<WorkflowDefinitionDef, "trigger" | "steps">,
+): Promise<void> {
+  const problems: string[] = [];
+  const steps = allSteps(definition.steps);
+  for (const { step, at } of steps) {
+    if (step.type !== "ruleset" || typeof step.ruleset !== "string") continue;
+    const found = await describeRuleset(db, scope, step.ruleset);
+    if (typeof found === "string") problems.push(`${at}.ruleset: ${found}`);
+    else if (step.input && typeof step.input === "object" && !Array.isArray(step.input)) {
+      const given = Object.keys(step.input);
+      const absent = found.inputs.filter((i) => i.required && i.default === undefined && !given.includes(i.name));
+      if (absent.length) problems.push(`${at}.input: the ruleset needs ${absent.map((i) => i.name).join(", ")}`);
+    }
+  }
+  const slugs = new Set([
+    ...listSlugsOf([definition.trigger, definition.steps]),
+    ...steps
+      .filter(({ step }) => step.type.startsWith("list.") && typeof step.list === "string")
+      .map(({ step }) => String(step.list)),
+  ]);
+  const lists = await loadLists(db, scope, [...slugs]);
+  for (const slug of slugs) if (!lists.has(slug)) problems.push(`steps: there is no list "${slug}"`);
+  if (problems.length) throw invalid(problems.join("; "));
+}
+
 /** Save a workflow definition as its next version. The display name and the switch are columns, not a version. */
 export async function saveWorkflow(
   db: Executor,
@@ -97,6 +153,7 @@ export async function saveWorkflow(
   const problems = validateWorkflow(definition);
   if (problems.length) throw invalid(problems.join("; "));
   await checkModels(db, scope, definition.steps);
+  await checkRulesetsAndLists(db, scope, definition);
   const { name, displayName, enabled, trigger, steps } = definition;
   return db.transaction(async (tx) => {
     const current = await live(tx, scope, name);
@@ -604,15 +661,30 @@ async function startTriggered(
   return true;
 }
 
-/** Whether a trigger's `when` passes. A condition that cannot be read starts nothing. */
-const passes = (when: unknown, variables: Record<string, unknown>) => {
-  if (typeof when !== "string" || !when) return true;
+/**
+ * Whether a trigger's `when` passes, with the list items it matched, which the run keeps. A
+ * condition that cannot be read starts nothing: null.
+ */
+async function passes(
+  db: Executor,
+  scope: Scope,
+  when: unknown,
+  variables: Record<string, unknown>,
+): Promise<{ trigger_terms?: Term[] } | null> {
+  if (typeof when !== "string" || !when) return {};
+  const slugs = listSlugsOf(when);
+  const terms: Term[] = [];
+  const vars = slugs.length
+    ? Object.assign(withLists(variables, await loadLists(db, scope, slugs)), { [TERMS]: terms })
+    : variables;
   try {
-    return evaluateCondition(when, variables);
+    if (!evaluateCondition(when, vars)) return null;
   } catch {
-    return false;
+    return null;
   }
-};
+  const { terms: kept } = termsOf(terms);
+  return kept ? { trigger_terms: kept } : {};
+}
 
 /**
  * Start the runs that events which were just stored call for: the app event triggers of their
@@ -657,8 +729,13 @@ export async function startEventRuns(
       if (trigger.status && ![trigger.status].flat().includes(event.status ?? "")) continue;
       if (!trigger.backfill && Date.parse(event.ts) < now.getTime() - HISTORY_MS) continue;
       const runInput = trigger.type === "record" ? { record: "event", on: "created", event: input } : { event: input };
-      if (!passes(trigger.when, { event: input, trigger: trigger.type === "record" ? runInput : input })) continue;
-      if (await startTriggered(tx, scope, workflow, `event:${event.id}`, runInput, madeBy, now)) started++;
+      const passed = await passes(tx.db, scope, trigger.when, {
+        event: input,
+        trigger: trigger.type === "record" ? runInput : input,
+      });
+      if (!passed) continue;
+      if (await startTriggered(tx, scope, workflow, `event:${event.id}`, { ...runInput, ...passed }, madeBy, now))
+        started++;
     }
   }
   return started;
@@ -703,9 +780,10 @@ export async function startRecordRuns(db: Executor, scope: Scope, change: Record
     if (change.on === "labelled" && trigger.label && trigger.label !== change.label) continue;
     if (!trigger.backfill && Date.parse(change.ts) < now.getTime() - HISTORY_MS) continue;
     const input = { record: change.record, on: change.on, ...change.input };
-    if (!passes(trigger.when, { trigger: input, ...change.input })) continue;
+    const passed = await passes(db, scope, trigger.when, { trigger: input, ...change.input });
+    if (!passed) continue;
     const key = `${change.record}.${change.on}:${change.key}`;
-    if (await startTriggered(tx, scope, workflow, key, input, change.madeBy, now)) started++;
+    if (await startTriggered(tx, scope, workflow, key, { ...input, ...passed }, change.madeBy, now)) started++;
   }
   return started;
 }

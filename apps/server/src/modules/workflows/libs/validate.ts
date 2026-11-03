@@ -11,6 +11,7 @@ import { answerProblems } from "./answers";
 import { askQuestionProblems, CASE_CATEGORIES, CASE_PRIORITIES, cronProblem, isTimeZone } from "@kairos/core";
 import { parseDuration, parseExpression } from "./expressions";
 import { parseModelRef } from "../../models";
+import { parseRulesetRef } from "../../rulesets";
 import { inputsProblems } from "./inputs";
 
 const NAME = /^[A-Za-z_][A-Za-z0-9_]{0,63}$/;
@@ -32,7 +33,12 @@ const STEP_TYPES = new Set([
   "answer",
   "case.create",
   "case.resolve",
+  "ruleset",
+  "list.add",
+  "list.remove",
 ]);
+const LIST_SLUG = /^[a-z][a-z0-9_]{0,63}$/;
+const ITEM_MATCHES = ["exact", "prefix", "suffix", "contains", "word"];
 const ACTION_REF = /^[A-Za-z_][A-Za-z0-9_]{0,63}(@[1-9][0-9]*)?$/;
 const MAX_FEATURES = 500;
 const RECORDS = new Set(["event", "object", "entity_type", "decision", "case"]);
@@ -248,6 +254,29 @@ export function validateWorkflow(definition: WorkflowDefinitionDef): string[] {
             problems.push(`${at}.value.outcome: ${DECISION_OUTCOMES.join(", ")}, or a template that gives one`);
         } else if (deciding && value === undefined)
           problems.push(`${at}.value: the answer, with its outcome: ${DECISION_OUTCOMES.join(", ")}`);
+      } else if (raw.type === "ruleset") {
+        if (typeof raw.ruleset !== "string" || !parseRulesetRef(raw.ruleset))
+          problems.push(`${at}.ruleset: a ruleset's slug, or a slug and a version such as "high_risk_payout@2"`);
+        if (
+          raw.input !== undefined &&
+          !isTemplate(raw.input) &&
+          (!raw.input || typeof raw.input !== "object" || Array.isArray(raw.input))
+        )
+          problems.push(`${at}.input: an object with a value or a template for each input, or one template`);
+        else if (raw.input && typeof raw.input === "object")
+          for (const [name, value] of Object.entries(raw.input as Record<string, unknown>)) {
+            if (!isTemplate(value)) continue;
+            const problem = parseExpression(String(value).trim().slice(2, -2));
+            if (problem) problems.push(`${at}.input.${name}: ${problem}`);
+          }
+      } else if (raw.type === "list.add" || raw.type === "list.remove") {
+        if (typeof raw.list !== "string" || !LIST_SLUG.test(raw.list)) problems.push(`${at}.list: the slug of a list`);
+        if (raw.value === undefined || raw.value === null || raw.value === "")
+          problems.push(`${at}.value: the item, or a template that gives it`);
+        if (raw.match !== undefined && !ITEM_MATCHES.includes(String(raw.match)))
+          problems.push(`${at}.match: ${ITEM_MATCHES.join(", ")}`);
+        if (raw.case_sensitive !== undefined && typeof raw.case_sensitive !== "boolean")
+          problems.push(`${at}.case_sensitive: true or false`);
       } else if (raw.type === "decide") {
         if (deciding && String(raw.action ?? "").split("@")[0] === trigger.action)
           problems.push(

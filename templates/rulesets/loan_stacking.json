@@ -1,0 +1,85 @@
+{
+  "slug": "loan_stacking",
+  "name": "Loan stacking",
+  "category": "Lending",
+  "description": "Reject an application from a customer who applied to many lenders in a few days, or asks for much more than their income.",
+  "definition": {
+    "inputs": [
+      {
+        "name": "requested_amount",
+        "type": "number",
+        "required": true,
+        "description": "The amount of the loan"
+      },
+      {
+        "name": "monthly_income",
+        "type": "number",
+        "description": "The stated monthly income"
+      },
+      {
+        "name": "applications_7d",
+        "type": "number",
+        "description": "Credit applications in the last 7 days, from a bureau"
+      },
+      {
+        "name": "open_loans",
+        "type": "number",
+        "description": "Loans open now"
+      }
+    ],
+    "rules": [
+      {
+        "id": "many_applications",
+        "name": "Many applications this week",
+        "when": "input.applications_7d >= 3",
+        "outcome": "reject",
+        "response": {
+          "reason": "loan_stacking"
+        }
+      },
+      {
+        "id": "many_loans",
+        "name": "Many open loans",
+        "when": "input.open_loans >= 4",
+        "outcome": "reject",
+        "response": {
+          "reason": "loan_stacking"
+        }
+      },
+      {
+        "id": "over_income",
+        "name": "More than three months of income",
+        "when": "input.monthly_income > 0.0 && input.requested_amount > input.monthly_income * 3.0",
+        "outcome": "reject",
+        "response": {
+          "reason": "affordability"
+        }
+      }
+    ],
+    "default": {
+      "outcome": "approve"
+    },
+    "tests": [
+      {
+        "name": "Four applications",
+        "input": {
+          "requested_amount": 1000,
+          "applications_7d": 4
+        },
+        "outcome": "reject",
+        "rule": "many_applications"
+      },
+      {
+        "name": "Usual application",
+        "input": {
+          "requested_amount": 2000,
+          "monthly_income": 3000,
+          "applications_7d": 1,
+          "open_loans": 1
+        },
+        "outcome": "approve",
+        "rule": null
+      }
+    ]
+  }
+}

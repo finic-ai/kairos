@@ -50,6 +50,7 @@ function copyRuntimeFiles(to: string) {
   cpSync(join(root, "templates/webhooks"), join(to, "templates/webhooks"), { recursive: true });
   cpSync(join(root, "templates/entities"), join(to, "templates/entities"), { recursive: true });
   cpSync(join(root, "templates/case-views"), join(to, "templates/case-views"), { recursive: true });
+  cpSync(join(root, "templates/rulesets"), join(to, "templates/rulesets"), { recursive: true });
 }
 
 if (process.argv.includes("--vercel")) {

@@ -99,6 +99,18 @@ const PATHS: Record<
     </>
   ),
   case: <path d="M3 11h4l1.5 2h3L13 11h4M3 11l2-6h10l2 6v5H3z" />,
+  ruleset: (
+    <>
+      <path d="M4 5h12M4 10h7M4 15h5" />
+      <path d="m12.5 14 1.8 1.8 3.2-3.6" />
+    </>
+  ),
+  list: (
+    <>
+      <path d="M7 5h9M7 10h9M7 15h9" />
+      <path d="M3.5 5h.5M3.5 10h.5M3.5 15h.5" />
+    </>
+  ),
 };
 
 /** The colour of a group of steps, as a class. */
@@ -113,6 +125,8 @@ const TONE: Record<string, string> = {
   update: "records",
   decide: "decide",
   case: "decide",
+  ruleset: "decide",
+  list: "records",
   http: "http",
 };
 

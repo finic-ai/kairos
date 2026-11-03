@@ -72,6 +72,8 @@ const ORDER = [
   "models",
   "model_artifacts",
   "workflow_experiments",
+  "rulesets",
+  "lists",
   "webhooks",
   "webhook_deliveries",
   "jobs",

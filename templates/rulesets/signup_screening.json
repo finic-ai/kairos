@@ -1,0 +1,85 @@
+{
+  "slug": "signup_screening",
+  "name": "Sign-up screening",
+  "category": "Accounts",
+  "description": "Reject a sign-up from a disposable email address, or from a device that opened many accounts.",
+  "definition": {
+    "inputs": [
+      {
+        "name": "email_domain",
+        "type": "text",
+        "required": true,
+        "description": "The part of the email after the @"
+      },
+      {
+        "name": "accounts_on_device",
+        "type": "number",
+        "description": "Accounts opened from the same device"
+      },
+      {
+        "name": "country",
+        "type": "text",
+        "description": "The country the customer gave"
+      },
+      {
+        "name": "ip_country",
+        "type": "text",
+        "description": "The country of the IP address"
+      }
+    ],
+    "rules": [
+      {
+        "id": "disposable_email",
+        "name": "Disposable email",
+        "when": "input.email_domain in ['mailinator.com', 'guerrillamail.com', '10minutemail.com', 'tempmail.com', 'yopmail.com']",
+        "outcome": "reject",
+        "response": {
+          "reason": "disposable_email"
+        }
+      },
+      {
+        "id": "device_farm",
+        "name": "Many accounts on one device",
+        "when": "input.accounts_on_device >= 3",
+        "outcome": "reject",
+        "response": {
+          "reason": "device_reuse"
+        }
+      },
+      {
+        "id": "country_mismatch",
+        "name": "Country and IP do not match",
+        "when": "input.country != input.ip_country",
+        "outcome": "reject",
+        "response": {
+          "reason": "country_mismatch",
+          "next": "verify_phone"
+        }
+      }
+    ],
+    "default": {
+      "outcome": "approve"
+    },
+    "tests": [
+      {
+        "name": "Mailinator",
+        "input": {
+          "email_domain": "mailinator.com"
+        },
+        "outcome": "reject",
+        "rule": "disposable_email"
+      },
+      {
+        "name": "Usual sign-up",
+        "input": {
+          "email_domain": "gmail.com",
+          "accounts_on_device": 1,
+          "country": "GB",
+          "ip_country": "GB"
+        },
+        "outcome": "approve",
+        "rule": null
+      }
+    ]
+  }
+}

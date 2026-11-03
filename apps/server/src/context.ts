@@ -7,6 +7,7 @@ import type { AutomaticRunner } from "./modules/decisions/libs";
 import type { Jobs } from "./platform/jobs/worker";
 import type { WebhookPreset, WebhookWorker } from "./modules/webhooks/libs";
 import type { ViewTemplate } from "./modules/cases/types";
+import type { RulesetTemplate } from "./modules/rulesets/types";
 
 export interface AppOptions {
   repos: Repositories;
@@ -22,6 +23,7 @@ export interface AppOptions {
   templates?: ActionDefinition[];
   entityTemplates?: EntityDefinition[];
   viewTemplates?: ViewTemplate[];
+  rulesetTemplates?: RulesetTemplate[];
   presets?: WebhookPreset[];
   now?: () => Date;
   webhooks?: Webhooks;

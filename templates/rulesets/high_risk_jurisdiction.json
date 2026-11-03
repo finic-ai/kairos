@@ -1,0 +1,70 @@
+{
+  "slug": "high_risk_jurisdiction",
+  "name": "High-risk jurisdiction",
+  "category": "Identity",
+  "description": "Reject onboarding when the nationality, the residence or the IP is in a high-risk jurisdiction. Change the list of countries to your policy.",
+  "definition": {
+    "inputs": [
+      {
+        "name": "nationality",
+        "type": "text",
+        "description": "ISO country code"
+      },
+      {
+        "name": "residence",
+        "type": "text",
+        "description": "ISO country code"
+      },
+      {
+        "name": "ip_country",
+        "type": "text",
+        "description": "ISO country code of the IP address"
+      }
+    ],
+    "rules": [
+      {
+        "id": "listed",
+        "name": "In a high-risk jurisdiction",
+        "when": "input.nationality in ['KP', 'IR', 'MM'] || input.residence in ['KP', 'IR', 'MM']",
+        "outcome": "reject",
+        "response": {
+          "reason": "high_risk_jurisdiction"
+        }
+      },
+      {
+        "id": "ip_listed",
+        "name": "IP in a high-risk jurisdiction",
+        "when": "input.ip_country in ['KP', 'IR', 'MM']",
+        "outcome": "reject",
+        "response": {
+          "reason": "high_risk_ip"
+        }
+      }
+    ],
+    "default": {
+      "outcome": "approve"
+    },
+    "tests": [
+      {
+        "name": "Resident of a listed country",
+        "input": {
+          "nationality": "GB",
+          "residence": "IR",
+          "ip_country": "GB"
+        },
+        "outcome": "reject",
+        "rule": "listed"
+      },
+      {
+        "name": "Not listed",
+        "input": {
+          "nationality": "GB",
+          "residence": "GB",
+          "ip_country": "GB"
+        },
+        "outcome": "approve",
+        "rule": null
+      }
+    ]
+  }
+}

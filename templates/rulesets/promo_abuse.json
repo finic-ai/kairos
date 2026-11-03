@@ -1,0 +1,70 @@
+{
+  "slug": "promo_abuse",
+  "name": "Promotion abuse",
+  "category": "Commerce",
+  "description": "Reject a promotion for an account that shares a device or a card with accounts that used it already.",
+  "definition": {
+    "inputs": [
+      {
+        "name": "uses_promo",
+        "type": "boolean",
+        "required": true,
+        "description": "The order uses a promotion"
+      },
+      {
+        "name": "promo_accounts_on_device",
+        "type": "number",
+        "description": "Other accounts on the device that used the promotion"
+      },
+      {
+        "name": "promo_accounts_on_card",
+        "type": "number",
+        "description": "Other accounts on the card that used the promotion"
+      }
+    ],
+    "rules": [
+      {
+        "id": "shared_device",
+        "name": "Used on this device already",
+        "when": "input.uses_promo == true && input.promo_accounts_on_device >= 1",
+        "outcome": "reject",
+        "response": {
+          "reason": "promo_abuse"
+        }
+      },
+      {
+        "id": "shared_card",
+        "name": "Used with this card already",
+        "when": "input.uses_promo == true && input.promo_accounts_on_card >= 1",
+        "outcome": "reject",
+        "response": {
+          "reason": "promo_abuse"
+        }
+      }
+    ],
+    "default": {
+      "outcome": "approve"
+    },
+    "tests": [
+      {
+        "name": "Second account on the device",
+        "input": {
+          "uses_promo": true,
+          "promo_accounts_on_device": 1
+        },
+        "outcome": "reject",
+        "rule": "shared_device"
+      },
+      {
+        "name": "First use",
+        "input": {
+          "uses_promo": true,
+          "promo_accounts_on_device": 0,
+          "promo_accounts_on_card": 0
+        },
+        "outcome": "approve",
+        "rule": null
+      }
+    ]
+  }
+}

@@ -5,7 +5,7 @@
  */
 
 export type Op =
-  "eq" | "ne" | "gt" | "gte" | "lt" | "lte" | "contains" | "starts" | "ends" | "in" | "exists" | "missing";
+  "eq" | "ne" | "gt" | "gte" | "lt" | "lte" | "contains" | "starts" | "ends" | "in" | "inlist" | "exists" | "missing";
 
 export interface Rule {
   kind: "rule";
@@ -32,6 +32,7 @@ export const OPS: { op: Op; label: string; takes: boolean }[] = [
   { op: "starts", label: "starts with", takes: true },
   { op: "ends", label: "ends with", takes: true },
   { op: "in", label: "is one of", takes: true },
+  { op: "inlist", label: "is in the list", takes: true },
   { op: "exists", label: "is set", takes: false },
   { op: "missing", label: "is not set", takes: false },
 ];
@@ -79,6 +80,8 @@ function ruleCel(rule: Rule): string | null {
       return `${f}.startsWith(${v})`;
     case "ends":
       return `${f}.endsWith(${v})`;
+    case "inlist":
+      return `inList(${f}, ${literal(rule.value.replace(/^["']|["']$/g, ""))})`;
     case "in": {
       const items = rule.value
         .split(",")
@@ -211,6 +214,16 @@ export function fromCel(text: string): Group | null {
       const field = path();
       take(")");
       return { kind: "rule", field, op: "exists", value: "" };
+    }
+    if (peek()?.v === "inList" && ts[i + 1]?.v === "(") {
+      take("inList");
+      take("(");
+      const field = path();
+      take(",");
+      const list = take();
+      if (list.t !== "str") throw new Error("list");
+      take(")");
+      return { kind: "rule", field, op: "inlist", value: list.v };
     }
     const field = path();
     const next = peek();

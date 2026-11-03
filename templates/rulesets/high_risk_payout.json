@@ -1,0 +1,85 @@
+{
+  "slug": "high_risk_payout",
+  "name": "High-risk payout",
+  "category": "Payments",
+  "description": "Reject a payout that is large for a new account, goes to a new payee, or goes to a high-risk country.",
+  "definition": {
+    "inputs": [
+      {
+        "name": "amount",
+        "type": "number",
+        "required": true,
+        "description": "The amount of the payout"
+      },
+      {
+        "name": "account_age_days",
+        "type": "number",
+        "description": "Days since the account was opened"
+      },
+      {
+        "name": "new_payee",
+        "type": "boolean",
+        "description": "The payee was added in the last 24 hours"
+      },
+      {
+        "name": "payee_country",
+        "type": "text",
+        "description": "The country of the payee, as an ISO code"
+      }
+    ],
+    "rules": [
+      {
+        "id": "new_account_large",
+        "name": "Large payout from a new account",
+        "when": "input.account_age_days < 7 && input.amount >= 1000",
+        "outcome": "reject",
+        "response": {
+          "reason": "new_account_large_amount"
+        }
+      },
+      {
+        "id": "new_payee_large",
+        "name": "Large payout to a new payee",
+        "when": "input.new_payee == true && input.amount >= 2500",
+        "outcome": "reject",
+        "response": {
+          "reason": "new_payee_large_amount"
+        }
+      },
+      {
+        "id": "high_risk_country",
+        "name": "Payout to a high-risk country",
+        "when": "input.payee_country in ['KP', 'IR', 'SY'] && input.amount >= 500",
+        "outcome": "reject",
+        "response": {
+          "reason": "high_risk_country"
+        }
+      }
+    ],
+    "default": {
+      "outcome": "approve"
+    },
+    "tests": [
+      {
+        "name": "New account, large amount",
+        "input": {
+          "amount": 1500,
+          "account_age_days": 2
+        },
+        "outcome": "reject",
+        "rule": "new_account_large"
+      },
+      {
+        "name": "Old account, usual amount",
+        "input": {
+          "amount": 200,
+          "account_age_days": 400,
+          "new_payee": false,
+          "payee_country": "GB"
+        },
+        "outcome": "approve",
+        "rule": null
+      }
+    ]
+  }
+}

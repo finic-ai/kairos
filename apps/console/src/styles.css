@@ -8262,7 +8262,7 @@ th.pick input {
   min-width: 110px;
 }
 .wf-toolbar-name > .chip.mono {
-  max-width: 180px;
+  max-width: 150px;
   overflow: hidden;
   text-overflow: ellipsis;
 }
@@ -10191,4 +10191,584 @@ th.pick input {
   display: flex;
   justify-content: flex-end;
   padding: 12px 16px;
+}
+
+/* The ruleset builder: a page of the settings, as wide and as high as the frame. */
+.settings-main:has(> .rs-builder) {
+  max-width: none;
+  height: 100%;
+  padding: 0;
+}
+.frame-scroll:has(.rs-builder) {
+  overflow: hidden;
+}
+.rs-builder {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  height: 100%;
+  min-height: 0;
+}
+.rs-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+}
+.rs-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--ink-2);
+  font-size: 13px;
+  text-decoration: none;
+}
+.rs-back svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+}
+.rs-bar-name {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+.rs-slug {
+  font-size: 12px;
+}
+.rs-bar-state {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.rs-bar-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+.rs-bar-tools .btn.on {
+  border-color: var(--ink);
+  box-shadow: inset 0 0 0 1px var(--ink);
+}
+
+/* The cards. Their heights add up from these sizes: see RulesetCanvas. */
+.rs-card {
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  cursor: pointer;
+  transition:
+    border-color 0.12s,
+    box-shadow 0.12s;
+}
+.rs-card:hover {
+  border-color: var(--ink-3);
+}
+.rs-card.selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.rs-card.has-problem {
+  border-color: var(--block);
+}
+.rs-card.hit.approve {
+  border-color: var(--approve);
+  box-shadow: 0 0 0 3px var(--approve-soft);
+}
+.rs-card.hit.reject {
+  border-color: var(--block);
+  box-shadow: 0 0 0 3px var(--block-soft);
+}
+.rs-card.start {
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  padding-block: 0;
+}
+.rs-card-head {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 10px;
+  height: 40px;
+}
+.rs-card-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+.rs-card-text small {
+  overflow: hidden;
+  color: var(--ink-3);
+  font-size: 11.5px;
+  line-height: 1.4;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.rs-card-text b {
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 1.35;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.rs-mark {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--ink-2);
+}
+.rs-mark svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.rs-mark.approve {
+  background: var(--approve-soft);
+  color: var(--approve);
+}
+.rs-mark.reject {
+  background: var(--block-soft);
+  color: var(--block);
+}
+.rs-mark.start {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.rs-chip .rs-mark {
+  width: 16px;
+  height: 16px;
+  background: none;
+}
+.rs-chip .rs-mark svg {
+  width: 13px;
+  height: 13px;
+  stroke-width: 2.2;
+}
+.rs-label {
+  flex: none;
+  height: 22px;
+  margin-top: 10px;
+  color: var(--ink);
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 22px;
+}
+.rs-chip-row {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: flex-start;
+}
+.rs-chip {
+  display: inline-flex;
+  flex: none;
+  align-self: flex-start;
+  align-items: center;
+  gap: 6px;
+  box-sizing: border-box;
+  max-width: 100%;
+  height: 28px;
+  padding: 0 10px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--surface-2);
+  color: var(--ink);
+  font-size: 12.5px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.rs-chip.empty {
+  border-style: dashed;
+  background: transparent;
+  color: var(--ink-3);
+}
+.rs-chip.outcome em {
+  color: var(--ink-3);
+  font-style: normal;
+}
+.rs-card.default .rs-chip.outcome {
+  margin-top: 10px;
+}
+.rs-join {
+  display: flex;
+  align-items: center;
+  height: 26px;
+}
+.rs-join span {
+  padding: 0 6px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--surface);
+  color: var(--ink-2);
+  font-size: 11px;
+  line-height: 16px;
+}
+.rs-tag {
+  flex: none;
+  padding: 1px 7px;
+  border-radius: 6px;
+  background: var(--surface-2);
+  color: var(--ink-2);
+  font-size: 11px;
+  font-weight: 600;
+}
+.rs-tag.hit {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.rs-add-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+}
+.rs-add {
+  background: var(--surface);
+}
+.rs-menu-wrap {
+  position: relative;
+  flex: none;
+}
+.rs-more {
+  font-size: 16px;
+  line-height: 1;
+}
+.rs-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  min-width: 150px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+}
+.rs-menu button {
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 5px;
+  background: none;
+  color: var(--ink);
+  font: 13px var(--sans);
+  text-align: left;
+  cursor: pointer;
+}
+.rs-menu button:hover:not(:disabled) {
+  background: var(--hover);
+}
+.rs-menu button:disabled {
+  color: var(--ink-3);
+  cursor: default;
+}
+.rs-menu button.danger {
+  color: var(--block-text);
+}
+.rs-canvas .react-flow__node {
+  cursor: pointer;
+}
+
+/* The side panels. */
+.rs-panel-title {
+  color: var(--ink);
+  font-size: 14px;
+}
+.rs-seg button.on.approve {
+  border-color: var(--approve);
+  color: var(--approve-text);
+  box-shadow: inset 0 0 0 1px var(--approve);
+}
+.rs-seg button.on.reject {
+  border-color: var(--block);
+  color: var(--block-text);
+  box-shadow: inset 0 0 0 1px var(--block);
+}
+.rs-outcome {
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.rs-outcome.approve {
+  color: var(--approve-text);
+}
+.rs-outcome.reject {
+  color: var(--block-text);
+}
+.rs-result {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-2);
+}
+.rs-result-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+.rs-result .rs-chip {
+  background: var(--surface);
+}
+.rs-pre {
+  margin: 0;
+  max-height: 200px;
+  overflow: auto;
+  font: 12px/1.5 var(--mono);
+  white-space: pre-wrap;
+}
+.rs-tests {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+.rs-tests-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.rs-tests-head .btn {
+  margin-left: auto;
+}
+.rs-test {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.rs-test[open] {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-bottom: 10px;
+}
+.rs-test > :not(summary) {
+  margin-inline: 10px;
+}
+.rs-test > .btn {
+  align-self: flex-start;
+}
+.rs-test > summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 8px 10px;
+  color: var(--ink);
+  font: 500 13px/1.4 var(--sans);
+  letter-spacing: normal;
+  text-transform: none;
+  cursor: pointer;
+}
+.rs-test > summary::before {
+  content: none;
+}
+.rs-test[open] > summary {
+  margin-bottom: 0;
+}
+.rs-test[open] > summary::before {
+  content: none;
+}
+.rs-test-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.rs-test-mark {
+  width: 14px;
+  color: var(--ink-3);
+  font-weight: 700;
+  text-align: center;
+}
+.rs-test.passed .rs-test-mark {
+  color: var(--approve);
+}
+.rs-test.failed {
+  border-color: var(--block);
+}
+.rs-test.failed .rs-test-mark {
+  color: var(--block);
+}
+
+/* The rows of the Add items modal, one item each. */
+.ls-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.ls-rows > .btn {
+  align-self: flex-start;
+}
+.ls-row {
+  display: grid;
+  grid-template-columns: minmax(160px, 2fr) minmax(130px, 1.2fr) minmax(120px, 1fr) minmax(120px, 1.5fr) 28px;
+  align-items: center;
+  gap: 8px;
+}
+.ls-row.head {
+  color: var(--ink-3);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* A table head with rows selected holds what to do to them. */
+.table-head.picking {
+  background: var(--accent-soft);
+}
+.table-head .picked {
+  font-size: 13px;
+  font-weight: 600;
+}
+tr.picked td {
+  background: var(--accent-soft);
+}
+.icon-btn .rs-icon {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.icon-btn.danger:hover {
+  color: var(--block-text);
+}
+
+/* The input catalog, at the left of the ruleset canvas. */
+.rs-stage.with-catalog {
+  grid-template-columns: 260px 1fr;
+}
+.rs-stage.with-catalog.with-panel {
+  grid-template-columns: 260px 1fr minmax(320px, 380px);
+}
+.rs-catalog {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+  padding: 12px;
+  border-right: 1px solid var(--line);
+  background: var(--surface);
+}
+.rs-catalog-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.rs-catalog-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 0;
+  margin: 0 -4px;
+  padding: 0 4px;
+  overflow-y: auto;
+}
+.rs-catalog-group {
+  margin: 10px 0 4px;
+  color: var(--ink-3);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.rs-catalog-list section:first-child .rs-catalog-group {
+  margin-top: 0;
+}
+.rs-catalog-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.rs-catalog-item:hover:not(:disabled) {
+  border-color: var(--line);
+  background: var(--hover);
+}
+.rs-catalog-item > span {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.rs-catalog-item b {
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.rs-catalog-item small {
+  flex: none;
+  color: var(--ink-3);
+  font-size: 11px;
+}
+.rs-catalog-item.added {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.wf-run-terms {
+  margin: 6px 0;
+  font-size: 12.5px;
+}
+
+/* Crypto addresses and ids are long and have no spaces: they wrap anywhere. */
+.ls-item {
+  max-width: 320px;
+  word-break: break-all;
+}
+.ls-note {
+  min-width: 140px;
+}
+.ls-by {
+  max-width: 150px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }

@@ -1,0 +1,56 @@
+{
+  "slug": "structuring",
+  "name": "Amounts just under a limit",
+  "category": "Payments",
+  "description": "Reject repeated amounts that sit just under a reporting or review limit, a sign of structuring.",
+  "definition": {
+    "inputs": [
+      {
+        "name": "amount",
+        "type": "number",
+        "required": true,
+        "description": "The amount of the transaction"
+      },
+      {
+        "name": "near_limit_24h",
+        "type": "number",
+        "description": "Transactions in the last 24 hours between 90% and 100% of the limit"
+      }
+    ],
+    "rules": [
+      {
+        "id": "just_under",
+        "name": "Just under 10,000, again",
+        "when": "input.amount >= 9000 && input.amount < 10000 && input.near_limit_24h >= 2",
+        "outcome": "reject",
+        "response": {
+          "reason": "structuring",
+          "limit": 10000
+        }
+      }
+    ],
+    "default": {
+      "outcome": "approve"
+    },
+    "tests": [
+      {
+        "name": "Third one under the limit",
+        "input": {
+          "amount": 9800,
+          "near_limit_24h": 2
+        },
+        "outcome": "reject",
+        "rule": "just_under"
+      },
+      {
+        "name": "One large payment",
+        "input": {
+          "amount": 9800,
+          "near_limit_24h": 0
+        },
+        "outcome": "approve",
+        "rule": null
+      }
+    ]
+  }
+}

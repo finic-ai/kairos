@@ -1,0 +1,71 @@
+{
+  "slug": "new_payee_transfer",
+  "name": "Large transfer to a new payee",
+  "category": "Payments",
+  "description": "Reject a large transfer to a payee that is new, more so from a new device.",
+  "definition": {
+    "inputs": [
+      {
+        "name": "amount",
+        "type": "number",
+        "required": true,
+        "description": "The amount of the transaction"
+      },
+      {
+        "name": "new_payee",
+        "type": "boolean",
+        "description": "The payee was added in the last 24 hours"
+      },
+      {
+        "name": "new_device",
+        "type": "boolean",
+        "description": "The customer has not used this device before"
+      }
+    ],
+    "rules": [
+      {
+        "id": "new_payee_new_device",
+        "name": "New payee and new device",
+        "when": "input.new_payee == true && input.new_device == true && input.amount >= 1000",
+        "outcome": "reject",
+        "response": {
+          "reason": "new_payee_new_device"
+        }
+      },
+      {
+        "id": "new_payee_large",
+        "name": "Very large to a new payee",
+        "when": "input.new_payee == true && input.amount >= 5000",
+        "outcome": "reject",
+        "response": {
+          "reason": "new_payee_large_amount"
+        }
+      }
+    ],
+    "default": {
+      "outcome": "approve"
+    },
+    "tests": [
+      {
+        "name": "New payee, new device",
+        "input": {
+          "amount": 1500,
+          "new_payee": true,
+          "new_device": true
+        },
+        "outcome": "reject",
+        "rule": "new_payee_new_device"
+      },
+      {
+        "name": "Known payee",
+        "input": {
+          "amount": 8000,
+          "new_payee": false,
+          "new_device": false
+        },
+        "outcome": "approve",
+        "rule": null
+      }
+    ]
+  }
+}

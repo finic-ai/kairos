@@ -16,11 +16,13 @@ import { ChoiceSelect } from "../ui/ChoiceSelect";
 function RuleRow({
   rule,
   fields,
+  lists,
   onChange,
   onRemove,
 }: {
   rule: Rule;
   fields: string[];
+  lists?: string[];
   onChange: (rule: Rule) => void;
   onRemove: () => void;
 }) {
@@ -41,20 +43,36 @@ function RuleRow({
           onChange={(e) => onChange({ ...rule, op: e.target.value as Op })}
           aria-label="Operator"
         >
-          {OPS.map((o) => (
+          {OPS.filter((o) => lists || o.op !== "inlist").map((o) => (
             <option key={o.op} value={o.op}>
               {o.label}
             </option>
           ))}
         </select>
-        {takesValue(rule.op) && (
-          <input
+        {rule.op === "inlist" ? (
+          <select
             className="input mono"
-            placeholder={rule.op === "in" ? "one, two" : "value"}
             value={rule.value}
-            aria-label="Value"
+            aria-label="List"
             onChange={(e) => onChange({ ...rule, value: e.target.value })}
-          />
+          >
+            <option value="">Choose a list</option>
+            {[...new Set([...(lists ?? []), rule.value].filter(Boolean))].map((slug) => (
+              <option key={slug} value={slug}>
+                {slug}
+              </option>
+            ))}
+          </select>
+        ) : (
+          takesValue(rule.op) && (
+            <input
+              className="input mono"
+              placeholder={rule.op === "in" ? "one, two" : "value"}
+              value={rule.value}
+              aria-label="Value"
+              onChange={(e) => onChange({ ...rule, value: e.target.value })}
+            />
+          )
         )}
         <button type="button" className="icon-btn" onClick={onRemove} aria-label="Remove the condition">
           ×
@@ -67,12 +85,14 @@ function RuleRow({
 function GroupEditor({
   group,
   fields,
+  lists,
   nested,
   onChange,
   onRemove,
 }: {
   group: Group;
   fields: string[];
+  lists?: string[];
   nested?: boolean;
   onChange: (group: Group) => void;
   onRemove?: () => void;
@@ -102,12 +122,20 @@ function GroupEditor({
       </div>
       {group.items.map((item, i) =>
         item.kind === "rule" ? (
-          <RuleRow key={i} rule={item} fields={fields} onChange={(r) => setItem(i, r)} onRemove={() => removeItem(i)} />
+          <RuleRow
+            key={i}
+            rule={item}
+            fields={fields}
+            lists={lists}
+            onChange={(r) => setItem(i, r)}
+            onRemove={() => removeItem(i)}
+          />
         ) : (
           <GroupEditor
             key={i}
             group={item}
             fields={fields}
+            lists={lists}
             nested
             onChange={(g) => setItem(i, g)}
             onRemove={() => removeItem(i)}
@@ -149,11 +177,14 @@ export function ConditionBuilder({
   value,
   onChange,
   fields,
+  lists,
   placeholder,
 }: {
   value: string;
   onChange: (cel: string) => void;
   fields: string[];
+  /** The slugs of the lists that "is in the list" offers. Without them, the builder does not offer it. */
+  lists?: string[];
   placeholder?: string;
 }) {
   const [group, setGroup] = useState<Group>(() => fromCel(value) ?? emptyGroup());
@@ -213,7 +244,7 @@ export function ConditionBuilder({
 
   return (
     <div className="wf-cond">
-      <GroupEditor group={group} fields={fields} onChange={update} />
+      <GroupEditor group={group} fields={fields} lists={lists} onChange={update} />
       {left > 0 && (
         <small className="wh-failed">
           {left === 1 ? "1 condition is" : `${left} conditions are`} not complete yet, and left out.

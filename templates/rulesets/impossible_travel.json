@@ -1,0 +1,65 @@
+{
+  "slug": "impossible_travel",
+  "name": "Impossible travel",
+  "category": "Accounts",
+  "description": "Reject a sign-in from a place too far from the last one to reach in the time between them.",
+  "definition": {
+    "inputs": [
+      {
+        "name": "distance_km",
+        "type": "number",
+        "required": true,
+        "description": "Distance from the last sign-in, in km"
+      },
+      {
+        "name": "hours_since_last_login",
+        "type": "number",
+        "required": true,
+        "description": "Hours since the last sign-in"
+      }
+    ],
+    "rules": [
+      {
+        "id": "too_fast",
+        "name": "Faster than a plane",
+        "when": "input.hours_since_last_login > 0.0 && input.distance_km / input.hours_since_last_login > 900.0",
+        "outcome": "reject",
+        "response": {
+          "reason": "impossible_travel"
+        }
+      },
+      {
+        "id": "same_moment",
+        "name": "Far away at the same time",
+        "when": "input.hours_since_last_login == 0.0 && input.distance_km > 100.0",
+        "outcome": "reject",
+        "response": {
+          "reason": "impossible_travel"
+        }
+      }
+    ],
+    "default": {
+      "outcome": "approve"
+    },
+    "tests": [
+      {
+        "name": "London, then Lagos in 2 hours",
+        "input": {
+          "distance_km": 5000,
+          "hours_since_last_login": 2
+        },
+        "outcome": "reject",
+        "rule": "too_fast"
+      },
+      {
+        "name": "Same city",
+        "input": {
+          "distance_km": 5,
+          "hours_since_last_login": 3
+        },
+        "outcome": "approve",
+        "rule": null
+      }
+    ]
+  }
+}

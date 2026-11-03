@@ -176,6 +176,14 @@ beforeAll(async () => {
     features: { usd: "{{ trigger.usd }}" },
     variants: [{ key: "usd", name: "USD", model: { type: "probability", feature: "usd" } }],
   });
+  await call("PUT", "/v1/rulesets/payout_rules/draft", {
+    name: "Payout rules",
+    definition: {
+      rules: [{ id: "big", name: "Big", when: "input.usd > 100", outcome: "reject" }],
+      default: { outcome: "approve" },
+    },
+  });
+  await call("PUT", "/v1/lists/blocked_payees", { name: "Blocked payees" });
   ids = {
     decision: decided.decision_id,
     dashboard,
@@ -225,6 +233,8 @@ it("changes updated, and keeps created, when a row changes", async () => {
   await call("PUT", `/v1/dashboards/${ids.dashboard}`, { name: "Payouts", visibility: "workspace", tiles: [] });
   await call("PATCH", `${ws}/webhooks/${ids.webhook}`, { name: "Renamed" });
   await call("PATCH", "/v1/models/payout-risk", { name: "Renamed" });
+  await call("PATCH", "/v1/rulesets/payout_rules", { name: "Renamed" });
+  await call("POST", "/v1/lists/blocked_payees/items", { items: [{ value: "payee_1" }] });
   // The first attempt of each delivery: the address refuses the connection, and the attempt is recorded.
   await worker.drain();
 
@@ -252,6 +262,8 @@ it("changes updated, and keeps created, when a row changes", async () => {
   expect(await changed("cases", "true")).toEqual(expected);
   expect(await changed("webhooks", "true")).toEqual(expected);
   expect(await changed("models", "true")).toEqual(expected);
+  expect(await changed("rulesets", "true")).toEqual(expected);
+  expect(await changed("lists", "true")).toEqual(expected);
   // The two deliveries from T1 were attempted at T2; the resolution added a third one, new at T2.
   expect(await changed("webhook_deliveries", "type <> 'decision.updated'")).toEqual([...expected, ...expected]);
   expect(await changed("webhook_deliveries", "type = 'decision.updated'")).toEqual([

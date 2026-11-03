@@ -1,0 +1,68 @@
+{
+  "slug": "refund_abuse",
+  "name": "Refund and chargeback abuse",
+  "category": "Commerce",
+  "description": "Reject a refund or an order from a customer with many refunds or chargebacks.",
+  "definition": {
+    "inputs": [
+      {
+        "name": "refunds_90d",
+        "type": "number",
+        "description": "Refunds in the last 90 days"
+      },
+      {
+        "name": "orders_90d",
+        "type": "number",
+        "description": "Orders in the last 90 days"
+      },
+      {
+        "name": "chargebacks_180d",
+        "type": "number",
+        "description": "Chargebacks in the last 180 days"
+      }
+    ],
+    "rules": [
+      {
+        "id": "chargebacks",
+        "name": "Repeated chargebacks",
+        "when": "input.chargebacks_180d >= 2",
+        "outcome": "reject",
+        "response": {
+          "reason": "chargebacks"
+        }
+      },
+      {
+        "id": "refund_rate",
+        "name": "Refunds most orders",
+        "when": "input.orders_90d >= 5 && input.refunds_90d >= input.orders_90d * 0.5",
+        "outcome": "reject",
+        "response": {
+          "reason": "refund_rate"
+        }
+      }
+    ],
+    "default": {
+      "outcome": "approve"
+    },
+    "tests": [
+      {
+        "name": "Two chargebacks",
+        "input": {
+          "chargebacks_180d": 2
+        },
+        "outcome": "reject",
+        "rule": "chargebacks"
+      },
+      {
+        "name": "Few refunds",
+        "input": {
+          "refunds_90d": 1,
+          "orders_90d": 10,
+          "chargebacks_180d": 0
+        },
+        "outcome": "approve",
+        "rule": null
+      }
+    ]
+  }
+}

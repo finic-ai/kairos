@@ -1,0 +1,84 @@
+{
+  "slug": "shipping_mismatch",
+  "name": "Billing and shipping do not match",
+  "category": "Commerce",
+  "description": "Reject a large order from a new account when the billing, shipping and IP countries do not match.",
+  "definition": {
+    "inputs": [
+      {
+        "name": "amount",
+        "type": "number",
+        "required": true,
+        "description": "The amount of the transaction"
+      },
+      {
+        "name": "account_age_days",
+        "type": "number",
+        "description": "Days since the account was opened"
+      },
+      {
+        "name": "billing_country",
+        "type": "text",
+        "description": "ISO country code"
+      },
+      {
+        "name": "shipping_country",
+        "type": "text",
+        "description": "ISO country code"
+      },
+      {
+        "name": "ip_country",
+        "type": "text",
+        "description": "ISO country code of the IP address"
+      }
+    ],
+    "rules": [
+      {
+        "id": "three_countries",
+        "name": "Three different countries",
+        "when": "input.billing_country != input.shipping_country && input.shipping_country != input.ip_country && input.amount >= 200",
+        "outcome": "reject",
+        "response": {
+          "reason": "country_mismatch"
+        }
+      },
+      {
+        "id": "new_account_mismatch",
+        "name": "New account, ships abroad",
+        "when": "input.account_age_days < 7 && input.billing_country != input.shipping_country && input.amount >= 500",
+        "outcome": "reject",
+        "response": {
+          "reason": "new_account_mismatch"
+        }
+      }
+    ],
+    "default": {
+      "outcome": "approve"
+    },
+    "tests": [
+      {
+        "name": "Three countries",
+        "input": {
+          "amount": 350,
+          "billing_country": "US",
+          "shipping_country": "NG",
+          "ip_country": "RO"
+        },
+        "outcome": "reject",
+        "rule": "three_countries"
+      },
+      {
+        "name": "All the same",
+        "input": {
+          "amount": 350,
+          "account_age_days": 2,
+          "billing_country": "US",
+          "shipping_country": "US",
+          "ip_country": "US"
+        },
+        "outcome": "approve",
+        "rule": null
+      }
+    ]
+  }
+}

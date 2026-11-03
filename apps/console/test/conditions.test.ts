@@ -56,6 +56,16 @@ describe("the condition builder", () => {
     expect(fromCel("")).toEqual({ kind: "group", join: "all", items: [] });
   });
 
+  it("writes and reads a list check as inList", () => {
+    const group: Group = { kind: "group", join: "any", items: [rule("input.email_domain", "inlist", "disposable")] };
+    expect(toCel(group)).toBe("inList(input.email_domain, 'disposable')");
+    expect(fromCel("inList(input.email_domain, 'disposable') || input.amount > 10")).toEqual({
+      kind: "group",
+      join: "any",
+      items: [rule("input.email_domain", "inlist", "disposable"), rule("input.amount", "gt", "10")],
+    });
+  });
+
   it("does not read what it cannot show", () => {
     for (const cel of [
       "a.b + 1 > 2",

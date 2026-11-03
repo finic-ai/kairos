@@ -1,22 +1,21 @@
 import { useCallback, useRef, useState } from "react";
-import type { WorkflowDraft } from "../types/interfaces";
 
 const LIMIT = 100;
 /** Changes with the same tag within this time are one step of undo: typing a name is one change. */
 const MERGE_MS = 800;
 
 /**
- * The workflow being built, with undo and redo. `saved` is the version on the server: the
+ * The workflow or ruleset being built, with undo and redo. `saved` is the version on the server: the
  * draft is dirty when it differs.
  */
-export function useWorkflowDraft(initial: WorkflowDraft) {
-  const [state, setState] = useState({ past: [] as WorkflowDraft[], present: initial, future: [] as WorkflowDraft[] });
+export function useWorkflowDraft<T>(initial: T) {
+  const [state, setState] = useState({ past: [] as T[], present: initial, future: [] as T[] });
   const [saved, setSaved] = useState(initial);
   const last = useRef<{ tag: string; at: number } | null>(null);
 
-  const change = useCallback((next: WorkflowDraft | ((d: WorkflowDraft) => WorkflowDraft), tag?: string) => {
+  const change = useCallback((next: T | ((d: T) => T), tag?: string) => {
     setState((s) => {
-      const present = typeof next === "function" ? next(s.present) : next;
+      const present = typeof next === "function" ? (next as (d: T) => T)(s.present) : next;
       if (present === s.present) return s;
       const now = Date.now();
       const merge = tag && last.current?.tag === tag && now - last.current.at < MERGE_MS;
@@ -44,7 +43,7 @@ export function useWorkflowDraft(initial: WorkflowDraft) {
   }, []);
 
   /** Start again from a definition, with no history: after a load, a save or a discard. */
-  const reset = useCallback((draft: WorkflowDraft) => {
+  const reset = useCallback((draft: T) => {
     last.current = null;
     setSaved(draft);
     setState({ past: [], present: draft, future: [] });

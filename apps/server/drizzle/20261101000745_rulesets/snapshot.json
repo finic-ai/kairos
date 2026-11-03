@@ -1,0 +1,860 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "23295bcc-e153-4b05-bbe0-954728de30a8",
+  "prevIds": [
+    "72c0677c-69e3-4520-8926-746016b45e8e",
+    "980a9ef1-e91c-4b8a-951a-23faed65dc3c"
+  ],
+  "footprints": [
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "lists"
+      ],
+      "writes": [
+        "s|tbl|public.lists",
+        "n|tbl|public.lists",
+        "e|tbl|public.lists",
+        "n|rel|public.lists",
+        "n|type|public.lists",
+        "n|rel|public.lists_pkey"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "rulesets"
+      ],
+      "writes": [
+        "s|tbl|public.rulesets",
+        "n|tbl|public.rulesets",
+        "e|tbl|public.rulesets",
+        "n|rel|public.rulesets",
+        "n|type|public.rulesets",
+        "n|rel|public.rulesets_pkey"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "lists",
+        "lists_slug"
+      ],
+      "writes": [
+        "s|idx|public.lists_slug",
+        "n|idx|public.lists_slug",
+        "e|idx|public.lists_slug",
+        "n|rel|public.lists_slug"
+      ],
+      "reads": [
+        "n|tbl|public.lists",
+        "n|sch|public",
+        "n|col|public.lists.workspace_id",
+        "n|col|public.lists.environment_id",
+        "n|col|public.lists.slug"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "rulesets",
+        "rulesets_slug"
+      ],
+      "writes": [
+        "s|idx|public.rulesets_slug",
+        "n|idx|public.rulesets_slug",
+        "e|idx|public.rulesets_slug",
+        "n|rel|public.rulesets_slug"
+      ],
+      "reads": [
+        "n|tbl|public.rulesets",
+        "n|sch|public",
+        "n|col|public.rulesets.workspace_id",
+        "n|col|public.rulesets.environment_id",
+        "n|col|public.rulesets.slug"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "lists"
+      ],
+      "writes": [
+        "s|fk|public.lists.lists_workspace_id_workspaces_id_fkey",
+        "n|fk|public.lists.lists_workspace_id_workspaces_id_fkey",
+        "e|fk|public.lists.lists_workspace_id_workspaces_id_fkey",
+        "n|con|public.lists.lists_workspace_id_workspaces_id_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.lists",
+        "n|sch|public",
+        "n|tbl|public.workspaces",
+        "n|sch|public",
+        "n|col|public.lists.workspace_id",
+        "n|col|public.workspaces.id",
+        "e|uniqueness|public.workspaces.id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "lists"
+      ],
+      "writes": [
+        "s|fk|public.lists.lists_environment_fk",
+        "n|fk|public.lists.lists_environment_fk",
+        "e|fk|public.lists.lists_environment_fk",
+        "n|con|public.lists.lists_environment_fk"
+      ],
+      "reads": [
+        "n|tbl|public.lists",
+        "n|sch|public",
+        "n|tbl|public.environments",
+        "n|sch|public",
+        "n|col|public.lists.workspace_id",
+        "n|col|public.lists.environment_id",
+        "n|col|public.environments.workspace_id",
+        "n|col|public.environments.id",
+        "e|uniqueness|public.environments.id.workspace_id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "rulesets"
+      ],
+      "writes": [
+        "s|fk|public.rulesets.rulesets_workspace_id_workspaces_id_fkey",
+        "n|fk|public.rulesets.rulesets_workspace_id_workspaces_id_fkey",
+        "e|fk|public.rulesets.rulesets_workspace_id_workspaces_id_fkey",
+        "n|con|public.rulesets.rulesets_workspace_id_workspaces_id_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.rulesets",
+        "n|sch|public",
+        "n|tbl|public.workspaces",
+        "n|sch|public",
+        "n|col|public.rulesets.workspace_id",
+        "n|col|public.workspaces.id",
+        "e|uniqueness|public.workspaces.id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "rulesets"
+      ],
+      "writes": [
+        "s|fk|public.rulesets.rulesets_environment_fk",
+        "n|fk|public.rulesets.rulesets_environment_fk",
+        "e|fk|public.rulesets.rulesets_environment_fk",
+        "n|con|public.rulesets.rulesets_environment_fk"
+      ],
+      "reads": [
+        "n|tbl|public.rulesets",
+        "n|sch|public",
+        "n|tbl|public.environments",
+        "n|sch|public",
+        "n|col|public.rulesets.workspace_id",
+        "n|col|public.rulesets.environment_id",
+        "n|col|public.environments.workspace_id",
+        "n|col|public.environments.id",
+        "e|uniqueness|public.environments.id.workspace_id"
+      ]
+    }
+  ],
+  "deltas": [
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "name": "lists",
+        "isRlsEnabled": false,
+        "entityType": "tables"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "name": "rulesets",
+        "isRlsEnabled": false,
+        "entityType": "tables"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "lists",
+        "name": "id",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "lists",
+        "name": "workspace_id",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "lists",
+        "name": "environment_id",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "lists",
+        "name": "slug",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "lists",
+        "name": "name",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "lists",
+        "name": "description",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "lists",
+        "name": "match",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "'exact'",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "lists",
+        "name": "case_sensitive",
+        "type": "boolean",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "false",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "lists",
+        "name": "items",
+        "type": "jsonb",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "'[]'",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "lists",
+        "name": "created_by",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "lists",
+        "name": "updated_by",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "lists",
+        "name": "created",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "now()",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "lists",
+        "name": "updated",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "now()",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "rulesets",
+        "name": "id",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "rulesets",
+        "name": "workspace_id",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "rulesets",
+        "name": "environment_id",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "rulesets",
+        "name": "slug",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "rulesets",
+        "name": "name",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "rulesets",
+        "name": "description",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "rulesets",
+        "name": "settings",
+        "type": "jsonb",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "'{}'",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "rulesets",
+        "name": "version",
+        "type": "integer",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "rulesets",
+        "name": "definition",
+        "type": "json",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "rulesets",
+        "name": "draft",
+        "type": "json",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "rulesets",
+        "name": "status",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "'draft'",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "rulesets",
+        "name": "published_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "rulesets",
+        "name": "created_by",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "rulesets",
+        "name": "updated_by",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "rulesets",
+        "name": "created",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "now()",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "rulesets",
+        "name": "updated",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "now()",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "lists",
+        "name": "lists_slug",
+        "nameExplicit": true,
+        "columns": [
+          {
+            "value": "workspace_id",
+            "isExpression": false,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          },
+          {
+            "value": "environment_id",
+            "isExpression": false,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          },
+          {
+            "value": "slug",
+            "isExpression": false,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          }
+        ],
+        "isUnique": true,
+        "where": null,
+        "with": "",
+        "method": "btree",
+        "concurrently": false,
+        "entityType": "indexes"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "rulesets",
+        "name": "rulesets_slug",
+        "nameExplicit": true,
+        "columns": [
+          {
+            "value": "workspace_id",
+            "isExpression": false,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          },
+          {
+            "value": "environment_id",
+            "isExpression": false,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          },
+          {
+            "value": "slug",
+            "isExpression": false,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          }
+        ],
+        "isUnique": true,
+        "where": null,
+        "with": "",
+        "method": "btree",
+        "concurrently": false,
+        "entityType": "indexes"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "lists",
+        "name": "lists_workspace_id_workspaces_id_fkey",
+        "nameExplicit": false,
+        "columns": [
+          "workspace_id"
+        ],
+        "schemaTo": "public",
+        "tableTo": "workspaces",
+        "columnsTo": [
+          "id"
+        ],
+        "onUpdate": "NO ACTION",
+        "onDelete": "CASCADE",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "lists",
+        "name": "lists_environment_fk",
+        "nameExplicit": true,
+        "columns": [
+          "workspace_id",
+          "environment_id"
+        ],
+        "schemaTo": "public",
+        "tableTo": "environments",
+        "columnsTo": [
+          "workspace_id",
+          "id"
+        ],
+        "onUpdate": "NO ACTION",
+        "onDelete": "CASCADE",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "rulesets",
+        "name": "rulesets_workspace_id_workspaces_id_fkey",
+        "nameExplicit": false,
+        "columns": [
+          "workspace_id"
+        ],
+        "schemaTo": "public",
+        "tableTo": "workspaces",
+        "columnsTo": [
+          "id"
+        ],
+        "onUpdate": "NO ACTION",
+        "onDelete": "CASCADE",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "rulesets",
+        "name": "rulesets_environment_fk",
+        "nameExplicit": true,
+        "columns": [
+          "workspace_id",
+          "environment_id"
+        ],
+        "schemaTo": "public",
+        "tableTo": "environments",
+        "columnsTo": [
+          "workspace_id",
+          "id"
+        ],
+        "onUpdate": "NO ACTION",
+        "onDelete": "CASCADE",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "lists",
+        "name": "lists_pkey",
+        "columns": [
+          "id"
+        ],
+        "nameExplicit": false,
+        "entityType": "pks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "rulesets",
+        "name": "rulesets_pkey",
+        "columns": [
+          "id"
+        ],
+        "nameExplicit": false,
+        "entityType": "pks"
+      }
+    }
+  ]
+}

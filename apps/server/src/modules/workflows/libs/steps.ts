@@ -20,9 +20,11 @@ import { addLabel, upsertObject } from "../../catalog/service";
 import { AppError } from "../../../platform/error";
 import { askModel, assessDecision, resolveDecision, runDecision } from "../../decisions/service";
 import { caseRecord, createCaseFromWorkflow, resolveCaseFromWorkflow, searchCases } from "../../cases/service";
+import { addItems, removeItems } from "../../lists";
 import { scoreFeatures, type ScoreResult, type StepScore } from "../../models";
+import { evaluateRef } from "../../rulesets";
 import { guardedLookup, urlProblem } from "../../webhooks/libs";
-import { resolveValue, type Variables } from "./expressions";
+import { ExpressionError, resolveValue, type Variables } from "./expressions";
 import { readFeatures } from "./models";
 import type { WorkflowStepDef } from "../types";
 
@@ -103,6 +105,11 @@ export async function runStep(step: WorkflowStepDef, vars: Variables, ctx: StepC
       return caseCreate(step, vars, ctx);
     case "case.resolve":
       return caseResolve(step, vars, ctx);
+    case "ruleset":
+      return rulesetStep(step, vars, ctx);
+    case "list.add":
+    case "list.remove":
+      return listStep(step, vars, ctx);
     default:
       throw new StepFailure(`the runner does not run a "${step.type}" step here`);
   }
@@ -836,5 +843,85 @@ async function caseResolve(step: WorkflowStepDef, vars: Variables, ctx: StepCont
     return out;
   } catch (cause) {
     throw caseFailure(cause);
+  }
+}
+
+/** A ruleset reads only its input and writes nothing, so it runs for real in a test run too. */
+async function rulesetStep(step: WorkflowStepDef, vars: Variables, ctx: StepContext) {
+  const ref = text(resolveValue(step.ruleset, vars), "ruleset");
+  const input =
+    step.input && typeof step.input === "object" && !Array.isArray(step.input)
+      ? rulesetInput(step.input as Record<string, unknown>, vars)
+      : step.input === undefined
+        ? {}
+        : record(resolveValue(step.input, vars), "input");
+  try {
+    return await evaluateRef(
+      ctx.repos.db,
+      { workspaceId: ctx.workspaceId, environmentId: ctx.environmentId },
+      ref,
+      input,
+    );
+  } catch (cause) {
+    if (cause instanceof AppError) throw new StepFailure(cause.message);
+    throw cause;
+  }
+}
+
+const NOT_THERE = /^field not found: /;
+
+/**
+ * Each input on its own: a template that reads a field the run does not have gives no value, so
+ * the ruleset sees a missing input, and refuses it only when it is required.
+ */
+function rulesetInput(mapping: Record<string, unknown>, vars: Variables): Record<string, unknown> {
+  const input: Record<string, unknown> = {};
+  for (const [name, value] of Object.entries(mapping)) {
+    try {
+      input[name] = resolveValue(value, vars);
+    } catch (cause) {
+      if (!(cause instanceof ExpressionError && NOT_THERE.test(cause.message))) throw cause;
+    }
+  }
+  return input;
+}
+
+const ITEM_MATCHES = new Set(["exact", "prefix", "suffix", "contains", "word"]);
+
+/** Add an item to a list, or remove one. An item that is there already, or not there, is no failure. */
+async function listStep(step: WorkflowStepDef, vars: Variables, ctx: StepContext) {
+  const f = fields(step, vars, ["list", "value", "note", "match", "case_sensitive"]);
+  const list = text(f.list, "list");
+  if (typeof f.value !== "string" && typeof f.value !== "number") throw new StepFailure("value: text or a number");
+  const value = f.value;
+  const would = testOutput(ctx, { list, value });
+  if (would) return would;
+  const scope = { workspaceId: ctx.workspaceId, environmentId: ctx.environmentId };
+  const run = vars.run as { workflow: string; version: number };
+  const by = `workflow:${run.workflow}@${run.version}`;
+  try {
+    if (step.type === "list.remove") {
+      const { removed } = await removeItems(ctx.repos.db, scope, list, [value], by, ctx.now);
+      return { list, value: String(value).trim(), removed: removed > 0 };
+    }
+    const { added } = await addItems(
+      ctx.repos.db,
+      scope,
+      list,
+      [
+        {
+          value,
+          ...(typeof f.note === "string" && f.note.trim() ? { note: f.note.trim().slice(0, 500) } : {}),
+          ...(typeof f.match === "string" && ITEM_MATCHES.has(f.match) ? { match: f.match as never } : {}),
+          ...(typeof f.case_sensitive === "boolean" ? { case_sensitive: f.case_sensitive } : {}),
+        },
+      ],
+      by,
+      ctx.now,
+    );
+    return { list, value: String(value).trim(), added: added > 0 };
+  } catch (cause) {
+    if (cause instanceof AppError) throw new StepFailure(cause.message);
+    throw cause;
   }
 }

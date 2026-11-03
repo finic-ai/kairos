@@ -211,6 +211,9 @@ Each step has an `id` (letters, digits and `_`, unique in the workflow), a `name
 | `assess` | Get the model's decision | Asks an action's model, and applies its thresholds. Saves nothing. | What the decision would be |
 | `ask` | Ask a question | Asks the model questions of your own, about an entity, data, or both. Saves nothing. | Each answer, by its key |
 | `score` | Score with a model | Scores values from the run with a scoring model. Saves nothing. | `{ score, risk_score, model, features, missing, invalid }` |
+| `ruleset` | Run a ruleset | Approves or rejects with a [ruleset](rulesets.md). Saves nothing. | `{ outcome, matched, rule, response, terms, missing }` |
+| `list.add` | Add to a list | Puts an item on a [list](rulesets.md#lists). | `{ list, value, added }` |
+| `list.remove` | Remove from a list | Takes an item off a list. | `{ list, value, removed }` |
 | `record.search` | Search records | Finds events, entities or decisions. | A list |
 | `record.get` | Get a record | Reads one. | The record |
 | `record.create` | Create a record | Writes an event, an entity or an entity type. | What it wrote |
@@ -354,6 +357,34 @@ Scores values from the run with a [scoring model](models.md), such as an XGBoost
 - A test run scores for real. With `mock_outputs` for the step, it uses that output.
 - If the model or its version is not there, the step fails, and is not tried again. After a database error, it is tried again.
 
+### Run a ruleset
+
+```json
+{ "id": "screen", "name": "Payout screen", "type": "ruleset", "ruleset": "payout_screen@2",
+  "input": { "amount": "{{ trigger.amount }}", "payee": "{{ trigger.payee }}" } }
+```
+
+Runs a [ruleset](rulesets.md): its rules in order, and the first that matches gives the outcome. It saves nothing, so it can come before the answer of a decision workflow, and a test run runs it for real.
+
+- **`ruleset`** is a slug and a version, `payout_screen@2`, or the slug alone for the live version.
+- **`input`** has a value or a template for each input of the ruleset. When you choose a ruleset in the builder, it fills the input with a template for each one, from the trigger. A template that reads a field the run does not have gives the ruleset no value for that input: the ruleset refuses it only when it is required, and its rules that read it do not match.
+- **The output** is the ruleset's result: read `steps.screen.output.outcome` in a condition, and `steps.screen.output.response` for the rule's response.
+- When you publish, Kairos refuses a ruleset that is not there, is archived or was never published, and an input that the ruleset requires and the step does not give. An input of the wrong type fails the step when it runs.
+
+### Add to a list, remove from a list
+
+```json
+{ "id": "block", "name": "Block the payee", "type": "list.add", "list": "blocked_payees",
+  "value": "{{ item.entities.payee }}", "note": "Chargeback on {{ trigger.entity.id }}" }
+{ "id": "unblock", "name": "Unblock", "type": "list.remove", "list": "blocked_payees", "value": "{{ trigger.payee }}" }
+```
+
+- `list` is the list's slug, and `value` the item. `list.add` also takes `note`, and `match` and `case_sensitive` for an item with its own.
+- An item that is on the list already, or not on it, is no failure: the output says `added: false` or `removed: false`.
+- The list shows the workflow and its version as who added the item, such as `workflow:block_chargeback_payees@1`.
+- The change and the step's line in the run log are one write, so a retry does not add the item twice. In a test run, the step changes nothing unless it is live.
+- The change takes effect at once, in each ruleset and workflow that reads the list.
+
 ### Records
 
 | Step | `record` | Fields |
@@ -437,7 +468,12 @@ trigger.entity.properties.tier == "gold" || has(trigger.label)
 size(steps.payees.output) > 3
 trigger.decision.decision.decision == "block"
 event.properties.email.endsWith("@example.com")
+inList(event.entities.payee, 'blocked_payees')
 ```
+
+`inList(value, 'slug')` is true when the value matches an item of the [list](rulesets.md#lists), as the item's match says. It works in each condition and each template, the trigger's **Only when** too. When you publish, Kairos refuses a list that is not there.
+
+The run log keeps the items that `inList` matched: each step's line has them as `terms`, such as `[{ "list": "blocked_payees", "item": "payee_9" }]`, at most 20, and a run that the trigger's **Only when** started has them as `trigger_terms`. The run's page shows them as **Matched in a list**. The item stays in the log after it leaves the list.
 
 Other fields take **templates**: `{{ expression }}`. A field that is only one template keeps the type of its value, so `"{{ event.entities }}"` is an object and `"{{ event.properties.amount }}"` a number. A template inside text becomes text: `"User {{ trigger.entity.id }} was labelled"`.
 

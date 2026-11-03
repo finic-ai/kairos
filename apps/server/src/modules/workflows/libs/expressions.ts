@@ -1,5 +1,7 @@
 import { isCelError, isCelList, isCelMap, parse, run } from "@bufbuild/cel";
 import { strings } from "@bufbuild/cel/ext";
+import { listSlugsIn, type ListMatcher } from "@kairos/core";
+import { inListFunctions } from "../../rulesets/libs";
 
 /**
  * The expressions of a workflow: CEL for conditions, and `{{ … }}` templates for values.
@@ -8,6 +10,27 @@ import { strings } from "@bufbuild/cel/ext";
  */
 
 export type Variables = Record<string, unknown>;
+
+/**
+ * The lists that `inList` reads, loaded before the run. A symbol key: spreading the variables
+ * keeps it, and CEL does not see it as a variable.
+ */
+export const LISTS = Symbol("lists");
+
+/** Where `inList` puts each item it matches: the runner gives each step its own. */
+export const TERMS = Symbol("terms");
+export type Term = { list: string; item: string };
+
+export const withLists = (vars: Variables, lists: ReadonlyMap<string, ListMatcher>): Variables =>
+  Object.assign({ ...vars }, { [LISTS]: lists });
+
+/** The slugs of the lists that the expressions and templates of a value read with `inList`. */
+export function listSlugsOf(value: unknown, into = new Set<string>()): string[] {
+  if (typeof value === "string") for (const slug of listSlugsIn(value)) into.add(slug);
+  else if (Array.isArray(value)) for (const v of value) listSlugsOf(v, into);
+  else if (value && typeof value === "object") for (const v of Object.values(value)) listSlugsOf(v, into);
+  return [...into];
+}
 
 /** An expression that cannot be read or run. The same expression fails again: it is not tried again. */
 export class ExpressionError extends Error {}
@@ -37,7 +60,13 @@ export function toPlain(value: unknown): unknown {
 export function evaluate(expression: string, vars: Variables): unknown {
   let result: unknown;
   try {
-    result = run(expression, vars as Record<string, never>, { funcs: strings });
+    const { [LISTS]: lists, [TERMS]: terms = [] } = vars as {
+      [LISTS]?: ReadonlyMap<string, ListMatcher>;
+      [TERMS]?: Term[];
+    };
+    result = run(expression, vars as Record<string, never>, {
+      funcs: lists ? [...strings, ...inListFunctions(lists, terms)] : strings,
+    });
   } catch (cause) {
     throw new ExpressionError((cause as Error).message);
   }
