@@ -290,6 +290,64 @@ describe("the tools", () => {
     expect((await tool("cancel_workflow_run", { id: "wfr_missing" })).failed).toBe(true);
   });
 
+  it("build a ruleset, test, publish and evaluate it, and change a list that it reads", async () => {
+    await setGroups("workspace_a", ["read", "write", "build"]);
+    const client = await mcpClient(app, "key_a");
+    const tool = async (name: string, args: Record<string, unknown>) => {
+      const result = await client.callTool({ name, arguments: args });
+      return { failed: !!result.isError, body: result.isError ? null : resultOf(result) };
+    };
+    expect(
+      (await tool("save_list", { list: "blocked_addresses", name: "Blocked addresses", case_sensitive: true })).body,
+    ).toMatchObject({ slug: "blocked_addresses", match: "exact", case_sensitive: true });
+    const definition = {
+      inputs: [{ name: "address", type: "text", required: true }],
+      rules: [
+        {
+          id: "blocked",
+          name: "Blocked address",
+          when: "inList(input.address, 'blocked_addresses')",
+          outcome: "reject",
+          response: { reason: "blocked_address" },
+        },
+      ],
+      default: { outcome: "approve" },
+      tests: [{ name: "Unknown address", input: { address: "bc1qok" }, outcome: "approve", rule: null }],
+    };
+    expect((await tool("test_ruleset", { definition, input: { address: "bc1qok" } })).body).toMatchObject({
+      problems: [],
+      result: { outcome: "approve" },
+      tests: [{ name: "Unknown address", passed: true }],
+    });
+    expect((await tool("save_ruleset_draft", { ruleset: "screen", name: "Screen", definition })).failed).toBe(false);
+    expect((await tool("publish_ruleset", { ruleset: "screen" })).body).toMatchObject({ version: 1 });
+    expect((await tool("list_rulesets", {})).body.rulesets.map((r: any) => r.slug)).toEqual(["screen"]);
+    expect((await tool("get_ruleset", { ruleset: "screen", version: 1 })).body.definition.rules[0].id).toBe("blocked");
+
+    const added = await tool("add_list_items", {
+      list: "blocked_addresses",
+      items: [{ value: "bc1qbad", note: "Scam" }, { value: "bc1qother" }],
+    });
+    expect(added.body).toMatchObject({ added: 2, updated: 0 });
+    expect((await tool("evaluate_ruleset", { ruleset: "screen", input: { address: "bc1qbad" } })).body).toMatchObject({
+      ruleset: "screen@1",
+      outcome: "reject",
+      response: { reason: "blocked_address" },
+      terms: [{ list: "blocked_addresses", item: "bc1qbad" }],
+    });
+    const found = (await tool("get_list", { list: "blocked_addresses", q: "scam" })).body;
+    expect(found).toMatchObject({ item_count: 2, items_shown: 1, items: [{ value: "bc1qbad", note: "Scam" }] });
+    expect((await tool("list_lists", {})).body.lists.map((l: any) => l.slug)).toEqual(["blocked_addresses"]);
+
+    expect((await tool("remove_list_items", { list: "blocked_addresses", values: ["bc1qbad"] })).body).toMatchObject({
+      removed: 1,
+    });
+    expect((await tool("evaluate_ruleset", { ruleset: "screen", input: { address: "bc1qbad" } })).body.outcome).toBe(
+      "approve",
+    );
+    expect((await tool("evaluate_ruleset", { ruleset: "screen", input: {} })).failed).toBe(true);
+  });
+
   it("track events as the key does, once for each id", async () => {
     await setGroups("workspace_a", ["read", "write"]);
     const client = await mcpClient(app, "key_a");
