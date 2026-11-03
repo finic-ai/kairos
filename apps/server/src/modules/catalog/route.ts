@@ -9,7 +9,7 @@ import { LabelsService } from "../../services/label.service";
 import { ObjectsService } from "../../services/object.service";
 import { name } from "../../platform/fields";
 import { entityBody, labelsBody, objectsBody } from "../ingest/schema";
-import { issueCommand, issueCommandBody, listCommands } from "./commands";
+import { issueCommand, issueCommandBody, listCommands } from "./libs";
 import { addLabel, entityFacts, entityList, upsertObject } from "./service";
 import { eraseEntity } from "./repo";
 import { atLeast } from "../tenancy/repo";
