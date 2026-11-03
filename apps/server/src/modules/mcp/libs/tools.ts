@@ -1,4 +1,4 @@
-import { CASE_CATEGORIES, CASE_PRIORITIES } from "@kairos/core";
+import { CASE_CATEGORIES, CASE_PRIORITIES, LIST_MATCHES } from "@kairos/core";
 import type { ToolAnnotations } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import { decideBody, eventBody, labelsBody } from "../../ingest/schema";
@@ -48,6 +48,13 @@ const caseId = z.string().min(1).describe("The case id, from list_queue_cases.")
 const queueId = z.string().min(1).describe("The queue id, from list_queues.");
 const entityType = z.string().min(1).describe("The entity type, such as user, from list_entity_types.");
 const workflowName = z.string().min(1).describe("The workflow's name, from list_workflows.");
+const rulesetRef = z.string().min(1).describe("The ruleset's slug, from list_rulesets, or its id.");
+const listRef = z.string().min(1).describe("The list's slug, from list_lists, or its id.");
+const rulesetDefinition = z
+  .record(z.unknown())
+  .describe(
+    "The ruleset: `inputs` (each `name`, `type` text, number, boolean, list or object, `required`), `rules` in order (each `id`, `name`, `when`, a CEL condition on input.<name> that can use inList(input.x, 'slug'), `outcome` approve or reject, `response` any JSON), `default` (`outcome`, `response`) and `tests` (each `name`, `input`, `outcome`, and `rule`, or null for the default). The first rule that matches gives the outcome.",
+  );
 const queueDefinition = z
   .record(z.unknown())
   .describe(
@@ -424,6 +431,85 @@ const tools: Tool[] = [
     request: (a) => ({ method: "GET", path: at("models", a.slug) }),
   },
   {
+    name: "list_rulesets",
+    title: "List rulesets",
+    group: "read",
+    description:
+      "List the rulesets: ordered rules that read only their input and answer approve or reject. Each has its slug, its live version (0 when never published), whether it has a draft, and its definition. Workflows run one with a `ruleset` step.",
+    input: z.object({
+      q: z.string().optional().describe("Part of a name or a slug."),
+      archived: z.boolean().optional().describe("true lists the archived ones."),
+      limit: limit(),
+      offset,
+    }),
+    annotations: read,
+    request: (a) => ({ method: "GET", path: "/v1/rulesets", query: a }),
+  },
+  {
+    name: "get_ruleset",
+    title: "Get a ruleset",
+    group: "read",
+    description:
+      "Get a ruleset: its inputs, its rules in order (each with `when`, a CEL condition on `input.<name>`, its `outcome` and `response`), its default and its tests, with `draft` when it has unpublished changes. With `version`, that published version.",
+    input: z.object({
+      ruleset: rulesetRef,
+      version: z.number().int().min(1).optional(),
+    }),
+    annotations: read,
+    request: (a) => ({ method: "GET", path: at("rulesets", a.ruleset), query: { version: a.version } }),
+  },
+  {
+    name: "evaluate_ruleset",
+    title: "Evaluate a ruleset",
+    group: "read",
+    description:
+      "Run a published ruleset with an input and get its answer: `outcome`, the `rule` that matched and its `response`, the list items it matched (`terms`) and the rules that did not run because an input was missing. Nothing is saved, and no model is called.",
+    input: z.object({
+      ruleset: rulesetRef,
+      version: z.number().int().min(1).optional().describe("A published version. Default: the live one."),
+      input: z.record(z.unknown()).describe("A value for each input of the ruleset."),
+    }),
+    annotations: read,
+    request: (a) => ({
+      method: "POST",
+      path: at("rulesets", a.ruleset, "evaluate"),
+      query: { version: a.version },
+      body: { input: a.input },
+    }),
+  },
+  {
+    name: "list_lists",
+    title: "List lists",
+    group: "read",
+    description:
+      "List the lists: sets of terms, such as blocked payees or crypto addresses, that rules and workflows read with inList(value, 'slug'). Each has its slug, its default match and case, and its number of items.",
+    input: z.object({ q: z.string().optional().describe("Part of a name or a slug."), limit: limit(), offset }),
+    annotations: read,
+    request: (a) => ({ method: "GET", path: "/v1/lists", query: a }),
+  },
+  {
+    name: "get_list",
+    title: "Get a list",
+    group: "read",
+    description:
+      "Get a list with its items, newest first, each with its own match or case when it has one, its note, and who added it. With `q`, only the items whose value or note contains it." +
+      DATA,
+    input: z.object({
+      list: listRef,
+      q: z.string().optional().describe("Part of an item or a note."),
+      limit: limit(50, 500),
+    }),
+    annotations: read,
+    request: (a) => ({ method: "GET", path: at("lists", a.list) }),
+    trim: (body, a) => {
+      const needle = String(a.q ?? "").toLowerCase();
+      const items = [...(body.items ?? [])]
+        .reverse()
+        .filter((i: { value: string; note?: string }) => `${i.value} ${i.note ?? ""}`.toLowerCase().includes(needle));
+      return { ...body, items: items.slice(0, a.limit), items_shown: Math.min(items.length, a.limit) };
+    },
+  },
+  {
     name: "list_workflow_experiments",
     title: "List workflow experiments",
     group: "read",
@@ -488,6 +574,45 @@ const tools: Tool[] = [
       path: at("cases", id, "assign"),
       body: { assignee, by: actor },
     }),
+  },
+  {
+    name: "add_list_items",
+    title: "Add items to a list",
+    group: "write",
+    description:
+      "Add items to a list, such as an address to block. An item that is on the list already takes the new match, case and note. The change takes effect at once, in each ruleset and workflow that reads the list: ask the person first.",
+    input: z.object({
+      list: listRef,
+      items: z
+        .array(
+          z.object({
+            value: z.union([z.string(), z.number()]),
+            note: z.string().max(500).optional().describe("Why the item is on the list."),
+            match: z.enum(LIST_MATCHES).optional().describe("The item's own match. Default: the list's."),
+            case_sensitive: z.boolean().optional().describe("The item's own case. Default: the list's."),
+          }),
+        )
+        .min(1)
+        .max(1000),
+    }),
+    annotations: write({ idempotentHint: true }),
+    request: (a) => ({ method: "POST", path: at("lists", a.list, "items"), body: { items: a.items } }),
+  },
+  {
+    name: "remove_list_items",
+    title: "Remove items from a list",
+    group: "write",
+    description:
+      "Remove items from a list by their values, such as an address that was blocked by mistake. The change takes effect at once, in each ruleset and workflow that reads the list: ask the person first.",
+    input: z.object({
+      list: listRef,
+      values: z
+        .array(z.union([z.string(), z.number()]))
+        .min(1)
+        .max(1000),
+    }),
+    annotations: write({ destructiveHint: true, idempotentHint: true }),
+    request: (a) => ({ method: "DELETE", path: at("lists", a.list, "items"), body: { values: a.values } }),
   },
 
   {
@@ -742,6 +867,60 @@ const tools: Tool[] = [
     input: z.object({ name: workflowName }),
     annotations: write({ destructiveHint: true }),
     request: (a) => ({ method: "DELETE", path: at("workflows", a.name, "draft") }),
+  },
+  {
+    name: "test_ruleset",
+    title: "Test a ruleset",
+    group: "build",
+    description:
+      "Run a ruleset definition that is not saved: its problems (conditions that do not parse, lists that are not there), its own tests with whether each passed, and, with `input`, its answer for that input. Nothing is saved. Test a definition here before save_ruleset_draft.",
+    input: z.object({
+      definition: rulesetDefinition,
+      input: z.record(z.unknown()).optional().describe("An input to evaluate the definition with."),
+    }),
+    annotations: read,
+    request: (a) => ({ method: "POST", path: "/v1/rulesets/test", body: a }),
+  },
+  {
+    name: "save_ruleset_draft",
+    title: "Save a ruleset draft",
+    group: "build",
+    description:
+      "Save a ruleset's draft. A new slug makes a ruleset, and needs `name`. Nothing reads a draft until publish_ruleset; the name and the description change at once.",
+    input: z.object({
+      ruleset: rulesetRef,
+      name: z.string().min(1).max(80).optional(),
+      description: z.string().max(500).nullable().optional(),
+      definition: rulesetDefinition,
+    }),
+    annotations: write({ idempotentHint: true }),
+    request: ({ ruleset, ...body }) => ({ method: "PUT", path: at("rulesets", ruleset, "draft"), body }),
+  },
+  {
+    name: "publish_ruleset",
+    title: "Publish a ruleset",
+    group: "build",
+    description:
+      "Publish a ruleset's draft as its next version, after its conditions, its lists and each of its tests pass. Workflow steps that name the slug alone use it from then on; a step with a pinned version, such as payout_screen@2, does not change.",
+    input: z.object({ ruleset: rulesetRef }),
+    annotations: write(),
+    request: (a) => ({ method: "POST", path: at("rulesets", a.ruleset, "publish") }),
+  },
+  {
+    name: "save_list",
+    title: "Create or change a list",
+    group: "build",
+    description:
+      "Create a list, with a new slug and a `name`, or change a list's name, description, or the default match and case of its items. A change of match or case takes effect at once for each item without its own.",
+    input: z.object({
+      list: listRef,
+      name: z.string().min(1).max(80).optional(),
+      description: z.string().max(500).nullable().optional(),
+      match: z.enum(LIST_MATCHES).optional().describe("exact (default), prefix, suffix, contains or word."),
+      case_sensitive: z.boolean().optional().describe("Default false."),
+    }),
+    annotations: write({ idempotentHint: true }),
+    request: ({ list, ...body }) => ({ method: "PUT", path: at("lists", list), body }),
   },
   {
     name: "create_workflow_experiment",
