@@ -12,6 +12,7 @@
 [![PyPI](https://img.shields.io/pypi/v/finic-kairos?label=pypi%20finic-kairos)](https://pypi.org/project/finic-kairos/)
 [![Discord](https://img.shields.io/badge/Discord-join%20us-5865F2?logo=discord&logoColor=white)](https://discord.gg/4zRwRCK6Mx)
 [![Kairos Cloud](https://img.shields.io/badge/cloud-kairos.finic.ai-0f8a8a)](https://kairos.finic.ai)
+[![Hacker News](https://hackergit.org/badge/finic-ai/kairos.svg)](https://news.ycombinator.com/item?id=50358314)
 
 [**Kairos Cloud**](https://kairos.finic.ai) · [**Docs**](https://kairos.finic.ai/docs) · [**Discord**](https://discord.gg/4zRwRCK6Mx) · [**Finic**](https://finic.ai)
 
