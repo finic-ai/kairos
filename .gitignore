@@ -37,3 +37,7 @@ ref/
 kairosjs/
 .old/
 .pnpm-store/
+# Dart
+.dart_tool/
+packages/sdk-dart/pubspec.lock
+packages/sdk-dart/build/

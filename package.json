@@ -10,6 +10,7 @@
     "format:check": "prettier --check \"**/*.{ts,tsx,js,mjs,cjs}\"",
     "test": "vitest run",
     "test:python": "python3 -m unittest discover -s packages/sdk-python/tests",
+    "test:dart": "cd packages/sdk-dart && flutter test",
     "eval": "pnpm --filter @kairos/eval run eval",
     "eval:accept": "pnpm --filter @kairos/eval run eval --accept",
     "eval:generate": "pnpm --filter @kairos/eval run generate",

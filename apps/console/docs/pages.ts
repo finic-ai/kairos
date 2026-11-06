@@ -237,6 +237,11 @@ export const groups: DocGroup[] = [
             blurb: "kairos.js: the device of each visitor, the pages of your client settings, and events of your own.",
           },
           {
+            slug: "reference/clients/dart",
+            title: "Flutter",
+            blurb: "finic_kairos: the device of each install, the screens of your client settings, and events of your own.",
+          },
+          {
             slug: "reference/clients/edge",
             title: "Edge",
             blurb:
