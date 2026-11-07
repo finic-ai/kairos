@@ -9,7 +9,7 @@ import {
 } from "@kairos/core";
 import { Hono, type Context } from "hono";
 import type { Webhooks } from "../../context";
-import { bounded, error, parse, type Env } from "../../platform/http";
+import { bounded, error, optionalJson, parse, type Env } from "../../platform/http";
 import { invalid } from "../../platform/error";
 import type { Repositories } from "../../repositories";
 import { assignBody, bulkBody, noteBody, queueBody, reopenBody, resolveBody } from "./schema";
@@ -239,7 +239,7 @@ export function caseRoutes({ repos, now, webhooks, templates = [] }: CasesDeps) 
 
   app.post("/cases/:id/reopen", async (c) => {
     // The console sends no body.
-    const raw = await c.req.json().catch(() => ({}));
+    const raw = await optionalJson(c);
     const body = reopenBody.safeParse(raw ?? {});
     if (!body.success) return error(c, 400, "invalid_request", "by: who reopened it, at most 200 characters");
     const done = sent(

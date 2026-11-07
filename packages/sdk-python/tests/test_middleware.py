@@ -614,6 +614,7 @@ class ClientSettingsTest(unittest.TestCase):
         )
         self.assertIsNone(kairos_settings.verify_edge(sign, header, "POST", "/transfers", now=1_700_000_301))
         self.assertIsNone(kairos_settings.verify_edge(sign, header, "POST", "/payees", now=1_700_000_060))
+        self.assertIsNone(kairos_settings.verify_edge(sign, header.split(".")[0] + ".é", "POST", "/transfers", now=1_700_000_060))
 
     def test_do_nothing_when_routing_is_off_or_the_settings_cannot_be_read_and_fail_no_request(self) -> None:
         errors: list[Exception] = []

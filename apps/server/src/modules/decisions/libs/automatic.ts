@@ -160,7 +160,7 @@ export function createAutomatic({ repos, decider, now, webhooks, wake }: Automat
           new Date(event.ts),
           now(),
           outbound,
-          { allowPrivate: webhooks?.allowPrivate ?? false, wake },
+          { allowPrivate: webhooks?.allowPrivate ?? false, wake, live: true },
         );
       },
     },

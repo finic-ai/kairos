@@ -275,5 +275,19 @@ describe("the client settings", () => {
     expect((await app.request(path, { headers })).status).toBe(200);
     expect((await app.request(path, { method: "PUT", headers, body: JSON.stringify(settings) })).status).toBe(403);
     expect((await app.request(path)).status).toBe(401);
+
+    const v1 = { ...headers, "X-Kairos-Workspace": owner.workspace };
+    expect((await app.request("/v1/client-settings", { headers: v1 })).status).toBe(200);
+    const put = await app.request("/v1/client-settings", {
+      method: "PUT",
+      headers: v1,
+      body: JSON.stringify(settings),
+    });
+    expect(put.status).toBe(403);
+    const ownerV1 = { Cookie: owner.cookie, "Content-Type": "application/json", "X-Kairos-Workspace": owner.workspace };
+    expect(
+      (await app.request("/v1/client-settings", { method: "PUT", headers: ownerV1, body: JSON.stringify(settings) }))
+        .status,
+    ).toBe(200);
   });
 });

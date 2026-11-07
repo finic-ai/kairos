@@ -29,4 +29,11 @@ export async function verifyPassword(password: string, stored: string | null): P
   return bcrypt.compare(password, stored);
 }
 
+let dummyHash: Promise<string> | undefined;
+/** As slow as verifyPassword, so that the time of an answer does not tell whether an account exists. */
+export async function checkDummyPassword(password: string): Promise<void> {
+  dummyHash ??= hashPassword(newToken(16));
+  await verifyPassword(password, await dummyHash);
+}
+
 export const normalizeEmail = (email: string) => email.trim().toLowerCase();

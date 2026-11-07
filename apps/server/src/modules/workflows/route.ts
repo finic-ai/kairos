@@ -1,6 +1,6 @@
 import type { Decider } from "@kairos/core";
 import { Hono, type Context } from "hono";
-import { checked, error, type Env } from "../../platform/http";
+import { checked, error, optionalJson, readCapped, type Env } from "../../platform/http";
 import { invalid } from "../../platform/error";
 import type { Repositories } from "../../repositories";
 import { WorkflowRunsService, WorkflowsService } from "../../services/workflow.service";
@@ -267,7 +267,7 @@ export function workflowRoutes({ repos, now, decider, allowPrivate, wake }: Work
       throw invalid(
         `the workflow "${workflow.name}" makes the decisions of "${String(workflow.trigger.action)}": call POST /v1/decide`,
       );
-    const body = (await c.req.json().catch(() => ({}))) as {
+    const body = (await optionalJson(c)) as {
       input?: Record<string, unknown>;
       idempotency_key?: string;
       wait?: boolean;
@@ -355,10 +355,9 @@ const MAX_HOOK_BODY = 1024 * 1024;
 export function workflowHookRoutes({ repos, now }: WorkflowsDeps) {
   const app = new Hono<Env>();
   app.on(["GET", "POST", "PUT"], "/workflow-hooks/:token", async (c) => {
-    const declared = Number(c.req.header("content-length"));
-    if (declared > MAX_HOOK_BODY) return error(c, 413, "too_large", "The body is larger than 1 MB");
-    const body = c.req.method === "GET" ? "" : await c.req.text();
-    if (Buffer.byteLength(body) > MAX_HOOK_BODY) return error(c, 413, "too_large", "The body is larger than 1 MB");
+    const raw = c.req.method === "GET" ? Buffer.alloc(0) : await readCapped(c.req.raw, MAX_HOOK_BODY);
+    if (raw.length > MAX_HOOK_BODY) return error(c, 413, "too_large", "The body is larger than 1 MB");
+    const body = raw.toString("utf8");
     const answer = await receiveHook(
       repos,
       c.req.param("token"),

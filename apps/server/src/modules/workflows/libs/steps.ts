@@ -300,6 +300,7 @@ async function decideStep(step: WorkflowStepDef, vars: Variables, ctx: StepConte
     const prior = await decisions.findByEvent(event.id);
     if (!prior) eventId = event.id;
   }
+  const asOf = typeof f.ts === "string" ? new Date(f.ts) : undefined;
   let result: Awaited<ReturnType<typeof runDecision>>;
   try {
     // The step key is written with the decision, so a retry after a crash finds it and does not decide again.
@@ -316,10 +317,10 @@ async function decideStep(step: WorkflowStepDef, vars: Variables, ctx: StepConte
         session: typeof f.session === "string" ? f.session : event?.session,
         metadata: { workflow_run_id: ctx.run.id, workflow_step_key: stepKey },
       },
-      typeof f.ts === "string" ? new Date(f.ts) : ctx.now,
+      asOf ?? ctx.now,
       ctx.now,
-      ctx.wake ? { wake: ctx.wake, now: ctx.now } : undefined,
-      { allowPrivate: ctx.allowPrivate, ...(ctx.wake ? { wake: ctx.wake } : {}) },
+      ctx.wake && !asOf ? { wake: ctx.wake, now: ctx.now } : undefined,
+      { allowPrivate: ctx.allowPrivate, ...(ctx.wake ? { wake: ctx.wake } : {}), live: !asOf },
     );
   } catch (cause) {
     // Another attempt of this step saved its decision first (the unique index on the step key).

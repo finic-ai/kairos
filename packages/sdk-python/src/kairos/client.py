@@ -25,6 +25,8 @@ from .types import Decision, Moment, Outcome, Properties, Transport
 
 RETRYABLE = frozenset({408, 429, 500, 502, 503, 504})
 MAX_BATCH = 500
+#: Under the server's body limit, which is 2 MB for a public key.
+MAX_BATCH_BYTES = 1800 * 1024
 
 _ENTITY_KEY = re.compile(r"^(.+?)(?:Id|_id)$")
 _CAMEL = re.compile(r"([a-z0-9])([A-Z])")
@@ -707,6 +709,17 @@ class Kairos:
         with contextlib.suppress(Exception):
             self._on_error(error)
 
+    def _batch_size(self) -> int:
+        """Call with the lock held."""
+        total = 0
+        n = 0
+        while n < len(self._queue) and n < MAX_BATCH:
+            total += len(json.dumps(self._queue[n], default=_json_default, separators=(",", ":")).encode()) + 1
+            if n > 0 and total > MAX_BATCH_BYTES:
+                break
+            n += 1
+        return n
+
     def _drain(self, deadline: float | None, limit: float) -> None:
         """Send the queue, a batch at a time. With a deadline, raise when it passes; without, report failures."""
         if deadline is None:
@@ -716,8 +729,9 @@ class Kairos:
         try:
             while True:
                 with self._lock:
-                    batch = self._queue[:MAX_BATCH]
-                    del self._queue[:MAX_BATCH]
+                    size = self._batch_size()
+                    batch = self._queue[:size]
+                    del self._queue[:size]
                 if not batch:
                     return
                 try:

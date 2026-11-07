@@ -1,7 +1,9 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import type { AppOptions } from "./context";
-import { error, type Env } from "./platform/http";
+import { error, limitBody, type Env } from "./platform/http";
+import { ipOf } from "./platform/network";
+import { rateLimit } from "./platform/rate-limit";
 import { AppError, ERROR_STATUS } from "./platform/error";
 import { catalogModule } from "./modules/catalog";
 import { actionsModule } from "./modules/actions";
@@ -27,11 +29,15 @@ import { activitiesModule } from "./modules/activities";
 import { clientsModule } from "./modules/clients";
 import { cloudflareModule } from "./modules/cloudflare";
 import { internalRoutes } from "./internal";
+import { LIMITS, RateLimitsService } from "./services/rate_limit.service";
 import { SessionsService } from "./services/session.service";
 import { UsersService } from "./services/user.service";
 import { WorkspacesService } from "./services/workspace.service";
 
 export type { AppOptions } from "./context";
+
+const MAX_REQUEST_BYTES = 10 * 1024 * 1024;
+const MAX_PUBLIC_BYTES = 2 * 1024 * 1024;
 
 export function createApp(options: AppOptions) {
   const { accounts, environments, decider, webhooks, automatic, trustProxy } = options;
@@ -41,11 +47,13 @@ export function createApp(options: AppOptions) {
   const users = new UsersService(db);
   const sessions = new SessionsService(db);
   const workspaces = new WorkspacesService(db);
+  const rateLimits = new RateLimitsService(db);
 
   const environmentService = createEnvironments({ db, environments, now });
   const auth = authModule({
     accounts,
     users,
+    rateLimits,
     sessions,
     workspaces,
     environments: environmentService,
@@ -134,6 +142,7 @@ export function createApp(options: AppOptions) {
   const app = new Hono<Env>();
   app.get("/health", (c) => c.json({ ok: true }));
   app.use("*", activityLog({ db, now, trustProxy }));
+  app.use("*", limitBody(MAX_REQUEST_BYTES));
   app.route("/internal", internalRoutes(webhooks, now, options.jobs));
 
   app.route("/auth", auth.routes);
@@ -164,6 +173,14 @@ export function createApp(options: AppOptions) {
     cors({ origin: "*", allowMethods: ["GET", "OPTIONS"], allowHeaders: ["Authorization"], maxAge: 86400 }),
   );
   app.use("/v1/*", apiAuth({ db, trustProxy, now }));
+  // Anyone can read a public key from a web page.
+  app.use(
+    "/v1/*",
+    rateLimit(rateLimits, now, (c) =>
+      c.get("publicKey") ? LIMITS.publicKey(c.get("apiKey")!.id, ipOf(c, trustProxy)) : [],
+    ),
+  );
+  app.use("/v1/*", async (c, next) => (c.get("publicKey") ? limitBody(MAX_PUBLIC_BYTES)(c, next) : next()));
 
   app.route("/v1", webhookModule.presetRoutes);
   app.route("/v1", ingest.routes);

@@ -175,6 +175,7 @@ export const relations = defineRelations(schema, (r) => {
     },
 
     webhooks: {
+      workspace: r.one.workspaces({ from: r.webhooks.workspaceId, to: r.workspaces.id, optional: false }),
       environment: environmentOf(r.webhooks),
       deliveries: r.many.webhookDeliveries(),
     },

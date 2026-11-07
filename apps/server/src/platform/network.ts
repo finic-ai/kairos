@@ -15,6 +15,11 @@ export function clientIp(c: Context, trustProxy = false): string | undefined {
 /** "::ffff:203.0.113.7" is the IPv4 address 203.0.113.7 seen through an IPv6 socket. */
 export const normalizeIp = (ip: string) => ip.trim().replace(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/i, "$1");
 
+export function ipOf(c: Context, trustProxy = false): string | undefined {
+  const address = clientIp(c, trustProxy);
+  return address ? normalizeIp(address) : undefined;
+}
+
 const v4 = (ip: string) => ip.split(".").reduce((n, part) => n * 256 + Number(part), 0);
 
 export function invalidIpRules(rules: string[]): string[] {

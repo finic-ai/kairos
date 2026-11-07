@@ -8,9 +8,15 @@ export class WebhooksService extends DatabaseService<"webhooks"> {
     super(db, "webhooks", scope);
   }
 
-  /** The URL token selects the source, in any workspace. */
+  /** The URL token selects the source, in any active workspace. */
   static async findSourceByToken(db: Executor, tokenHash: string): Promise<WebhookRow | null> {
-    return (await db.query.webhooks.findFirst({ where: { tokenHash, direction: "in" } })) ?? null;
+    const found = await db.query.webhooks.findFirst({
+      where: { tokenHash, direction: "in" },
+      with: { workspace: { columns: { status: true } } },
+    });
+    if (!found || found.workspace.status !== "active") return null;
+    const { workspace: _, ...row } = found;
+    return row;
   }
 
   list(direction?: "in" | "out"): Promise<WebhookRow[]> {

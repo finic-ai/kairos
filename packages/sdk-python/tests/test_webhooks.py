@@ -54,6 +54,7 @@ class VerifyWebhookTest(unittest.TestCase):
             (BODY, headers("v1,not base64!"), SECRET, NOW),
             (BODY, headers(ts=str(NOW + 1)), SECRET, NOW),
             (BODY, headers(ts="soon"), SECRET, NOW),
+            (BODY, headers("v1,é"), SECRET, NOW),
         ]
         for body, given, secret, now in cases:
             with self.assertRaises(KairosWebhookError):

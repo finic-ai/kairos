@@ -23,7 +23,7 @@ export async function testDatabase(
   server.pathname = `/${name}`;
   const { db } = await openDatabase({ url: server.href, dataDir: "", port: 0 });
   await migrate(db, migrationsFolder);
-  const empty = sql.raw(`TRUNCATE ${ALL_TABLES.join(", ")} RESTART IDENTITY`);
+  const empty = sql.raw(`TRUNCATE ${[...ALL_TABLES, "rate_limits"].join(", ")} RESTART IDENTITY`);
   const reset = async (keys: Record<string, string> = {}) => {
     await db.execute(empty);
     const created = new Date("2026-01-01T00:00:00Z");
