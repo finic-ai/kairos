@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
 import { sql } from "drizzle-orm";
@@ -7,6 +8,7 @@ import { createApp } from "../src/app";
 import { createWorkflowRunner } from "../src/modules/workflows/libs";
 import { startScheduledRuns } from "../src/modules/workflows/service";
 import { createJobs } from "../src/platform/jobs/worker";
+import { setFieldKey } from "../src/platform/secrets";
 import { createRepositories, environmentsRepository, tenancyRepository } from "../src/repositories";
 import { DecisionsService } from "../src/services/decision.service";
 import { JobsService } from "../src/services/job.service";
@@ -189,26 +191,108 @@ describe("steps", () => {
     expect((await call("GET", "/v1/workflows/missing")).body.failing_since).toBeUndefined();
   });
 
-  it("keeps secrets out of the run log", async () => {
-    process.env.KAIROS_SECRET_OPS_TOKEN = "s3cret-token-value";
+  it("stores header and query values encrypted, and sends and shows them as written", async () => {
+    setFieldKey(randomBytes(32));
     try {
-      answer = (_req, res, body) => (res.writeHead(200, { "Content-Type": "application/json" }), res.end(body));
-      await save("secret", [
+      const seen: { url: string; auth?: string }[] = [];
+      answer = (req, res) => (
+        seen.push({ url: req.url ?? "", auth: req.headers.authorization }),
+        res.writeHead(200),
+        res.end("{}")
+      );
+      const httpCall = {
+        id: "call",
+        name: "Call",
+        type: "http",
+        method: "POST",
+        url: `${base}/tell`,
+        headers: { Authorization: "Bearer tok_live_123" },
+        query: { api_key: "key_456", page: 2 },
+      };
+      const steps = [{ id: "check", name: "Check", type: "condition", when: "true", then: [httpCall] }];
+      expect((await save("sealed", steps)).status).toBe(200);
+      const stored = await database.db.execute<{ text: string }>(
+        sql`SELECT definition::text AS text FROM workflows UNION ALL SELECT definition::text FROM definition_versions WHERE kind = 'workflow'`,
+      );
+      for (const { text } of stored.rows) {
+        expect(text).not.toContain("tok_live_123");
+        expect(text).not.toContain("key_456");
+        expect(text).toContain("kenc:v1:");
+      }
+
+      const shown = (await call("GET", "/v1/workflows/sealed")).body;
+      expect(shown.steps[0].then[0].headers).toEqual({ Authorization: "Bearer tok_live_123" });
+      expect(shown.steps[0].then[0].query).toEqual({ api_key: "key_456", page: 2 });
+      expect((await save("sealed", steps)).body.version).toBe(shown.version);
+
+      const id = await start("sealed");
+      await jobs.drain();
+      expect(seen).toEqual([{ url: "/tell?api_key=key_456&page=2", auth: "Bearer tok_live_123" }]);
+      const log = JSON.stringify(await run(id));
+      expect(log).not.toContain("tok_live_123");
+      expect(log).not.toContain("key_456");
+    } finally {
+      setFieldKey(undefined);
+    }
+  });
+
+  it("stores the header values of a draft and of a test run encrypted", async () => {
+    setFieldKey(randomBytes(32));
+    try {
+      const steps = [
         {
           id: "call",
           name: "Call",
           type: "http",
           method: "POST",
-          url: `${base}/echo`,
-          body: { token: "{{ secrets.OPS_TOKEN }}" },
+          url: `${base}/tell`,
+          headers: { "X-Api-Key": "key_789" },
         },
-      ]);
+      ];
+      const drafted = await call("PUT", "/v1/workflows/drafted/draft", { trigger: { type: "manual" }, steps });
+      expect(drafted.status).toBe(200);
+      expect(drafted.body.draft.steps[0].headers).toEqual({
+        "X-Api-Key": "key_789",
+      });
+      const tested = await call("POST", "/v1/workflows/test", {
+        definition: { name: "tested", trigger: { type: "manual" }, steps },
+        live_steps: ["call"],
+      });
+      expect(tested.status).toBe(202);
+      await jobs.drain();
+      expect((await run(tested.body.id)).definition.steps[0].headers).toEqual({ "X-Api-Key": "key_789" });
+      const stored = await database.db.execute<{ text: string }>(
+        sql`SELECT concat(definition::text, draft::text) AS text FROM workflows UNION ALL SELECT definition::text FROM workflow_runs`,
+      );
+      for (const { text } of stored.rows) expect(text).not.toContain("key_789");
+      expect(hits).toHaveLength(1);
+    } finally {
+      setFieldKey(undefined);
+    }
+  });
+
+  it("refuses server secrets, and fails a saved step that still names them without calling", async () => {
+    const step = (body: unknown) => [
+      { id: "call", name: "Call", type: "http", method: "POST", url: `${base}/echo`, body },
+    ];
+    const refused = await save("secret", step({ token: "{{ secrets.OPS_TOKEN }}" }));
+    expect(refused.status).toBe(400);
+    expect(refused.body.error.message).toContain("`secrets` is not available in a workflow");
+
+    process.env.KAIROS_SECRET_OPS_TOKEN = "s3cret-token-value";
+    try {
+      expect((await save("secret", step({ token: "PLACEHOLDER" }))).status).toBe(200);
+      for (const table of [sql`workflows`, sql`definition_versions`])
+        await database.db.execute(
+          sql`UPDATE ${table} SET definition = replace(definition::text, 'PLACEHOLDER', '{{ secrets.OPS_TOKEN }}')::json`,
+        );
       const id = await start("secret");
       await jobs.drain();
       const after = await run(id);
-      expect(hits[0]!.body).toContain("s3cret-token-value");
+      expect(after.status).toBe("failed");
+      expect(hits).toHaveLength(0);
       expect(JSON.stringify(after)).not.toContain("s3cret-token-value");
-      expect(after.steps[0].output.body).toEqual({ token: "…" });
+      expect(after.error).toContain("`secrets` is not available in a workflow");
     } finally {
       delete process.env.KAIROS_SECRET_OPS_TOKEN;
     }
@@ -467,16 +551,15 @@ describe("test runs and searches", () => {
     });
     expect(after.status).toBe("failed");
     expect(after.steps[0].attempt).toBe(1);
-    const secret = await testRun({
+    const secret = await call("POST", "/v1/workflows/test", {
       definition: {
         name: "secret",
         trigger: { type: "manual" },
         steps: [{ id: "call", name: "Call", type: "http", method: "POST", url: "{{ secrets.NOT_SET_ANYWHERE }}" }],
       },
     });
-    expect(secret.error).toBe(
-      "Step 'Call' failed: the secret NOT_SET_ANYWHERE is not set: set KAIROS_SECRET_NOT_SET_ANYWHERE on the server",
-    );
+    expect(secret.status).toBe(400);
+    expect(secret.body.error.message).toContain("`secrets` is not available in a workflow");
   });
 });
 

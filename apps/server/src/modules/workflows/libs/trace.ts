@@ -39,6 +39,13 @@ export function stepInput(step: WorkflowStepDef, vars: Variables): Record<string
       input[field] = value;
     }
   }
+  // Header and query values hold tokens, and the run log is not encrypted.
+  if (step.type === "http")
+    for (const field of ["headers", "query"]) {
+      const values = input[field];
+      if (values && typeof values === "object" && !Array.isArray(values))
+        input[field] = Object.fromEntries(Object.keys(values).map((k) => [k, "…"]));
+    }
   if (Object.keys(input).length === 0) return undefined;
   const bytes = Buffer.byteLength(JSON.stringify(input));
   return bytes > MAX_INPUT_BYTES ? { truncated: true, bytes } : input;

@@ -441,7 +441,7 @@ export function fieldsOf(step: WorkflowStep): FieldDef[] {
           field: "headers",
           label: "Headers",
           kind: "json",
-          placeholder: '{ "Authorization": "Bearer {{ secrets.OPS_TOKEN }}" }',
+          placeholder: '{ "Authorization": "Bearer <your token>" }',
         },
         { field: "query", label: "Query", kind: "json" },
         { field: "body", label: "Body", kind: "json", placeholder: '{ "user": "{{ trigger.entities.user }}" }' },
