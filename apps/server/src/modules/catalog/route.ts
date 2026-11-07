@@ -1,7 +1,7 @@
 import { validateEntity, type EntityDefinition } from "@kairos/core";
 import { Hono, type Context } from "hono";
 import type { Webhooks } from "../../context";
-import { bounded, checked, error, parse, type Env } from "../../platform/http";
+import { bounded, checked, error, optionalJson, parse, type Env } from "../../platform/http";
 import type { Repositories } from "../../repositories";
 import { DecisionsService } from "../../services/decision.service";
 import { EntitiesService } from "../../services/entities.service";
@@ -202,7 +202,7 @@ export function entityRoutes({ db, entities, events, transaction, now, webhooks,
   );
 
   app.post("/entities/:type/:id/commands/:key", async (c) => {
-    const raw = await c.req.json().catch(() => ({}));
+    const raw = await optionalJson(c);
     const body = checked(issueCommandBody, raw ?? {});
     const userId = c.get("userId");
     const key = c.get("apiKey");

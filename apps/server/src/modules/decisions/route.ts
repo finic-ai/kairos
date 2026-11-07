@@ -60,7 +60,7 @@ export function decisionRoutes({ db, events, entities, transaction, decider, now
         asOf,
         now(),
         outbound,
-        { allowPrivate: webhooks?.allowPrivate ?? false, wake: () => webhooks?.worker?.wake() },
+        { allowPrivate: webhooks?.allowPrivate ?? false, wake: () => webhooks?.worker?.wake(), live: !body.data.ts },
       );
       await c.var.logActivity({
         action: "decision.requested",
@@ -92,7 +92,7 @@ export function decisionRoutes({ db, events, entities, transaction, decider, now
       sourceOf(c),
       now(),
       outbound,
-      { allowPrivate: webhooks?.allowPrivate ?? false, wake: () => webhooks?.worker?.wake() },
+      { allowPrivate: webhooks?.allowPrivate ?? false, wake: () => webhooks?.worker?.wake(), live: true },
     );
     await c.var.logActivity({
       action: "event.sent",

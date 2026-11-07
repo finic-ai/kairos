@@ -194,7 +194,10 @@ export function validateAction(action: ActionDefinition): string[] {
     }
   }
   const threshold = action.context?.reasonThreshold;
-  if (threshold !== undefined && (threshold < 0 || threshold > 1))
+  if (
+    threshold !== undefined &&
+    (typeof threshold !== "number" || !Number.isFinite(threshold) || threshold < 0 || threshold > 1)
+  )
     problems.push("context.reasonThreshold must be between 0 and 1");
   const linkTypes = action.context?.linkTypes;
   if (linkTypes !== undefined && (!Array.isArray(linkTypes) || linkTypes.some((t) => !NAME.test(t)))) {

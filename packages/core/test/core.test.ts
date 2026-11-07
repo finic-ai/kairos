@@ -148,6 +148,14 @@ describe("actions", () => {
     });
     expect(problems).toHaveLength(5);
   });
+
+  it("needs a reason threshold that is a number from 0 to 1", () => {
+    const withThreshold = (reasonThreshold: unknown) =>
+      validateAction({ ...payout, context: { ...payout.context, reasonThreshold } as never });
+    expect(withThreshold(0.5)).toEqual([]);
+    for (const bad of ["0,5", "0.5", Number.NaN, -0.1, 2, null])
+      expect(withThreshold(bad), String(bad)).toEqual(["context.reasonThreshold must be between 0 and 1"]);
+  });
 });
 
 describe("entity kinds", () => {

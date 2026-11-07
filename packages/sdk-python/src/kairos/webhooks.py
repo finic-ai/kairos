@@ -75,7 +75,8 @@ def verify_webhook(
         except (binascii.Error, ValueError):
             continue
         expected = base64.b64encode(hmac.new(key, signed, hashlib.sha256).digest()).decode()
-        if any(hmac.compare_digest(expected, c) for c in candidates):
+        # Bytes: compare_digest raises TypeError on a str with non-ASCII characters.
+        if any(hmac.compare_digest(expected.encode(), c.encode()) for c in candidates):
             try:
                 message: dict[str, Any] = json.loads(text)
             except ValueError:

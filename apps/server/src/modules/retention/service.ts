@@ -1,5 +1,6 @@
 import type { Executor } from "../../platform/database";
 import type { ModuleJobs } from "../../platform/jobs/worker";
+import { RateLimitsService } from "../../services/rate_limit.service";
 import { purgeWorkspace, workspacesWithRetention } from "./repo";
 import type { Purged } from "./types";
 
@@ -41,6 +42,7 @@ export function retentionJobs({ db, now }: { db: Executor; now: () => Date }): M
         retryDelaysMs: [5 * 60_000],
         timeoutMs: 30_000,
         async run() {
+          await RateLimitsService.purgeExpired(db, now());
           await runRetention(db, now());
         },
       },

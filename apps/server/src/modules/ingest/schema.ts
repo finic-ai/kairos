@@ -1,13 +1,18 @@
 import { z } from "zod";
 import { actionRef, entities, id, name, properties, timestamp } from "../../platform/fields";
 
+const MAX_PROPERTIES_BYTES = 512 * 1024;
+
 export const eventBody = z
   .object({
     id,
     type: z.string().min(1).max(128),
     ts: timestamp,
     entities: entities.refine((e) => Object.keys(e).length > 0, "needs at least one entity"),
-    properties,
+    properties: properties.refine(
+      (p) => Buffer.byteLength(JSON.stringify(p)) <= MAX_PROPERTIES_BYTES,
+      `must be at most ${MAX_PROPERTIES_BYTES / 1024} KB as JSON`,
+    ),
     // Stages of one record share a universal id; the status is the record's state at this stage.
     universal_id: id.optional(),
     status: z.string().min(1).max(64).optional(),

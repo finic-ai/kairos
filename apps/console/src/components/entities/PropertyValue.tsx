@@ -88,7 +88,7 @@ export function PropertyValue({
 }) {
   if (format === "image") return <ImageValue entity={entity} name={name} />;
   if (format === "document") return <DocumentValue entity={entity} name={name} />;
-  if (format === "link" && typeof value === "string" && /^https?:\/\//i.test(value))
+  if (format === "link" && typeof value === "string" && /^https?:\/\//i.test(value) && URL.canParse(value))
     return (
       <a className="linkish" href={value} target="_blank" rel="noreferrer noopener">
         {new URL(value).hostname}

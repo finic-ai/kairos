@@ -321,6 +321,59 @@ describe("a decision that waits", () => {
   });
 });
 
+describe("a late decision", () => {
+  const intakeJobs = async () =>
+    Number(
+      (await database.db.execute<{ n: string }>(sql`SELECT count(*) AS n FROM jobs WHERE kind = 'case.evaluate'`))
+        .rows[0]!.n,
+    );
+
+  beforeEach(async () => {
+    const made = await call("POST", "/v1/queues", {
+      name: "Payout review",
+      visibility: "workspace",
+      sources: { actions: ["payout"] },
+      intake: [
+        {
+          id: "held",
+          name: "Held",
+          priority: "normal",
+          conditions: { any: [{ field: "decision.outcome", op: "in", value: ["review", "block"] }] },
+        },
+      ],
+      correlation: { by: "subject", window_days: 30 },
+    });
+    expect(made.status, JSON.stringify(made.body)).toBe(200);
+  });
+
+  it("still goes to case intake when the model was down for more than a minute", async () => {
+    down = true;
+    await track([payout("p1")]);
+    down = false;
+    clock = new Date(clock.getTime() + 70_000);
+    expect(await runner.drain()).toBe(1);
+    expect(await decisions()).toHaveLength(1);
+    expect(await intakeJobs()).toBe(1);
+  });
+
+  it("still goes to case intake for an event from minutes ago, sent to /events/decide", async () => {
+    const decided = await call("POST", "/v1/events/decide", payout("p2", 5), { key: secret });
+    expect(decided.status).toBe(200);
+    expect(await intakeJobs()).toBe(1);
+  });
+
+  it("goes to no case intake when it is a test of the past", async () => {
+    const decided = await call(
+      "POST",
+      "/v1/decide",
+      { action: "payout", entities: { user: "u1" }, ts: new Date(clock.getTime() - 3_600_000).toISOString() },
+      { key: secret },
+    );
+    expect(decided.status, JSON.stringify(decided.body)).toBe(200);
+    expect(await intakeJobs()).toBe(0);
+  });
+});
+
 describe("the switch", () => {
   /** An event stored with no decision: what the estimate counts as missed. */
   const missed = (id: string, minutesAgo: number, via: "key" | "public" = "key") =>

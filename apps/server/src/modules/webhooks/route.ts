@@ -1,6 +1,6 @@
 import { Hono, type Context } from "hono";
 import type { Webhooks } from "../../context";
-import { bounded, parse, type Env } from "../../platform/http";
+import { bounded, parse, readCapped, type Env } from "../../platform/http";
 import { requireSession } from "../../platform/auth";
 import type { SessionsService } from "../../services/session.service";
 import {
@@ -189,9 +189,8 @@ export function inboundRoutes({
   const app = new Hono<Env>();
   app.post("/webhooks/:token", async (c) => {
     if (!webhooks) return c.json({ error: { type: "not_found", message: "No such webhook" } }, 404);
-    const declared = Number(c.req.header("content-length"));
-    // Do not read a body that says it is too large; the source still records that it came.
-    const raw = declared > MAX_BODY ? Buffer.alloc(MAX_BODY + 1) : Buffer.from(await c.req.arrayBuffer());
+    // Not a 413 here: receive() still records the rejected delivery.
+    const raw = await readCapped(c.req.raw, MAX_BODY);
     const answer = await receive(
       repos,
       webhooks,

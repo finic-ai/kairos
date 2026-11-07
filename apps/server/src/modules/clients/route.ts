@@ -1,9 +1,10 @@
 import { Hono, type Context } from "hono";
 import { requireSession } from "../../platform/auth";
-import { parse, type Env } from "../../platform/http";
+import { error, parse, type Env } from "../../platform/http";
 import type { SessionsService } from "../../services/session.service";
 import type { Role } from "../../types";
 import type { Environments } from "../environments/service";
+import { atLeast } from "../tenancy/repo";
 import { clientSettingsBody } from "./schema";
 import type { Clients } from "./service";
 
@@ -65,6 +66,8 @@ export function clientsRoutes({ clients }: Pick<ClientsDeps, "clients">) {
   });
 
   app.put("/client-settings", async (c) => {
+    if (c.get("userId") && !atLeast(c.get("role"), "admin"))
+      return error(c, 403, "forbidden", "Changing client settings needs the admin role, or a secret key");
     const body = await parse(c, clientSettingsBody);
     if ("response" in body) return body.response;
     const saved = await clients.save(c.get("workspaceId"), c.get("environmentId"), body.data);
