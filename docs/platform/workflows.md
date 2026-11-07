@@ -255,7 +255,7 @@ Both give the run its answer: the `value`, which can hold templates. Choose one 
   "id": "open_case", "name": "Open a case", "type": "http",
   "method": "POST",
   "url": "https://cases.example.com/api/cases",
-  "headers": { "Authorization": "Bearer {{ secrets.CASES_TOKEN }}" },
+  "headers": { "Authorization": "Bearer <your token>" },
   "body": { "user": "{{ trigger.decision.subject.id }}", "reasons": "{{ trigger.decision.decision.reasons }}" },
   "timeout_seconds": 10
 }
@@ -270,7 +270,7 @@ Both give the run its answer: the `value`, which can hold templates. Choose one 
 
 - Each call has the header `Idempotency-Key: <run id>:<step path>`. A retry of the step sends the same key, so a receiver that reads it does the work once.
 - Kairos does not follow redirects, and reads at most 256 KB of the answer.
-- **Secrets.** `{{ secrets.NAME }}` reads a secret that is kept on the server, not in the workflow. Only an HTTP step can read secrets. Kairos replaces each secret value with `…` in the run log. A step that names a secret that does not exist fails, and the run log names it. On kairos.finic.ai, ask Finic to add a secret; on a self-hosted server, see [Configuration](../deployment/configuration.md#webhooks-and-workflows).
+- **Tokens.** Put a token in `headers` or `query`. Kairos stores those values encrypted, with `KAIROS_ENCRYPTION_KEY`, in the workflow, its versions and its test runs, and the run log shows them as `…`. People who can read the workflow see them as written. Do not put a token in `url` or `body`, which are stored as written.
 - The URL is checked as for outbound webhooks: HTTPS only, and no private or local address.
 
 ### Decide
@@ -485,7 +485,6 @@ Other fields take **templates**: `{{ expression }}`. A field that is only one te
 | `steps.<id>.output` | The output of a step that is done. |
 | `item`, `index` | Inside a loop. |
 | `run` | `{ id, started, workflow, version }` |
-| `secrets.<NAME>` | HTTP steps only. See [HTTP request](#http-request). |
 
 A condition must give `true` or `false`. A field that does not exist is an error in CEL; test it first with `has(…)`. An expression that fails ends the run: the same expression fails again, so it is not tried again.
 
@@ -548,8 +547,8 @@ The background work of runs is also on **Settings › Jobs**, with the jobs of w
 ## Security
 
 - **A workflow can do what a secret key can do** in its environment, and call the URLs in its steps. Only give the API key, or the console, to people who may do that.
+- **Header and query values are encrypted at rest**, not hidden: anyone who can read the workflow can read them.
 - **A webhook trigger's URL is a secret.** It appears in the access logs of proxies. Make a new one when it is exposed: the old one stops at once.
-- **Secrets stay on the server.** Read them with `{{ secrets.NAME }}`, and never write them in the definition. A definition is data that every version keeps, and that anyone with access can read.
 - **Public-key events start nothing** unless the trigger says `allowPublic`.
 
 ## The API
@@ -610,7 +609,7 @@ curl -s -X PUT https://kairos.finic.ai/v1/workflows/chargeback_payees \
     {
       "id": "tell", "name": "Tell the case tool", "type": "http", "method": "POST",
       "url": "https://cases.example.com/api/alerts",
-      "headers": { "Authorization": "Bearer {{ secrets.CASES_TOKEN }}" },
+      "headers": { "Authorization": "Bearer <your token>" },
       "body": { "user": "{{ trigger.entity.id }}", "payees": "{{ size(steps.withdrawals.output) }}" }
     }
   ]

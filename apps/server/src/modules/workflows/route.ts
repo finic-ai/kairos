@@ -3,7 +3,7 @@ import { Hono, type Context } from "hono";
 import { checked, error, optionalJson, readCapped, type Env } from "../../platform/http";
 import { invalid } from "../../platform/error";
 import type { Repositories } from "../../repositories";
-import { WorkflowRunsService, WorkflowsService } from "../../services/workflow.service";
+import { sealSteps, WorkflowRunsService, WorkflowsService } from "../../services/workflow.service";
 import {
   cancelRun,
   checkModels,
@@ -245,7 +245,10 @@ export function workflowRoutes({ repos, now, decider, allowPrivate, wake }: Work
           mock_outputs: body.mock_outputs ?? {},
         },
         test: true,
-        definition: definition as unknown as Record<string, unknown>,
+        definition: {
+          ...definition,
+          steps: sealSteps(definition.steps, scopeOf(c).workspaceId),
+        },
       },
       now(),
     );

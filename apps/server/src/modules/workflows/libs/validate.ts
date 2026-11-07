@@ -14,6 +14,10 @@ import { parseModelRef } from "../../models";
 import { parseRulesetRef } from "../../rulesets";
 import { inputsProblems } from "./inputs";
 
+export const NO_SECRETS = "`secrets` is not available in a workflow: write the value in the step";
+export const usesSecrets = (step: Record<string, unknown>) =>
+  /\{\{\s*secrets\b/.test(JSON.stringify([step.url, step.headers, step.query, step.body]));
+
 const NAME = /^[A-Za-z_][A-Za-z0-9_]{0,63}$/;
 const STEP_TYPES = new Set([
   "condition",
@@ -157,6 +161,7 @@ export function validateWorkflow(definition: WorkflowDefinitionDef): string[] {
         if (!["GET", "POST", "PUT", "PATCH", "DELETE"].includes(String(raw.method ?? "GET").toUpperCase()))
           problems.push(`${at}.method: GET, POST, PUT, PATCH or DELETE`);
         if (typeof raw.url !== "string" || !raw.url) problems.push(`${at}.url: the address to call`);
+        if (usesSecrets(raw)) problems.push(`${at}: ${NO_SECRETS}`);
       } else if (raw.type.startsWith("record.")) {
         if (!RECORDS.has(String(raw.record)))
           problems.push(`${at}.record: event, object, entity_type, decision or case`);
