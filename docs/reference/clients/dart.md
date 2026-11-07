@@ -82,7 +82,19 @@ Each event names the device and the entities of `setContext`, and has `source: "
 
 ## Screens
 
-In **Settings › Integrations › Client settings**, name each screen to send and its event type, such as `checkout` → `checkout_viewed`. The client sends the event when that screen opens, with the facts of the device: the platform, the model, the OS version, the app version, the language, the time zone, the screen size and whether it is a real device or an emulator. It never sends the name of the device.
+In **Settings › Integrations › Client settings**, name each screen to send and its event type, such as `checkout` → `checkout_viewed`. The client sends the event when that screen opens, with the facts of the device. It never sends the name of the device.
+
+| Fact | Platforms | Value |
+|---|---|---|
+| `platform`, `model`, `os_version` | all | The device and its OS. Android also sends `sdk_int` and `manufacturer`. |
+| `app_version`, `app_build`, `debug_build` | all | The app, and `true` for a debug build. |
+| `install_source` | Android, iOS | The store that installed the app: `com.android.vending` (Google Play), `com.apple` (App Store), `com.apple.testflight`, `com.apple.simulator`, or `none` for an Android app that was not installed from a store. |
+| `language`, `time_zone`, `screen` | all | The locale, the time zone and the screen size in pixels. |
+| `physical_device` | Android, iOS | `false` on an emulator or a simulator. |
+| `emulator_reasons` | Android | The parts of the build that look like an emulator, such as `fingerprint`, `hardware` or `product`. Empty on most real phones. `x86_abi` is also true on a Chromebook. |
+| `test_keys` | Android | `true` when the OS is signed with test keys: a custom or rooted ROM. |
+| `security_patch` | Android | The date of the last security patch, such as `2026-10-05`. |
+| `ios_app_on_mac` | iOS | `true` when the iPhone app runs on a Mac. |
 
 Add the observer to your navigator, and give your routes names:
 
