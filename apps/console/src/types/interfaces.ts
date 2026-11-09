@@ -626,6 +626,8 @@ export interface Webhook {
   mapping?: WebhookMapping;
   /** Inbound: the start and end of the URL token. */
   token_hint?: string | null;
+  /** A Shopify source: the shop it imports past orders from. */
+  shopify?: { shop: string; client_id: string | null; secret_hint: string } | null;
   enabled: boolean;
   disabled_reason: string | null;
   failing_since: string | null;
@@ -692,6 +694,23 @@ export interface SourceInput {
   secret?: string;
   mapping: WebhookMapping;
   preset?: string;
+}
+
+export type ShopifyConnection =
+  { shop: string; client_id: string; client_secret: string } | { shop: string; token: string };
+
+export interface Backfill {
+  status: "running" | "paused" | "done" | "failed";
+  since: string;
+  started: string;
+  finished: string | null;
+  phase: "orders" | "disputes" | "done";
+  orders: number;
+  disputes: number;
+  stored: number;
+  duplicate: number;
+  failed: number;
+  error: string | null;
 }
 
 export interface WebhookInput {

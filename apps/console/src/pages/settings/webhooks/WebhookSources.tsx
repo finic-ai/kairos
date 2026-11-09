@@ -10,7 +10,15 @@ import {
 } from "@kairos/core";
 import { useEffect, useMemo, useRef, useState, FormEvent, ReactNode } from "react";
 import { webhooks } from "../../../api/index";
-import type { Verification, Webhook, WebhookDelivery, WebhookPreset, Workspace } from "../../../types/interfaces";
+import type {
+  Backfill,
+  ShopifyConnection,
+  Verification,
+  Webhook,
+  WebhookDelivery,
+  WebhookPreset,
+  Workspace,
+} from "../../../types/interfaces";
 import { Tabs } from "./Webhooks";
 import { Choice } from "../../../components/ui/Choice";
 import { Copy } from "../../../components/ui/Copy";
@@ -837,6 +845,10 @@ export function SourceDetail({
         </div>
       </Group>
 
+      {webhook.preset?.startsWith("shopify@") && (
+        <PastOrders workspace={workspace} webhook={webhook} reload={reload} onImported={reloadLog} />
+      )}
+
       <Group
         title="Mapping"
         note="How a delivery becomes events and labels. Each rule that matches runs."
@@ -995,6 +1007,241 @@ export function SourceDetail({
         />
       )}
     </>
+  );
+}
+
+const LOOKBACK: [number, string][] = [
+  [1, "1 month"],
+  [3, "3 months"],
+  [6, "6 months"],
+  [12, "12 months"],
+  [24, "24 months"],
+];
+
+function backfillText(b: Backfill): string {
+  const counts = `${b.orders} ${b.orders === 1 ? "order" : "orders"} and ${b.disputes} ${b.disputes === 1 ? "dispute" : "disputes"}`;
+  if (b.status === "running")
+    return `Importing ${b.phase === "orders" ? "orders" : "disputes"} since ${dayOf(b.since)}: ${counts} so far.`;
+  if (b.status === "paused") return `Paused while the source is disabled: ${counts} so far.`;
+  if (b.status === "failed") return `Stopped after ${counts}: ${b.error ?? "an error"}`;
+  const failed = b.failed ? `, ${b.failed} failed (see Failed and No entity below)` : "";
+  return `Imported ${counts} since ${dayOf(b.since)}: ${b.stored} stored, ${b.duplicate} there already${failed}.`;
+}
+
+function PastOrders({
+  workspace,
+  webhook,
+  reload,
+  onImported,
+}: {
+  workspace: Workspace;
+  webhook: Webhook;
+  reload: () => void;
+  onImported: () => void;
+}) {
+  const [connecting, setConnecting] = useState(false);
+  const [months, setMonths] = useState(6);
+  const [error, setError] = useState<string | null>(null);
+  const { data, refetch } = useApi(
+    ["webhook-backfill", workspace.id, webhook.id],
+    () => webhooks.backfill(workspace.id, webhook.id),
+    { refetchInterval: (q) => (q.state.data?.backfill?.status === "running" ? 3_000 : false) },
+  );
+  const backfill = data?.backfill ?? null;
+  const running = backfill?.status === "running" || backfill?.status === "paused";
+  const wasRunning = useRef(false);
+  useEffect(() => {
+    if (wasRunning.current && !running) onImported();
+    wasRunning.current = running;
+  }, [running, onImported]);
+
+  const start = () => {
+    const since = new Date();
+    since.setUTCMonth(since.getUTCMonth() - months);
+    webhooks.startBackfill(workspace.id, webhook.id, since.toISOString()).then(
+      () => (setError(null), refetch()),
+      (e: Error) => setError(e.message),
+    );
+  };
+
+  return (
+    <Group
+      title="Past orders"
+      note="Import the shop's orders, refunds and disputes from before the webhook was connected."
+    >
+      {error && <div className="banner">{error}</div>}
+      <div className="card rows">
+        <Row
+          title="Shop"
+          note={
+            webhook.shopify
+              ? "Kairos reads orders and disputes with the app's credentials. It never changes the shop."
+              : "Paste the credentials of a Shopify app with read access to orders, customers and disputes."
+          }
+        >
+          {webhook.shopify && (
+            <div className="stack" style={{ gap: 4, alignItems: "flex-end" }}>
+              <span className="mono">{webhook.shopify.shop}</span>
+              <span className="mono muted">{webhook.shopify.client_id ?? webhook.shopify.secret_hint}</span>
+            </div>
+          )}
+          <div className="row">
+            {webhook.shopify && (
+              <button
+                className="btn"
+                onClick={() =>
+                  window.confirm("Disconnect the shop? Kairos forgets its credentials.") &&
+                  webhooks
+                    .updateSource(workspace.id, webhook.id, { shopify: null })
+                    .then(reload, (e: Error) => setError(e.message))
+                }
+              >
+                Disconnect
+              </button>
+            )}
+            <button className="btn" onClick={() => setConnecting(true)}>
+              {webhook.shopify ? "Change" : "Connect shop"}
+            </button>
+          </div>
+        </Row>
+        {webhook.shopify && (
+          <Row
+            title="Import"
+            note="Orders that are there already, from the webhook or an earlier import, are not stored twice."
+          >
+            <div className="row">
+              <select
+                className="input"
+                aria-label="How far back"
+                value={months}
+                onChange={(e) => setMonths(Number(e.target.value))}
+                disabled={running}
+              >
+                {LOOKBACK.map(([m, text]) => (
+                  <option key={m} value={m}>
+                    {text}
+                  </option>
+                ))}
+              </select>
+              <button className="btn primary" onClick={start} disabled={running}>
+                {running ? "Importing…" : "Import"}
+              </button>
+            </div>
+          </Row>
+        )}
+        {backfill && (
+          <Row title={backfill.status === "done" ? "Last import" : "Import"}>
+            <span className={backfill.status === "failed" ? "wh-failed" : "muted"}>{backfillText(backfill)}</span>
+          </Row>
+        )}
+      </div>
+      {connecting && (
+        <ShopifyForm
+          initialShop={webhook.shopify?.shop ?? ""}
+          onClose={() => setConnecting(false)}
+          onSave={(connection) =>
+            webhooks
+              .updateSource(workspace.id, webhook.id, { shopify: connection })
+              .then(() => (setConnecting(false), setError(null), reload()))
+          }
+        />
+      )}
+    </Group>
+  );
+}
+
+function ShopifyForm({
+  initialShop,
+  onClose,
+  onSave,
+}: {
+  initialShop: string;
+  onClose: () => void;
+  onSave: (connection: ShopifyConnection) => Promise<unknown>;
+}) {
+  const [kind, setKind] = useState<"app" | "token">("app");
+  const [shop, setShop] = useState(initialShop);
+  const [clientId, setClientId] = useState("");
+  const [secret, setSecret] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const submit = (e: FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    const domain = shop.trim().toLowerCase();
+    onSave(
+      kind === "app"
+        ? { shop: domain, client_id: clientId.trim(), client_secret: secret.trim() }
+        : { shop: domain, token: secret.trim() },
+    ).catch((err: Error) => (setError(err.message), setSaving(false)));
+  };
+  return (
+    <Modal title="Connect the shop" onClose={onClose}>
+      <form className="modal-body" onSubmit={submit}>
+        {error && (
+          <div className="banner" style={{ margin: 0 }}>
+            {error}
+          </div>
+        )}
+        <p>
+          Make an app in the Shopify Dev Dashboard, in the same organization as the shop, with the scopes{" "}
+          <span className="mono">read_orders</span>, <span className="mono">read_all_orders</span>,{" "}
+          <span className="mono">read_customers</span> and <span className="mono">read_shopify_payments_disputes</span>.
+          Install it on the shop. Without <span className="mono">read_all_orders</span>, Shopify gives only the last 60
+          days.
+        </p>
+        <TabStrip label="Kind of app">
+          <Tab on={kind === "app"} onSelect={() => (setKind("app"), setSecret(""))}>
+            Dev Dashboard app
+          </Tab>
+          <Tab on={kind === "token"} onSelect={() => (setKind("token"), setSecret(""))}>
+            Custom app in the admin
+          </Tab>
+        </TabStrip>
+        <label className="field">
+          <span>Shop domain</span>
+          <input
+            className="input mono"
+            value={shop}
+            onChange={(e) => setShop(e.target.value)}
+            placeholder="example-store.myshopify.com"
+            required
+            autoFocus
+          />
+        </label>
+        {kind === "app" && (
+          <label className="field">
+            <span>Client ID</span>
+            <input
+              className="input mono"
+              value={clientId}
+              onChange={(e) => setClientId(e.target.value)}
+              required
+              autoComplete="off"
+            />
+          </label>
+        )}
+        <label className="field">
+          <span>{kind === "app" ? "Client secret" : "Admin API access token"}</span>
+          <input
+            className="input mono"
+            type="password"
+            value={secret}
+            onChange={(e) => setSecret(e.target.value)}
+            required
+            autoComplete="off"
+          />
+        </label>
+        <div className="modal-foot">
+          <button type="button" className="btn" onClick={onClose}>
+            Cancel
+          </button>
+          <button className="btn primary" disabled={saving}>
+            {saving ? "Checking…" : "Connect"}
+          </button>
+        </div>
+      </form>
+    </Modal>
   );
 }
 
