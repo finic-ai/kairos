@@ -15,6 +15,7 @@ export interface WebhooksDeps {
   now: () => Date;
   presets: WebhookPreset[];
   onQueued?: () => void;
+  fetch?: typeof fetch;
 }
 
 export function webhooksModule({
@@ -26,8 +27,9 @@ export function webhooksModule({
   now,
   presets,
   onQueued,
+  fetch,
 }: WebhooksDeps) {
-  const admin = createWebhookAdmin({ webhooks, tenancy, environments, repos, now, onQueued });
+  const admin = createWebhookAdmin({ webhooks, tenancy, environments, repos, now, onQueued, fetch });
   return {
     adminRoutes: webhookRoutes({ sessions, admin, now }),
     inboundRoutes: inboundRoutes({ webhooks, repos, now, onQueued }),

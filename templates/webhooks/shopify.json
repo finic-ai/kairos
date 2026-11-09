@@ -1,6 +1,6 @@
 {
   "provider": "shopify",
-  "version": 1,
+  "version": 2,
   "displayName": "Shopify",
   "category": "commerce",
   "checked": true,
@@ -11,7 +11,8 @@
     "In the Shopify admin, open Settings › Notifications › Webhooks. Create a webhook for each event below, with the format JSON, the URL below and the newest API version. For an app, subscribe to the same topics in shopify.app.toml or with webhookSubscriptionCreate.",
     "Paste the signing secret here. For webhooks made in the admin, it is the key that the Webhooks section shows (\"Your webhooks will be signed with …\"). For an app, it is the app's client secret.",
     "For an app, request access to protected customer data. Without it, Shopify leaves the customer, the email and the addresses out of the payload, and an order has no user.",
-    "Disputes come from Shopify Payments only. With another payment provider, connect that provider for its disputes."
+    "Disputes come from Shopify Payments only. With another payment provider, connect that provider for its disputes.",
+    "To import past orders, refunds and disputes, open the source after you add it and connect the shop. Make an app in the Shopify Dev Dashboard, in the organization of the shop, with the scopes read_orders, read_all_orders, read_customers and read_shopify_payments_disputes. Install it on the shop and paste its client ID and client secret. Without read_all_orders, Shopify gives only the last 60 days. A custom app made in the Shopify admin before Shopify stopped them works too: paste its Admin API access token."
   ],
   "identity": "Kairos uses the Shopify customer id (customer.id, such as 7389154082937) as your user id: use the same id when your code asks Kairos for a decision. Refunds and disputes find their user from the order. An order with no customer (a guest checkout) is stored on its IP address only, and a dispute of it waits as No entity. If your users have their own id, change the user to a lookup: {\"lookup\": {\"property\": \"shopify_customer_id\", \"value\": \"$.customer.id\"}}.",
   "events": ["orders/create", "orders/paid", "orders/cancelled", "refunds/create", "disputes/create", "disputes/update"],
@@ -21,7 +22,7 @@
         "name": "Order",
         "match_headers": { "x-shopify-topic": ["orders/create", "orders/paid", "orders/cancelled"] },
         "event": {
-          "id": { "path": "$.x-shopify-webhook-id", "headers": true },
+          "id": { "join": [{ "path": "$.x-shopify-topic", "headers": true }, "$.id"] },
           "type": "order",
           "ts": "$.updated_at",
           "entities": { "user": "$.customer.id", "ip": "$.browser_ip" },
@@ -59,7 +60,7 @@
         "name": "Refund",
         "match_headers": { "x-shopify-topic": "refunds/create" },
         "event": {
-          "id": { "path": "$.x-shopify-webhook-id", "headers": true },
+          "id": { "join": ["refund", "$.id"] },
           "type": "refund",
           "ts": "$.created_at",
           "entities": { "user": { "record": "$.order_id" } },
@@ -79,7 +80,7 @@
         "name": "Dispute opened",
         "match_headers": { "x-shopify-topic": "disputes/create" },
         "event": {
-          "id": { "path": "$.x-shopify-webhook-id", "headers": true },
+          "id": { "join": ["dispute", "$.id"] },
           "type": "dispute_opened",
           "ts": "$.initiated_at",
           "entities": { "user": { "record": "$.order_id" } },
@@ -113,7 +114,7 @@
         "match_headers": { "x-shopify-topic": "disputes/update" },
         "match": { "status": ["won", "lost", "accepted", "charge_refunded"] },
         "event": {
-          "id": { "path": "$.x-shopify-webhook-id", "headers": true },
+          "id": { "join": ["dispute_closed", "$.id"] },
           "type": "dispute_closed",
           "ts": { "path": "$.finalized_on" },
           "entities": { "user": { "record": "$.order_id" } },

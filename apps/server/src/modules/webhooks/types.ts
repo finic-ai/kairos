@@ -1,5 +1,5 @@
 import type { Decision, WebhookMapping } from "@kairos/core";
-import type { WebhookDeliveryRow, WebhookRow } from "../../db/schema";
+import type { StoredSecret, WebhookDeliveryRow, WebhookRow } from "../../db/schema";
 import type { EntityRef } from "../catalog/types";
 import type { DecisionRecord } from "../decisions/types";
 
@@ -68,6 +68,8 @@ export interface InboundConfig {
   preset?: string | null;
   verification: Verification;
   mapping: WebhookMapping;
+  /** To import the shop's past orders and disputes: an Admin API token, or a client id and secret. The secrets are encrypted and never returned. */
+  shopify?: { shop: string; token?: StoredSecret; client_id?: string; client_secret?: StoredSecret };
 }
 
 export interface OutboundConfig {
@@ -244,6 +246,7 @@ export interface WebhookView {
   preset?: string | null;
   verification?: Verification;
   mapping?: WebhookMapping;
+  shopify?: { shop: string; client_id: string | null; secret_hint: string } | null;
   /** Inbound: the start and end of the URL token. The token itself is shown once. */
   token_hint?: string | null;
   enabled: boolean;
@@ -301,6 +304,13 @@ export const toWebhookView = (r: WebhookRow): WebhookView => {
           preset: inbound.preset ?? null,
           verification: inbound.verification,
           mapping: inbound.mapping,
+          shopify: inbound.shopify
+            ? {
+                shop: inbound.shopify.shop,
+                client_id: inbound.shopify.client_id ?? null,
+                secret_hint: (inbound.shopify.token ?? inbound.shopify.client_secret)!.hint,
+              }
+            : null,
           token_hint: r.tokenHint,
         }
       : {}),

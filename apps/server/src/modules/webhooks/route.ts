@@ -4,6 +4,7 @@ import { bounded, parse, readCapped, type Env } from "../../platform/http";
 import { requireSession } from "../../platform/auth";
 import type { SessionsService } from "../../services/session.service";
 import {
+  backfillBody,
   createWebhookBody,
   previewBody,
   replayBody,
@@ -115,6 +116,17 @@ export function webhookRoutes({
     const replayed = await admin.replay(t, which);
     await logWebhook(c, t, "replayed", t.row, which);
     return c.json(replayed);
+  });
+
+  app.get(`${base}/:webhook/backfill`, async (c) => c.json({ backfill: await admin.backfill(await findWebhook(c)) }));
+
+  app.post(`${base}/:webhook/backfill`, async (c) => {
+    const t = await findWebhook(c);
+    const input = await parse(c, backfillBody);
+    if ("response" in input) return input.response;
+    const backfill = await admin.startBackfill(t, new Date(input.data.since));
+    await logWebhook(c, t, "backfill_started", t.row, { since: input.data.since });
+    return c.json({ backfill });
   });
 
   app.post(`${base}/preview`, async (c) => {

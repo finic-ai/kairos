@@ -459,7 +459,7 @@ describe("lookups and the Stripe preset", () => {
       "intercom@1",
       "lithic@1",
       "marqeta@1",
-      "shopify@1",
+      "shopify@2",
       "stripe@1",
       "sumsub@1",
       "zendesk@1",

@@ -80,6 +80,7 @@ export function createApp(options: AppOptions) {
     now,
     presets: options.presets ?? [],
     onQueued,
+    fetch: options.fetch,
   });
   const ingest = ingestModule({ db, events, transaction, now, onQueued, trustProxy });
   const catalog = catalogModule({

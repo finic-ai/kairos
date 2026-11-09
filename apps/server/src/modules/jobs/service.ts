@@ -90,6 +90,7 @@ export function createBackground({
     worker,
     wake,
     drain,
+    repos,
   });
   const { webhooks } = webhookWork;
   if (!worker) return { webhooks };
