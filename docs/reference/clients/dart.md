@@ -18,7 +18,7 @@ The client for Flutter apps, `finic_kairos`. It gives each install a device id, 
 Flutter 3.22 or later, on Android, iOS or the web.
 
 ```bash
-flutter pub add finic_kairos
+flutter pub add finic_kairos --git-url=https://github.com/finic-ai/kairos.git --git-path=packages/sdk-dart
 ```
 
 ## Start the client

@@ -1,6 +1,6 @@
 import type { HighlighterCore } from "shiki/core";
 
-export type CodeLang = "bash" | "html" | "javascript" | "json" | "python" | "toml" | "typescript";
+export type CodeLang = "bash" | "dart" | "html" | "javascript" | "json" | "python" | "toml" | "typescript";
 
 let loading: Promise<HighlighterCore> | undefined;
 
@@ -12,6 +12,7 @@ const highlighter = () =>
         themes: [import("shiki/themes/github-light.mjs"), import("shiki/themes/github-dark.mjs")],
         langs: [
           import("shiki/langs/bash.mjs"),
+          import("shiki/langs/dart.mjs"),
           import("shiki/langs/html.mjs"),
           import("shiki/langs/javascript.mjs"),
           import("shiki/langs/json.mjs"),
