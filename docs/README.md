@@ -16,7 +16,7 @@ Kairos is a decision engine. You send it what happens in your product, you say i
 | Section | Pages |
 |---|---|
 | **Concepts** | [Core concepts](concepts/core-concepts.md) · [Events](concepts/events.md) · [Entities](concepts/entities/README.md) · [Actions](concepts/actions.md) · [Decisions](concepts/decisions.md) · [Facts](concepts/entities/facts.md) · [Lists](concepts/entities/lists.md) · [How links are reported](concepts/links.md) · [Workspaces](platform/workspaces.md) · [Environments](platform/environments.md) · [Authentication](platform/authentication.md) |
-| **SDK** | [TypeScript SDK guide](reference/clients/typescript.md) · [Python SDK guide](reference/clients/python.md) |
+| **SDK** | [TypeScript SDK guide](reference/clients/typescript.md) · [Python SDK guide](reference/clients/python.md) · [Flutter](reference/clients/dart.md) |
 | **API** | [API reference](reference/api.md) · [MCP](reference/mcp.md): Cursor, Claude Code and other agents read and act through the Model Context Protocol |
 | **Webhooks** | [Inbound webhooks](platform/webhooks/inbound.md): a provider such as Stripe sends its events to Kairos · [Outbound webhooks](platform/webhooks/outbound.md): Kairos tells your system what it decided |
 | **Workflows** | [Workflows](platform/workflows.md): work that Kairos does after an event, a change, a schedule or a call, such as a review or a call to your case tool |

@@ -38,7 +38,7 @@ A key belongs to one workspace and one of its [environments](#environments), and
 | Kind | Prefix | Allowed |
 |---|---|---|
 | Secret | `ksk_` | Every `/v1` endpoint |
-| Public | `kpk_` | `POST /v1/events` only, and without `set` or `set_once` |
+| Public | `kpk_` | `POST /v1/events`, without `set` or `set_once`, and `GET /v1/client-settings`, which answers only `version`, `consent`, `pages` and `screens` |
 
 A key can be limited to IP addresses or IPv4 ranges. A public key can be limited to websites; the server compares the list with the `Origin` header of the request. `POST /v1/events` answers CORS requests from any origin, so that a browser can send events.
 
