@@ -112,6 +112,18 @@ class TrackTest(unittest.TestCase):
         with self.assertRaisesRegex(KairosError, r"\$session"):
             kairos.track("login", {"user_id": "u"}, session={"id": 1})  # type: ignore[arg-type]
 
+    def test_sends_trace_as_the_span_of_the_event(self) -> None:
+        server = Server()
+        kairos = client(server)
+        span = {"trace_id": "t1", "span_id": "s2", "parent_span_id": "s1", "name": "execute_tool lookup_order", "end": datetime(2026, 10, 1, 10, 0, 1, 500000, tzinfo=timezone.utc), "status": "ok"}
+        kairos.track("tool_called", {"agent_id": "a1", "tool": "lookup_order", "$trace": span}, event_id="e1")
+        kairos.flush()
+        event = server.events()[0]
+        self.assertEqual(event["trace"], {"trace_id": "t1", "span_id": "s2", "parent_span_id": "s1", "name": "execute_tool lookup_order", "status": "ok", "end": "2026-10-01T10:00:01.500Z"})
+        self.assertEqual((event["entities"], event["properties"]), ({"agent": "a1"}, {"tool": "lookup_order"}))
+        with self.assertRaisesRegex(KairosError, r"\$trace"):
+            kairos.track("tool_called", {"agent_id": "a1", "$trace": {"trace_id": "t1"}})
+
     def test_sends_python_values_that_json_does_not_have(self) -> None:
         server = Server()
         kairos = client(server)

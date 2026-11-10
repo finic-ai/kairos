@@ -36,10 +36,16 @@
     "example:recipes": "tsx --env-file-if-exists=.env examples/recipes.ts",
     "example:session": "tsx --env-file-if-exists=.env examples/session.ts",
     "example:sessions": "tsx --env-file-if-exists=.env examples/sessions.ts",
+    "example:agents": "tsx --env-file-if-exists=.env examples/agent-traces.ts",
+    "example:agents:otel": "tsx --env-file-if-exists=.env examples/agent-otel.ts",
     "example:middleware": "tsx --env-file-if-exists=.env packages/sdk/examples/express.ts",
     "docs:events": "tsx templates/render.ts"
   },
   "devDependencies": {
+    "@opentelemetry/api": "1.9.0",
+    "@opentelemetry/exporter-trace-otlp-http": "0.200.0",
+    "@opentelemetry/resources": "2.0.0",
+    "@opentelemetry/sdk-trace-base": "2.0.0",
     "@types/node": "^22.0.0",
     "prettier": "^3.9.10",
     "tsx": "^4.19.0",

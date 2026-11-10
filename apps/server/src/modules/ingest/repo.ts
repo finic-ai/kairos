@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import type { Executor } from "../../platform/database";
 import { eventEntities, events } from "../../db/schema";
+import { storedMetadata, withTrace } from "../../services/event.service";
 import type {
   EntityRef,
   EventsRepository,
@@ -34,7 +35,7 @@ const toEvent = (r: EventRow): StoredEvent => ({
   ...(r.universal_id ? { universal_id: r.universal_id } : {}),
   ...(r.status ? { status: r.status } : {}),
   ...(r.session_id ? { session: r.session_id } : {}),
-  ...(r.metadata && Object.keys(r.metadata).length ? { metadata: r.metadata } : {}),
+  ...withTrace(r.metadata),
 });
 
 // The API calls the customer's id `id`.
@@ -79,7 +80,7 @@ export function eventsRepository(db: Executor): EventsRepository {
               status: e.status ?? null,
               sessionId: e.session ?? null,
               via: via ?? null,
-              metadata: e.metadata ?? {},
+              metadata: storedMetadata(e),
               created: new Date(now),
             })),
           )

@@ -13,12 +13,14 @@ import { durationText, entityName, stamp } from "../../lib/format";
 import { go, href } from "../../lib/route";
 import { SessionReplay } from "../../components/sessions/SessionReplay";
 import { SessionReplayDevice } from "../../components/sessions/SessionReplayDevice";
+import { SessionTrace } from "../../components/sessions/SessionTrace";
 
 const plural = (type: string) => `${entityName(type)}${type.endsWith("s") ? "" : "s"}`;
 
 const REPLAYS = [
   ["timeline", "Timeline"],
   ["device", "Device"],
+  ["trace", "Trace"],
 ] as const;
 
 type ReplayKind = (typeof REPLAYS)[number][0];
@@ -27,11 +29,12 @@ const REPLAY_KEY = "kairos.replay";
 
 export function SessionPage({ id }: { id?: string }) {
   const names = useActionNames();
-  const [replay, setReplay] = useState<ReplayKind>(() => {
+  const [chosen, setReplay] = useState<ReplayKind | null>(() => {
     try {
-      return localStorage.getItem(REPLAY_KEY) === "device" ? "device" : "timeline";
+      const saved = localStorage.getItem(REPLAY_KEY);
+      return REPLAYS.some(([kind]) => kind === saved) ? (saved as ReplayKind) : null;
     } catch {
-      return "timeline";
+      return null;
     }
   });
   const chooseReplay = (kind: ReplayKind) => {
@@ -45,6 +48,11 @@ export function SessionPage({ id }: { id?: string }) {
   );
   if (error) return <Failure message={error.message} />;
   if (!s) return <Loading />;
+
+  const traced = s.events.some((e) => e.trace);
+  // A traced session opens on its trace, unless another view was chosen. Without spans there is no trace to show.
+  const replay: ReplayKind = chosen === "trace" && !traced ? "timeline" : (chosen ?? (traced ? "trace" : "timeline"));
+  const replays = REPLAYS.filter(([kind]) => kind !== "trace" || traced);
 
   const started = Date.parse(s.started);
   const after = (ts: string) => {
@@ -107,14 +115,16 @@ export function SessionPage({ id }: { id?: string }) {
           <div className="replay-choice">
             <span className="muted">Replay</span>
             <div className="seg">
-              {REPLAYS.map(([id, label]) => (
+              {replays.map(([id, label]) => (
                 <button key={id} className={replay === id ? "on" : ""} onClick={() => chooseReplay(id)}>
                   {label}
                 </button>
               ))}
             </div>
           </div>
-          {replay === "device" ? (
+          {replay === "trace" ? (
+            <SessionTrace events={s.events} decisions={s.decisions} names={names} />
+          ) : replay === "device" ? (
             <SessionReplayDevice events={s.events} decisions={s.decisions} names={names} />
           ) : (
             <SessionReplay events={s.events} decisions={s.decisions} names={names} />

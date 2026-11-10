@@ -3,6 +3,17 @@ import { actionRef, entities, id, name, properties, timestamp } from "../../plat
 
 const MAX_PROPERTIES_BYTES = 512 * 1024;
 
+export const traceBody = z
+  .object({
+    trace_id: id,
+    span_id: id,
+    parent_span_id: id.optional(),
+    name: z.string().min(1).max(256).optional(),
+    end: timestamp.optional(),
+    status: z.enum(["ok", "error"]).optional(),
+  })
+  .strict();
+
 export const eventBody = z
   .object({
     id,
@@ -17,6 +28,7 @@ export const eventBody = z
     universal_id: id.optional(),
     status: z.string().min(1).max(64).optional(),
     session: id.optional(),
+    trace: traceBody.optional(),
     set: z.record(name, z.record(z.unknown())).optional(),
     set_once: z.record(name, z.record(z.unknown())).optional(),
   })

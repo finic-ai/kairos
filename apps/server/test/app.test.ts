@@ -1231,6 +1231,26 @@ describe("sessions", () => {
     expect((await (await call("GET", "/v1/decisions?session=now")).json()).total).toBe(1);
   });
 
+  it("keeps the span of an event for the session, and does not show it to the model", async () => {
+    const span = { trace_id: "t1", span_id: "sp2", parent_span_id: "sp1", name: "withdraw", end: at(0), status: "ok" };
+    const decided = await (
+      await call("POST", "/v1/events/decide", {
+        ...inSession("w1", 0, "withdrawal_requested", "now", "u1", { usd: 10 }),
+        trace: span,
+      })
+    ).json();
+    expect(JSON.stringify(seen[0]!.context)).not.toContain("sp2");
+    const session = await (await call("GET", "/v1/sessions/now")).json();
+    expect(session.events.find((e: any) => e.id === "w1").trace).toEqual(span);
+    expect(session.events.find((e: any) => e.id === "w1")).not.toHaveProperty("metadata");
+    expect(session.events.find((e: any) => e.id === "s2")).not.toHaveProperty("trace");
+    expect(session.decisions[0]).toMatchObject({ id: decided.decision_id, event_id: "w1" });
+    const bad = await call("POST", "/v1/events", {
+      batch: [{ ...inSession("w2", 0, "login", "now"), trace: { trace_id: "t1" } }],
+    });
+    expect(bad.status).toBe(400);
+  });
+
   it("lists sessions, most recently active first, with what was decided in each", async () => {
     await call("POST", "/v1/decide", {
       action: "withdrawal",

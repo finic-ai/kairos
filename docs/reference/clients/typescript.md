@@ -379,6 +379,59 @@ What to know:
 - **A total can be for the session.** `window: "session"` adds up the subject's events in the current visit, whatever its length: `{ name: "money_out", event: "withdrawal", sum: "usd", window: "session" }`. A request with no `$session` has no such total, and a policy rule on it does not fire.
 - `trackAndDecide` takes `$session` like `track`. The event that asks for the decision is the pending action, so it is not one of the steps.
 
+### Traces
+
+For an AI agent or another service that is traced, send the span that each event records as `$trace`. The console then shows the session as a trace: each span as a bar under the span that started it, and each decision on the span that asked for it.
+
+```ts
+await kairos.trackAndDecide("tool_call_requested", {
+  agentId: "agent_support_1",
+  tool: "issue_refund",
+  usd: 30,
+  $session: "run_8812",
+  timestamp: started,
+  $trace: {
+    traceId: "4bf92f3577b34da6a3ce929d0e0e4736",
+    spanId: "00f067aa0ba902b7",
+    parentSpanId: "53995c3f42cd8ad8",
+    name: "execute_tool issue_refund",
+  },
+});
+```
+
+- **One span is one event.** A trace is the events that share a `traceId`, and `parentSpanId` puts each under the unit of work that started it.
+- `traceId` and `spanId` are required. Use the ids of your tracer, for example OpenTelemetry's.
+- `timestamp` is when the span started. For a unit of work that has ended when you send it, such as a model call, add `end` and `status` (`"ok"` or `"error"`). A tool call that asks for a decision has not run yet, so it has no `end` and shows as a point. Send what the tool returned as its own event, with the call's `spanId` as its `parentSpanId`.
+- **A decision does not read it.** The ids mean nothing to the model. Put what matters for the decision, such as the tool and its arguments, in the properties.
+- `$trace` **is not an entity.** Do not send the ids as `traceId` or `spanId` properties: like every property that ends in `Id`, they would become entities.
+
+You can also send a trace after it ended, for example from a job that reads your tracer's export. Send it as its spans, with one event for each span, in the same way as above. `track` queues the events and sends them in batches.
+
+```ts
+for (const span of finishedSpans) {
+  kairos.track(span.type, {
+    ...span.properties,
+    $session: span.conversationId,
+    timestamp: span.start,
+    eventId: `span_${span.spanId}`,
+    $trace: {
+      traceId: span.traceId,
+      spanId: span.spanId,
+      parentSpanId: span.parentSpanId,
+      name: span.name,
+      end: span.end,
+      status: span.status,
+    },
+  });
+}
+```
+
+- **Use the span id in the `eventId`.** If you send the same trace again, the server ignores the spans it has already stored. With random ids, each send stores copies, and the copies are counted in the history and the totals.
+- **The order does not matter.** The console builds the tree when it shows the session, so a span can arrive before its parent.
+- **A trace sent after it ended is history.** It cannot stop a tool call that has already run. Later decisions see it in the history. To judge the finished run, send one more event, such as `agent_run_finished`, and decide on it.
+- You can mix the two: decide on the risky tool calls while the agent runs, then send the rest of the trace when it ends. If you use the same `eventId` for a span in both, it is stored once.
+- **Do not send a whole trace as one event**, for example as a list of spans in a property. A decision reads the properties, so the full trace goes into every later decision that has this event in its history. The console shows it as one event with no trace, and the ids in it do not become entities.
+
 `GET /v1/sessions/:id` returns a session: its events in order, every entity they name, and the decisions made in it. The console shows the same on a session's page, which you reach from an entity or from a decision. This is a replay of what was done, as events. It is not a recording of the screen.
 
 The loan, insurance, medical and scam payment templates send a visit for every kind of fraud they contain; see [Visits and sessions](../../templates/overview.md#visits-and-sessions).

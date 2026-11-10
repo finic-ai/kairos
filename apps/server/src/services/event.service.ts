@@ -3,7 +3,22 @@ import type { events } from "../db/schema";
 import type { Executor } from "../platform/database";
 import { DatabaseService } from "../platform/orm";
 import { at, iso, rows } from "../platform/sql";
+import type { EventTrace } from "../db/schema";
 import type { StoredEvent } from "../types";
+
+/** The span of an event is kept in its metadata: the API shows it as `trace`, apart from the rest. */
+export function withTrace(metadata: Record<string, unknown> | null): Pick<StoredEvent, "trace" | "metadata"> {
+  const { trace, ...rest } = metadata ?? {};
+  return {
+    ...(trace ? { trace: trace as EventTrace } : {}),
+    ...(Object.keys(rest).length ? { metadata: rest } : {}),
+  };
+}
+
+export const storedMetadata = (e: StoredEvent): Record<string, unknown> => ({
+  ...e.metadata,
+  ...(e.trace ? { trace: e.trace } : {}),
+});
 
 type EventRow = typeof events.$inferSelect;
 
@@ -17,7 +32,7 @@ const toEvent = (r: EventRow): StoredEvent => ({
   ...(r.universalId ? { universal_id: r.universalId } : {}),
   ...(r.status ? { status: r.status } : {}),
   ...(r.sessionId ? { session: r.sessionId } : {}),
-  ...(r.metadata && Object.keys(r.metadata).length ? { metadata: r.metadata } : {}),
+  ...withTrace(r.metadata),
 });
 
 export class EventsService extends DatabaseService<"events"> {

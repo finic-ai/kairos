@@ -115,6 +115,7 @@ Store a batch of events. Answers `202`.
 | `universal_id` | | Events with the same value are stages of one [record](#records). |
 | `status` | | The state of the record at this stage, up to 64 characters. |
 | `session` | | Events with the same value are one [session](#sessions). |
+| `trace` | | The span this event records: `trace_id` and `span_id` (required), `parent_span_id`, `name`, `end` and `status` (`ok` or `error`). `ts` is when the span started. The console shows the spans of a session as a trace. A decision does not read it. |
 | `set` | | Entity type → properties to set on that entity. The type must be in `entities`. A value replaces the stored one unless a later event set it. Secret key only. |
 | `set_once` | | The same, but only for a property that has no value yet. Secret key only. |
 
@@ -179,7 +180,7 @@ Sessions, most recently active first. A session is listed when it has at least o
 
 ### `GET /v1/sessions/:id`
 
-One session: its events oldest first, every entity they name, and the decisions made in it.
+One session: its events oldest first, every entity they name, and the decisions made in it. An event sent with `trace` has it here. A decision that an event started has that event's id as `event_id`.
 
 ```json
 { "id": "sess_7f3a", "started": "…", "last_seen": "…", "entities": { "user": ["user_42"] }, "events": [ … ], "decisions": [ … ] }

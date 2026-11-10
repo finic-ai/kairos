@@ -124,6 +124,20 @@ decision = kairos.decide("withdrawal", {"user_id": "user_42", "usd": 2400}, sess
 
 `session` is not an entity. A key named `session_id` is still an entity of your own called "session".
 
+For an AI agent or another service that is traced, send the span that each event records as `$trace` in the properties. The console then shows the session as a trace, with each decision on the span that asked for it. A decision does not read it.
+
+```python
+kairos.track("tool_called", {
+    "agent_id": "agent_support_1",
+    "tool": "lookup_order",
+    "$trace": {"trace_id": "4bf92f35…", "span_id": "00f067aa…", "parent_span_id": "53995c3f…", "name": "execute_tool lookup_order", "end": ended, "status": "ok"},
+}, session="run_8812", timestamp=started)
+```
+
+`trace_id` and `span_id` are required. The event's `timestamp` is when the span started.
+
+To send a trace after it ended, send one event for each span, with `event_id=f"span_{span_id}"`. If you send the same trace again, the server ignores the spans it has already stored, and the spans can arrive in any order. Do not send a whole trace as one event with the spans in a property: a decision reads the properties, and the console cannot show it as a trace. See [Traces](typescript.md#traces) for more.
+
 ## Define an action
 
 An action is a decision you want made, in plain language. Define it once, at startup: sending the same definition again changes nothing.
