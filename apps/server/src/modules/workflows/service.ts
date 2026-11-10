@@ -973,7 +973,7 @@ export async function collectTrainingRows(
   db: Executor,
   scope: Scope,
   name: string,
-  body: TrainingDataBody & { newest?: boolean },
+  body: TrainingDataBody & { newest?: boolean; backtest?: string },
   now: Date,
 ): Promise<TrainingRows> {
   const workflow = await new WorkflowsService(db, scope).findByName(name);
@@ -1002,7 +1002,7 @@ export async function collectTrainingRows(
   const labels = new LabelsService(db, scope);
 
   for (let cursor = ""; counts.rows < limit;) {
-    const page = await runs.listFinished(workflow.id, cursor, PAGE, body.newest);
+    const page = await runs.listFinished(workflow.id, cursor, PAGE, body.newest, body.backtest);
     if (page.length === 0) break;
     cursor = page.at(-1)!.id;
     const rows: { run: string; at: Date; id: string; values: FeatureValues }[] = [];
@@ -1011,7 +1011,8 @@ export async function collectTrainingRows(
       // A decision as of a past moment has that moment as its time, not the time of the run.
       const at = typeof trigger.ts === "string" ? new Date(trigger.ts) : run.created;
       if ((from && at < from) || (to && at >= to)) continue;
-      const version = Number(run.workflow.split("@").at(-1));
+      // A backtest of a draft is labelled "name@draft".
+      const version = Number(run.workflow.split("@").at(-1)) || 0;
       const vars = {
         ...runVariables(run, name, version),
         steps: stepOutputs((run.steps ?? []) as unknown as StepEntry[]),

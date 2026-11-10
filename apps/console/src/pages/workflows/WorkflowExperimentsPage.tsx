@@ -1,4 +1,6 @@
+import { useState } from "react";
 import { experiments, workflows } from "../../api/index";
+import { BacktestModal, backtestProgressText, isBacktest, OutcomeBar } from "../../components/workflows/Backtest";
 import { Empty, Failure, Loading } from "../../components/ui/states";
 import { WorkflowPageTabs } from "../../components/workflows/WorkflowTabs";
 import { useApi } from "../../hooks/useApi";
@@ -12,6 +14,7 @@ import {
   STATUS_TEXT,
   statusChip,
   testMetric,
+  trainedOn,
   validMetric,
 } from "../../lib/experiments";
 import { actionName, stamp } from "../../lib/format";
@@ -25,6 +28,7 @@ export function WorkflowExperimentsPage({ name }: { name: string }) {
   const { data, error } = useApi(["workflow-experiments", name], () => experiments.list(name), {
     refetchInterval: (query) => (query.state.data?.experiments.some(isPending) ? POLL_MS : false),
   });
+  const [backtesting, setBacktesting] = useState(false);
   if (error) return <Failure message={error.message} />;
   if (!data) return <Loading />;
   const list = data.experiments;
@@ -38,10 +42,24 @@ export function WorkflowExperimentsPage({ name }: { name: string }) {
           <h1>Experiments on {label}</h1>
           <p className="lede">
             Each one trained several ways of scoring the workflow on its labeled runs, chose on newer runs and tested on
-            the newest. Apply the variant you choose as the workflow's draft or next version.
+            the newest. Apply the variant you choose as the workflow's draft or next version. A backtest first runs the
+            workflow on the past requests of its action, and shows what it would have decided.
           </p>
         </div>
+        {workflow?.trigger?.type === "decision" && (
+          <button type="button" className="btn primary" onClick={() => setBacktesting(true)}>
+            Backtest
+          </button>
+        )}
       </header>
+      {backtesting && (
+        <BacktestModal
+          workflow={name}
+          hasDraft={Boolean(workflow?.draft)}
+          onClose={() => setBacktesting(false)}
+          onStarted={(made) => go("workflows", name, "experiments", made.id)}
+        />
+      )}
       {list.length === 0 ? (
         <div className="card">
           <Empty title="No experiments yet">
@@ -80,6 +98,8 @@ function ExperimentCard({ experiment: e }: { experiment: Experiment }) {
   const top = Math.max(...results.map((r) => testMetric(r, m) ?? floor), floor + 0.01);
   const width = (v: number | null) => `${Math.max(0, ((v ?? floor) - floor) / (top - floor)) * 100}%`;
   const open = () => go("workflows", name, "experiments", e.id);
+  const trained = trainedOn(e);
+  const report = e.dataset?.backtest;
   return (
     <div className="card exp-card link" onClick={open}>
       <div className="exp-card-head">
@@ -89,8 +109,9 @@ function ExperimentCard({ experiment: e }: { experiment: Experiment }) {
           </a>
           <div className="note">
             {stamp(e.created_at)} UTC{e.created_by ? ` · ${e.created_by}` : ""}
-            {e.dataset &&
-              ` · ${e.dataset.rows.toLocaleString()} runs, ${e.dataset.positives.toLocaleString()} positive · split ${e.dataset.split.train} / ${e.dataset.split.valid} / ${e.dataset.split.test}`}
+            {trained &&
+              ` · ${trained.rows.toLocaleString()} runs, ${trained.positives.toLocaleString()} positive · split ${trained.split.train} / ${trained.split.valid} / ${trained.split.test}`}
+            {!trained && report && ` · backtest of ${report.runs.toLocaleString()} past requests`}
           </div>
         </div>
         <div className="row" style={{ gap: 6 }}>
@@ -150,9 +171,15 @@ function ExperimentCard({ experiment: e }: { experiment: Experiment }) {
             })}
           </tbody>
         </table>
+      ) : report ? (
+        <OutcomeBar report={report} />
       ) : (
         isPending(e) && (
-          <div className="note">Training, validating and testing {e.config.variants.length} variants…</div>
+          <div className="note">
+            {isBacktest(e)
+              ? backtestProgressText(e)
+              : `Training, validating and testing ${e.config.variants.length} variants…`}
+          </div>
         )
       )}
     </div>

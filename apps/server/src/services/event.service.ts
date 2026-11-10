@@ -57,6 +57,56 @@ export class EventsService extends DatabaseService<"events"> {
     );
   }
 
+  async countForBacktest(type: string, statuses: string[] | undefined, period: { from?: string; to?: string }) {
+    const [r] = await rows<{ n: number }>(
+      this.db,
+      sql`SELECT COUNT(*)::int AS n FROM events WHERE workspace_id = ${this.scope.workspaceId} AND environment_id = ${this.scope.environmentId} AND type = ${type}
+          ${
+            statuses
+              ? sql`AND status IN (${sql.join(
+                  statuses.map((s) => sql`${s}`),
+                  sql`, `,
+                )})`
+              : sql``
+          }
+          AND (via IS NULL OR via IN ('key', 'webhook', 'console'))
+          ${period.from ? sql`AND ts >= ${at(period.from)}` : sql``} ${period.to ? sql`AND ts < ${at(period.to)}` : sql``}`,
+    );
+    return r?.n ?? 0;
+  }
+
+  /**
+   * Events of one type in a period, oldest first, after `after`: the past requests a backtest
+   * replays. Only events a server sent, as for an automatic decision.
+   */
+  async listForBacktest(
+    type: string,
+    statuses: string[] | undefined,
+    period: { from?: string; to?: string },
+    after: { ts: string; id: string } | null,
+    limit: number,
+  ): Promise<(StoredEvent & { key: string })[]> {
+    const found = await this.findMany({
+      where: {
+        type,
+        ...(statuses ? { status: { in: statuses } } : {}),
+        RAW: (t) =>
+          sql.join(
+            [
+              sql`(${t.via} IS NULL OR ${t.via} IN ('key', 'webhook', 'console'))`,
+              ...(period.from ? [sql`${t.ts} >= ${at(period.from)}`] : []),
+              ...(period.to ? [sql`${t.ts} < ${at(period.to)}`] : []),
+              ...(after ? [sql`(${t.ts}, ${t.id}) > (${at(after.ts)}, ${after.id})`] : []),
+            ],
+            sql` AND `,
+          ),
+      },
+      orderBy: (t, { asc }) => [asc(t.ts), asc(t.id)],
+      limit,
+    });
+    return found.map((r) => ({ ...toEvent(r), key: r.id }));
+  }
+
   async listStages(universalId: string, until: string): Promise<StoredEvent[]> {
     const found = await this.findMany({
       where: { universalId, ts: { lte: new Date(until) } },

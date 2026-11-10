@@ -888,6 +888,30 @@ export interface ExperimentResult {
   problems: string[];
 }
 
+/** What a workflow would have decided over the past requests of its action. */
+export interface BacktestReport {
+  ran_on: "draft" | number;
+  action: string;
+  requests: number;
+  runs: number;
+  skipped: number;
+  outcomes: Record<string, number>;
+  rates: Record<string, number>;
+  reasons: { code: string; runs: number }[];
+  /** For each outcome: its runs, and how many of them got one of the labels within the window. */
+  labelled: Record<string, { runs: number; labelled: number; unknown: number }>;
+  flagged: {
+    run_id: string;
+    event_id: string;
+    ts: string;
+    subject: { type: string; id: string };
+    outcome: string;
+    risk_score: number | null;
+    reasons: unknown[];
+  }[];
+  errors: { run_id: string; error: string }[];
+}
+
 export interface Experiment {
   id: string;
   workflow: string;
@@ -908,18 +932,27 @@ export interface Experiment {
     block_rate: number;
     model_prefix?: string;
     by?: string;
+    backtest?: { from?: string; to?: string; limit?: number };
   };
+  /**
+   * While a backtest runs, only `backtest_progress`. A backtest that did not train has
+   * `backtest` and `not_trained`, and none of the training fields.
+   */
   dataset: {
-    rows: number;
-    positives: number;
-    from: string;
-    to: string;
-    labels: string[];
-    window: string;
-    split: { train: number; valid: number; test: number };
-    export: Record<string, unknown>;
-    metric: ExperimentMetric;
-    baseline: string;
+    rows?: number;
+    positives?: number;
+    from?: string;
+    to?: string;
+    labels?: string[];
+    window?: string;
+    split?: { train: number; valid: number; test: number };
+    export?: Record<string, unknown>;
+    metric?: ExperimentMetric;
+    baseline?: string;
+    ran_on?: "draft" | number;
+    backtest?: BacktestReport;
+    backtest_progress?: { runs: number; skipped: number; requests: number; ran_on: "draft" | number };
+    not_trained?: string | null;
   } | null;
   results: ExperimentResult[] | null;
   /** The variant with the best validation metric. */

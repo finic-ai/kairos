@@ -190,7 +190,8 @@ The workflow makes the decisions of `payout`. Each `decide()` for it runs the wo
 - **The time until the answer** is `timeout_seconds`: 5 by default, at most 30, apart from the model. A step does not wait for a retry before the answer: its first failure counts.
 - **A failure before the answer fails the decision.** `decide()` gets a 502 with the type `workflow_failed`, and the message names the step and the run. The SDKs' `fallback` option handles it, as it handles a model that cannot answer. No decision is saved.
 - **Writes before the answer stay** when the decision then fails. The builder marks each one. Put writes after an Answer step, or in workflows that start on a [decision that is created](#record-event), when they must only happen for a decision that is saved.
-- Steps after an Answer run in the background, once the decision is saved. They read its id as `trigger.decision_id`. A decision as of a past moment (`ts`, for a backtest) stops at its answer: as it sends no webhook, it does not go on.
+- Steps after an Answer run in the background, once the decision is saved. They read its id as `trigger.decision_id`. A decision as of a past moment (`ts`) stops at its answer: as it sends no webhook, it does not go on.
+- **To see what the workflow would have decided** on your history, run an experiment with a [backtest](models.md#backtests). It replays the action's past requests through the draft or the live version, and decides nothing.
 
 A decision workflow cannot be started with `POST /v1/workflows/:name/runs`: call `decide()`.
 

@@ -103,7 +103,7 @@ export function createBackground({
     workflowJobs({ repos, decider, now, allowPrivate: settings.allowPrivate, wake }),
     caseJobs({ repos, now, wake }),
     retentionJobs({ db, now }),
-    experimentJobs({ db, now }),
+    experimentJobs({ db, now, runtime: { decider, allowPrivate: settings.allowPrivate } }),
   ];
   jobs = createJobs({
     repo: store,
