@@ -19,6 +19,7 @@ export const ICONS = {
       <path d="M10 6v4l2.8 1.8" />
     </>
   ),
+  events: <path d="M2.5 10h3.5l2-5 4 10 2-5h3.5" />,
   entities: (
     <>
       <circle cx="5" cy="10" r="2.2" />
@@ -51,6 +52,7 @@ export const GROUPS: { id: keyof typeof ICONS; label: string }[][] = [
     { id: "decisions", label: "Decisions" },
     { id: "queues", label: "Queues" },
     { id: "sessions", label: "Sessions" },
+    { id: "events", label: "Events" },
     { id: "entities", label: "Entities" },
   ],
   [
@@ -68,6 +70,7 @@ export const LABEL: Record<string, string> = {
   queues: "Queues",
   cases: "Case",
   sessions: "Sessions",
+  events: "Events",
   entities: "Entities",
   actions: "Actions",
   workflows: "Workflows",

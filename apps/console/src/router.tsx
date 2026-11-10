@@ -22,6 +22,7 @@ import { GetStartedPage } from "./pages/get-started/GetStartedPage";
 import { OverviewPage } from "./pages/overview/OverviewPage";
 import { SessionPage } from "./pages/sessions/SessionPage";
 import { SessionsPage } from "./pages/sessions/SessionsPage";
+import { EventsPage } from "./pages/events/EventsPage";
 import { ActivityPage } from "./pages/settings/ActivityPage";
 import { IntegrationsPage } from "./pages/settings/integrations/IntegrationsPage";
 import { EnvironmentsPage } from "./pages/settings/EnvironmentsPage";
@@ -286,6 +287,7 @@ export const createRouter = () =>
             { path: "cases/:id", element: <CaseRoute /> },
             { path: "sessions", element: <SessionsPage /> },
             { path: "sessions/:id", element: <SessionRoute /> },
+            { path: "events", element: <EventsPage /> },
             { path: "actions", element: <ActionsPage /> },
             { path: "actions/new", element: <ActionEditorRoute /> },
             { path: "actions/:name", element: <ActionRoute /> },

@@ -73,6 +73,35 @@ describe("events", () => {
     expect((await noEntity.json()).error.message).toContain("at least one entity");
     expect((await track([{ id: "x", type: "t", ts: "yesterday", entities: { user: "u" } }])).status).toBe(400);
   });
+
+  it("lists the events newest first, by type, status and entity, in pages", async () => {
+    await track([
+      { ...event("order", "2026-10-01T10:00:00Z", { user: "u1", ip: "1.1.1.1" }, { amount: 10 }), status: "created" },
+      { ...event("order", "2026-10-02T10:00:00Z", { user: "u2" }, { amount: 20 }), status: "created" },
+      { ...event("order", "2026-10-03T10:00:00Z", { user: "u1" }, { amount: 10 }), status: "paid" },
+      event("login", "2026-10-04T10:00:00Z", { user: "u1" }),
+    ]);
+    const list = async (query = "") => (await (await call("GET", `/v1/events?${query}`)).json()) as any;
+
+    const all = await list();
+    expect(all).toMatchObject({ total: 4, total_capped: false });
+    expect(all.events.map((e: any) => e.type)).toEqual(["login", "order", "order", "order"]);
+    expect(all.events[3]).toMatchObject({ entities: { user: "u1", ip: "1.1.1.1" }, properties: { amount: 10 } });
+
+    expect((await list("type=order")).total).toBe(3);
+    expect((await list("type=order&status=created")).events.map((e: any) => e.entities.user)).toEqual(["u2", "u1"]);
+    const u1 = await list("entity_type=user&entity_id=u1");
+    expect(u1.events.map((e: any) => e.ts)).toEqual([
+      "2026-10-04T10:00:00.000Z",
+      "2026-10-03T10:00:00.000Z",
+      "2026-10-01T10:00:00.000Z",
+    ]);
+    const second = await list("limit=2&offset=2");
+    expect(second).toMatchObject({ total: 4 });
+    expect(second.events.map((e: any) => e.ts)).toEqual(["2026-10-02T10:00:00.000Z", "2026-10-01T10:00:00.000Z"]);
+    // Another workspace's events are not in the list.
+    expect((await (await call("GET", "/v1/events", undefined, "key_b")).json()).total).toBe(0);
+  });
 });
 
 describe("templates", () => {

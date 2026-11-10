@@ -127,9 +127,10 @@ You do not summarise anything yourself. Older history also reaches a decision th
 
 ## See your events
 
+- **Events** lists every event, newest first, imported history included. Filter it by type, status or entity, and select an event to see its properties, its entities and the decision it started.
 - **Entities › a type › an entity** shows its event history. An event in one of the entity's [lists](entities/lists.md) opens in a window, with its properties, its entities and the decision it started.
 - **Sessions** shows each visit with its events and decisions.
-- With the API: [`GET /v1/events/:id`](../reference/api.md#get-v1eventsid) for one event, and [`GET /v1/entities/:type/:id`](../reference/api.md#get-v1entitiestypeid) for an entity's recent events.
+- With the API: [`GET /v1/events`](../reference/api.md#get-v1events) for the list, [`GET /v1/events/:id`](../reference/api.md#get-v1eventsid) for one event, and [`GET /v1/entities/:type/:id`](../reference/api.md#get-v1entitiestypeid) for an entity's recent events.
 
 ## Limits
 

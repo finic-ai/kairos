@@ -22,6 +22,13 @@ export const storedMetadata = (e: StoredEvent): Record<string, unknown> => ({
 
 type EventRow = typeof events.$inferSelect;
 
+export interface EventFilter {
+  type?: string;
+  status?: string;
+  /** Events that name this entity. */
+  entity?: { type: string; id: string };
+}
+
 /** The API calls the customer's id `id`. */
 const toEvent = (r: EventRow): StoredEvent => ({
   id: r.externalId,
@@ -55,6 +62,36 @@ export class EventsService extends DatabaseService<"events"> {
       this.db,
       sql`SELECT status, COUNT(*)::int AS n FROM events WHERE workspace_id = ${this.scope.workspaceId} AND environment_id = ${this.scope.environmentId} AND type = ${type} AND ts >= ${at(from)} AND ts < ${at(to)} AND via IN ('key', 'webhook', 'console') GROUP BY status`,
     );
+  }
+
+  /** The events that match, newest first: the console's list of events. */
+  async listMatching(filter: EventFilter, limit: number, offset: number): Promise<StoredEvent[]> {
+    const found = await this.findMany({
+      where: this.matching(filter),
+      orderBy: (t, { desc }) => [desc(t.ts), desc(t.id)],
+      limit,
+      offset,
+    });
+    return found.map(toEvent);
+  }
+
+  /** How many events match, counted up to `cap`: a list of millions does not need the exact number. */
+  async countMatching(filter: EventFilter, cap: number): Promise<number> {
+    const found = await this.findMany({ where: this.matching(filter), columns: { id: true }, limit: cap });
+    return found.length;
+  }
+
+  private matching(filter: EventFilter) {
+    return {
+      ...(filter.type ? { type: filter.type } : {}),
+      ...(filter.status ? { status: filter.status } : {}),
+      ...(filter.entity
+        ? {
+            RAW: (t: typeof events) =>
+              sql`${t.id} IN (SELECT event_id FROM event_entities WHERE workspace_id = ${this.scope.workspaceId} AND environment_id = ${this.scope.environmentId} AND entity_type = ${filter.entity!.type} AND entity_id = ${filter.entity!.id})`,
+          }
+        : {}),
+    };
   }
 
   async countForBacktest(type: string, statuses: string[] | undefined, period: { from?: string; to?: string }) {
