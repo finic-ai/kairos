@@ -1,4 +1,4 @@
-import { loadLogistic, logit } from "@kairos/core";
+import { GraysonError, loadLogistic, logit } from "@kairos/core";
 import { beforeEach, describe, expect, it } from "vitest";
 import { createApp } from "../src/app";
 import { backtestBatch, runExperiment } from "../src/modules/experiments";
@@ -632,8 +632,11 @@ describe("a backtest", { timeout: 120_000 }, () => {
     const scope = await scopeOf();
     const deps = { db: database.db, ...runtime, now: () => NOW };
     const experiment = { id: made.body.id, workflow: "order_review", config: { limit: 100 } };
-    const first = await backtestBatch(deps, scope, experiment, null, 1);
+    const seen: number[] = [];
+    const first = await backtestBatch(deps, scope, experiment, null, 1, async (s) => void seen.push(s.runs));
     expect(first).toMatchObject({ done: false, runs: 50, total: 100 });
+    // How far it is, after each page, for the experiment to show while it runs.
+    expect(seen).toEqual([50]);
     const second = await backtestBatch(deps, scope, experiment, { ...first }, 60_000);
     expect(second).toMatchObject({ done: true, runs: 100 });
     // A replay of a request that ran already does not run it again.
@@ -643,6 +646,47 @@ describe("a backtest", { timeout: 120_000 }, () => {
       "SELECT COUNT(*)::int AS n FROM workflow_runs WHERE starts_with(key, 'backtest:')" as never,
     );
     expect(rows[0]!.n).toBe(100);
+  });
+
+  it("runs a request again when the model's rate limit stopped it", async () => {
+    await pastOrders(10);
+    await call("PUT", "/v1/workflows/order_review", {
+      trigger: { type: "decision", action: "order" },
+      steps: [
+        { id: "model", name: "Model", type: "assess" },
+        { id: "answer", name: "Answer", type: "answer", value: { outcome: "{{ steps.model.output.decision }}" } },
+      ],
+    });
+    const made = await call("POST", "/v1/workflows/order_review/experiments", {
+      labels: ["chargeback"],
+      window: "90d",
+      backtest: {},
+    });
+    let calls = 0;
+    const deps = {
+      db: database.db,
+      allowPrivate: false,
+      now: () => NOW,
+      modelRetryMs: [0, 0, 0],
+      decider: async () => {
+        // The first calls meet the rate limit, as a burst of requests does.
+        if (++calls <= 3) throw new GraysonError("Grayson returned 429", 429);
+        return {
+          id: "d",
+          model: "grayson-1",
+          answers: { hold: { type: "noul" as const, value: false, probability: 0.1 } },
+          usage: { input_tokens: 1 },
+        };
+      },
+    };
+    const experiment = { id: made.body.id, workflow: "order_review", config: {} };
+    const state = await backtestBatch(deps, await scopeOf(), experiment, null, 60_000);
+    expect(state).toMatchObject({ done: true, runs: 10 });
+    const { rows } = await database.db.execute<{ status: string; n: number }>(
+      "SELECT status, COUNT(*)::int AS n FROM workflow_runs WHERE starts_with(key, 'backtest:') GROUP BY status" as never,
+    );
+    // Each run answered: it stops there, as a backtest run does, and none failed.
+    expect(rows).toEqual([{ status: "cancelled", n: 10 }]);
   });
 
   it("is only for a decision workflow whose action has a trigger, and needs variants without one", async () => {

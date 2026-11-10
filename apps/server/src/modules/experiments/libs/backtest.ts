@@ -17,7 +17,14 @@ import { executeRun, outcomeOf, parseDuration } from "../../workflows/libs";
 type Scope = { workspaceId: string; environmentId: string };
 
 const PAGE = 50;
-const PARALLEL = 4;
+const PARALLEL = 2;
+/**
+ * A backtest asks the model hundreds of times in a row, and its rate limit outlasts the client's
+ * short retries: a run that failed on the model is run again after these waits.
+ */
+const MODEL_RETRY_MS = [5_000, 15_000, 45_000];
+const MODEL_FAILURE = /Grayson returned (429|5\d\d)|Grayson request failed/;
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 /** One run's time to its answer: a model step can take seconds. */
 const RUN_BUDGET_MS = 30_000;
 const FLAGGED = 100;
@@ -48,6 +55,8 @@ export interface BacktestDeps {
   decider: Decider;
   allowPrivate: boolean;
   now: () => Date;
+  /** The waits before a run that failed on the model runs again. */
+  modelRetryMs?: number[];
 }
 
 async function prepare(db: Executor, scope: Scope, workflowName: string, config: BacktestConfig) {
@@ -95,6 +104,7 @@ export async function backtestBatch(
   experiment: { id: string; workflow: string; config: BacktestConfig },
   saved: BacktestState | null,
   budgetMs: number,
+  onPage?: (state: BacktestState) => Promise<void>,
 ): Promise<BacktestState> {
   const { db } = deps;
   const prepared = await prepare(db, scope, experiment.workflow, experiment.config);
@@ -146,7 +156,18 @@ export async function backtestBatch(
           deps.now(),
         );
         if (run.status === "queued") {
-          await executeRun(runner, scope, run.id, 0, { budgetMs: RUN_BUDGET_MS, decision: true });
+          for (let attempt = 0; ; attempt++) {
+            await executeRun(runner, scope, run.id, 0, { budgetMs: RUN_BUDGET_MS, decision: true });
+            const after = await runs.findById(run.id);
+            const wait = (deps.modelRetryMs ?? MODEL_RETRY_MS)[attempt];
+            if (after?.status !== "failed" || !MODEL_FAILURE.test(after.error ?? "") || wait === undefined) break;
+            await sleep(wait);
+            await runs.updateMany(
+              { id: run.id, status: "failed" },
+              { status: "queued", steps: [], output: null, error: null, cursor: null, finished: null },
+              deps.now(),
+            );
+          }
           // As for a decision as of a past moment: the steps after the answer do not go on.
           await runs.updateMany(
             { id: run.id, status: "waiting" },
@@ -161,6 +182,7 @@ export async function backtestBatch(
     const last = page.at(-1);
     if (last) state.cursor = { ts: last.ts, id: last.key };
     if (page.length < PAGE || state.runs + state.skipped >= limit) state.done = true;
+    if (!state.done) await onPage?.(state);
   }
   return state;
 }
