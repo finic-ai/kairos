@@ -131,6 +131,10 @@ The event is the pending action of the decision. Sending the same `id` again ret
 
 The response is a [decision](#post-v1decide) with `event_id` added.
 
+### `GET /v1/events`
+
+The events, newest first: `{ events, total, total_capped }`. Filters: `type`, `status`, and `entity_type` with `entity_id` for the events that name one entity. One page: `limit` (default 50, at most 200) and `offset`. `total` counts up to 10,000; past that, `total_capped` is true.
+
 ### `GET /v1/events/:id`
 
 One event by its id: `{ id, type, ts, entities, properties, universal_id?, status?, session?, decision }`. `decision` is `{ id, outcome, risk_score }` of the decision it started, or null. 404 when there is no such event.

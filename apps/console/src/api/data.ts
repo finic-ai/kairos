@@ -21,6 +21,7 @@ import type {
   Resolution,
   SessionDetail,
   SessionRow,
+  StoredEvent,
   Stats,
   Usage,
 } from "../types/interfaces";
@@ -110,6 +111,16 @@ export const api = {
   },
   session: (id: string) => request<SessionDetail>("GET", `/v1/sessions/${encodeURIComponent(id)}`),
   event: (id: string) => request<EventDetail>("GET", `/v1/events/${encodeURIComponent(id)}`),
+  events: (filter: { type?: string; status?: string; entity?: EntityRef; limit: number; offset: number }) => {
+    const query = new URLSearchParams({ limit: String(filter.limit), offset: String(filter.offset) });
+    if (filter.type) query.set("type", filter.type);
+    if (filter.status) query.set("status", filter.status);
+    if (filter.entity) {
+      query.set("entity_type", filter.entity.type);
+      query.set("entity_id", filter.entity.id);
+    }
+    return request<{ events: StoredEvent[]; total: number; total_capped: boolean }>("GET", `/v1/events?${query}`);
+  },
   entity: (ref: EntityRef) =>
     request<Entity>("GET", `/v1/entities/${encodeURIComponent(ref.type)}/${encodeURIComponent(ref.id)}`),
   entityMedia: (ref: EntityRef, property: string) =>

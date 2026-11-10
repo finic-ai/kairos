@@ -5,6 +5,10 @@ import type { Repositories } from "../../repositories";
 import { eventsBody } from "./schema";
 import { record, session, track } from "./service";
 import type { EventVia } from "../../types";
+import { EventsService } from "../../services/event.service";
+
+/** The list counts its events up to this many, and says when there are more. */
+const MAX_COUNTED = 10_000;
 
 const OUTCOMES = ["any", "approve", "step_up", "review", "block"];
 
@@ -47,6 +51,23 @@ export function eventRoutes({ db, events, transaction, now, onQueued, trustProxy
       details: { count: batch.length, accepted: stored.accepted, duplicates: stored.duplicates },
     });
     return c.json({ accepted: stored.accepted, duplicates: stored.duplicates }, 202);
+  });
+
+  app.get("/events", async (c) => {
+    const q = c.req.query();
+    const limit = bounded(q.limit, 50, 1, 200);
+    const offset = Math.max(Math.floor(Number(q.offset)) || 0, 0);
+    const filter = {
+      ...(q.type ? { type: q.type } : {}),
+      ...(q.status ? { status: q.status } : {}),
+      ...(q.entity_type && q.entity_id ? { entity: { type: q.entity_type, id: q.entity_id } } : {}),
+    };
+    const scoped = new EventsService(db, { workspaceId: c.get("workspaceId"), environmentId: c.get("environmentId") });
+    const [found, total] = await Promise.all([
+      scoped.listMatching(filter, limit, offset),
+      scoped.countMatching(filter, MAX_COUNTED),
+    ]);
+    return c.json({ events: found, total, total_capped: total >= MAX_COUNTED });
   });
 
   app.get("/events/:id", async (c) => {
