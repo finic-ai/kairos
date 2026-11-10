@@ -95,6 +95,7 @@ export async function backtestBatch(
   experiment: { id: string; workflow: string; config: BacktestConfig },
   saved: BacktestState | null,
   budgetMs: number,
+  onPage?: (state: BacktestState) => Promise<void>,
 ): Promise<BacktestState> {
   const { db } = deps;
   const prepared = await prepare(db, scope, experiment.workflow, experiment.config);
@@ -161,6 +162,7 @@ export async function backtestBatch(
     const last = page.at(-1);
     if (last) state.cursor = { ts: last.ts, id: last.key };
     if (page.length < PAGE || state.runs + state.skipped >= limit) state.done = true;
+    if (!state.done) await onPage?.(state);
   }
   return state;
 }

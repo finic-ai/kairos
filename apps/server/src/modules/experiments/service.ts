@@ -419,6 +419,14 @@ export async function runExperiment(
         { id, workflow: row.workflow, config: config.backtest },
         progress?.backtest_state ?? null,
         BACKTEST_BUDGET_MS,
+        // So that the experiment shows how far it is while a batch runs, not only after it.
+        async (s) => {
+          await experiments.updateMany(
+            { id },
+            { dataset: { backtest_state: s, batches: progress?.batches ?? 0 } },
+            now(),
+          );
+        },
       );
       if (!state.done) {
         const batches = (progress?.batches ?? 0) + 1;

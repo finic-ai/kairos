@@ -632,8 +632,11 @@ describe("a backtest", { timeout: 120_000 }, () => {
     const scope = await scopeOf();
     const deps = { db: database.db, ...runtime, now: () => NOW };
     const experiment = { id: made.body.id, workflow: "order_review", config: { limit: 100 } };
-    const first = await backtestBatch(deps, scope, experiment, null, 1);
+    const seen: number[] = [];
+    const first = await backtestBatch(deps, scope, experiment, null, 1, async (s) => void seen.push(s.runs));
     expect(first).toMatchObject({ done: false, runs: 50, total: 100 });
+    // How far it is, after each page, for the experiment to show while it runs.
+    expect(seen).toEqual([50]);
     const second = await backtestBatch(deps, scope, experiment, { ...first }, 60_000);
     expect(second).toMatchObject({ done: true, runs: 100 });
     // A replay of a request that ran already does not run it again.
