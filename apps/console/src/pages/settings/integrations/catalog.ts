@@ -5,6 +5,7 @@ import cloudflare from "../../../assets/integrations/cloudflare.svg";
 import express from "../../../assets/integrations/express.svg";
 import fastapi from "../../../assets/integrations/fastapi.svg";
 import fastly from "../../../assets/integrations/fastly.svg";
+import flutter from "../../../assets/integrations/flutter.svg";
 import googletagmanager from "../../../assets/integrations/googletagmanager.svg";
 import hono from "../../../assets/integrations/hono.svg";
 import javascript from "../../../assets/integrations/javascript.svg";
@@ -139,6 +140,55 @@ const kairos = new Kairos({ apiKey: "${key}"${origin === HOSTED ? "" : `, baseUr
   window.kairos = { apiKey: "${key}", baseUrl: "${origin}" };
 </script>
 <script src="${origin}/kairos.js"></script>`,
+      },
+    ],
+  },
+  {
+    slug: "flutter",
+    name: "Flutter",
+    kind: "mobile",
+    logo: flutter,
+    note: "Track the screens of your Flutter app and its device.",
+    overview: [
+      "The Kairos client for Flutter 3.22 or later, on Android, iOS and the web. It gives each install a device id, sends the screens in your client settings as events with the facts of the device, such as an emulator or an app that did not come from a store, and sends the events that you track.",
+      "Use a public key, and do not limit it to websites: an app sends no website address. The decisions are made on your server, so send the device id with each request to your server, and name it as the device entity there.",
+    ],
+    docs: "/docs/reference/clients/dart",
+    clientSettings: true,
+    key: "public",
+    steps: [
+      {
+        title: "Install",
+        lang: "bash",
+        code: () =>
+          "flutter pub add finic_kairos --git-url=https://github.com/finic-ai/kairos.git --git-path=packages/sdk-dart",
+      },
+      {
+        title: "Start the client when the app starts",
+        lang: "dart",
+        code: (key, origin) => `import 'package:finic_kairos/finic_kairos.dart';
+
+final kairos = Kairos(apiKey: '${key}'${origin === HOSTED ? "" : `, baseUrl: '${origin}'`}, environment: FlutterEnvironment());
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await kairos.start();
+  KairosLifecycle.attach(kairos);
+  runApp(const App());
+}`,
+      },
+      {
+        title: "Add the observer to your navigator, and give your routes names",
+        lang: "dart",
+        code: () => `MaterialApp(navigatorObservers: [KairosNavigatorObserver(kairos)]);`,
+      },
+      {
+        title: "Say who the user is, and send the device to your server",
+        lang: "dart",
+        code: () => `kairos.setContext(entities: {'user': user.id});
+kairos.track('coupon_applied', properties: {'code': 'SPRING10'});
+
+dio.options.headers['X-Device-Id'] = await kairos.deviceId;`,
       },
     ],
   },
