@@ -1,4 +1,5 @@
 import { applyMapping, validateMapping, type WebhookMapping } from "@kairos/core";
+import { ulid } from "ulid";
 import type { Webhooks } from "../../context";
 import type { StoredSecret, WebhookRow } from "../../db/schema";
 import { hashToken, newId, newToken } from "../../platform/crypto";
@@ -6,6 +7,7 @@ import { invalid, notFound, AppError } from "../../platform/error";
 import type { Changes } from "../../platform/orm";
 import { WebhooksService } from "../../services/webhook.service";
 import { WebhookDeliveriesService } from "../../services/webhook_delivery.service";
+import { JobsService } from "../../services/job.service";
 import { webhooksRepository } from "./repo";
 import {
   envelope,
@@ -28,6 +30,17 @@ import {
   needsSecret,
   signs,
   verificationProblem,
+  BACKFILL_KIND,
+  backfillJob,
+  backfillPrefix,
+  missingScopes,
+  accessToken,
+  shopifyClient,
+  shopifyCredentials,
+  shopProblem,
+  ShopifyError,
+  type BackfillPayload,
+  type ShopifyCredentials,
 } from "./libs";
 
 const MAX_OUTBOUND = 20;
@@ -87,6 +100,7 @@ export interface SourceChanges {
   enabled?: boolean;
   secret?: string;
   add_secret?: string;
+  shopify?: { shop: string; token: string } | { shop: string; client_id: string; client_secret: string } | null;
 }
 export interface EndpointChanges {
   name?: string;
@@ -104,6 +118,7 @@ export function createWebhookAdmin({
   repos,
   now,
   onQueued,
+  fetch: fetchFn = fetch,
 }: {
   webhooks?: Webhooks;
   tenancy: Tenancy;
@@ -111,6 +126,7 @@ export function createWebhookAdmin({
   repos: InboundRepositories;
   now: () => Date;
   onQueued?: () => void;
+  fetch?: typeof fetch;
 }) {
   async function requireAdmin(workspaceId: string, userId: string, environmentId: string | undefined) {
     await tenancy.requireRole(workspaceId, userId, "admin");
@@ -148,6 +164,45 @@ export function createWebhookAdmin({
     if (row.direction !== "in") throw invalid(message);
   }
   const NOT_REPLAYABLE = "Only an incoming webhook can be replayed; an outgoing one is resent";
+
+  const isShopify = (row: Row) => (row.config as InboundConfig).preset?.split("@")[0] === "shopify";
+
+  /** Throws with what the person must change: the credentials are refused, or the app lacks a scope. */
+  async function checkShopify(shop: string, credentials: ShopifyCredentials) {
+    let missingScope: string[];
+    try {
+      missingScope = await missingScopes(shopifyClient(shop, await accessToken(shop, credentials, fetchFn), fetchFn));
+    } catch (cause) {
+      if (cause instanceof ShopifyError) throw invalid(`shopify: ${cause.message}`);
+      throw cause;
+    }
+    if (missingScope.length)
+      throw invalid(
+        `shopify: the app lacks ${missingScope.join(", ")}. Add the scopes to the app and install it on the shop again.`,
+      );
+  }
+
+  function backfillView(job: Awaited<ReturnType<JobsService["latest"]>>) {
+    if (!job) return null;
+    const p = job.payload as unknown as BackfillPayload;
+    const status =
+      job.status === "dead"
+        ? "failed"
+        : job.status === "paused"
+          ? "paused"
+          : job.status === "done" && p.phase === "done"
+            ? "done"
+            : "running";
+    return {
+      status,
+      since: p.since,
+      started: p.started,
+      finished: status === "done" ? job.finished : null,
+      phase: p.phase,
+      ...p.counts,
+      error: status === "failed" ? job.last_error : null,
+    };
+  }
 
   return {
     requireAdmin,
@@ -248,13 +303,31 @@ export function createWebhookAdmin({
 
     async updateSource({ row, ...scope }: Scope & { row: Row }, changes: SourceChanges) {
       const { hooks } = scope;
-      const { name, verification, mapping, enabled, secret, add_secret } = changes;
+      const { name, verification, mapping, enabled, secret, add_secret, shopify } = changes;
       const old = row.config as InboundConfig;
       const config: InboundConfig = {
         ...old,
         ...(verification ? { verification: verification as Verification } : {}),
         ...(mapping !== undefined ? { mapping: mapping as WebhookMapping } : {}),
       };
+      if (shopify === null) delete config.shopify;
+      if (shopify) {
+        if (!isShopify(row)) throw invalid("shopify: only a source made from the Shopify preset imports past orders");
+        const problem = shopProblem(shopify.shop);
+        if (problem) throw invalid(`shopify.shop: ${problem}`);
+        if (!hooks.secretBox) throw unavailable(missing(hooks)!);
+        const credentials: ShopifyCredentials =
+          "token" in shopify
+            ? { token: shopify.token }
+            : { clientId: shopify.client_id, clientSecret: shopify.client_secret };
+        await checkShopify(shopify.shop, credentials);
+        const seal = (secret: string) =>
+          hooks.secretBox!.encrypt(secret, providerSecretHint(secret), now().toISOString());
+        config.shopify =
+          "token" in shopify
+            ? { shop: shopify.shop, token: seal(shopify.token) }
+            : { shop: shopify.shop, client_id: shopify.client_id, client_secret: seal(shopify.client_secret) };
+      }
       const problems = sourceProblems(config.verification, config.mapping);
       if (problems.length) throw invalid(problems.join("; "));
       const newSecret = secret ?? add_secret;
@@ -347,6 +420,41 @@ export function createWebhookAdmin({
         statuses[outcome.status] = (statuses[outcome.status] ?? 0) + 1;
       }
       return { replayed: found.length, statuses };
+    },
+
+    async backfill({ row, ...scope }: Scope & { row: Row }) {
+      assertSource(row, "Only an incoming webhook imports past events");
+      return backfillView(await new JobsService(scope.hooks.db).latest(BACKFILL_KIND, backfillPrefix(row.id)));
+    },
+
+    /** Import the shop's orders and disputes since `since`, through the source's mapping, in the background. */
+    async startBackfill({ row, ...scope }: Scope & { row: Row }, since: Date) {
+      assertSource(row, "Only an incoming webhook imports past events");
+      const { hooks } = scope;
+      if (!isShopify(row)) throw invalid("Only a source made from the Shopify preset imports past orders");
+      const shopify = (row.config as InboundConfig).shopify;
+      if (!shopify) throw invalid("Connect the shop first: paste the app's credentials");
+      requireConfigured(hooks);
+      const at = now();
+      if (since >= at) throw invalid("since: must be in the past");
+      const jobs = new JobsService(hooks.db);
+      const running = await jobs.latest(BACKFILL_KIND, backfillPrefix(row.id));
+      if (running?.status === "pending" || running?.status === "paused")
+        throw new AppError("conflict", "backfill_running", "An import of this source is running already.");
+      await checkShopify(shopify.shop, shopifyCredentials(shopify, hooks.secretBox!));
+      const payload: BackfillPayload = {
+        source: row.id,
+        run: ulid(),
+        step: 0,
+        since: since.toISOString(),
+        started: at.toISOString(),
+        phase: "orders",
+        cursor: null,
+        counts: { orders: 0, disputes: 0, stored: 0, duplicate: 0, failed: 0 },
+      };
+      await jobs.enqueue(backfillJob({ workspaceId: scope.workspace, environmentId: scope.environment }, payload), at);
+      hooks.worker?.wake();
+      return backfillView(await jobs.latest(BACKFILL_KIND, backfillPrefix(row.id)));
     },
 
     preview(mapping: unknown, body: unknown, headers: Record<string, string> | undefined) {

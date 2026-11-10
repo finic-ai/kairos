@@ -1,7 +1,8 @@
 import { Hono, type Context } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { normalizeEmail, hashPassword, newToken } from "../../platform/crypto";
-import { error, parse, type Env } from "../../platform/http";
+import { error, parse, rateLimited, type Env } from "../../platform/http";
+import { ipOf } from "../../platform/network";
 import { SESSION_COOKIE, sessionUser, startSession } from "../../platform/auth";
 import {
   accessTokenClaims,
@@ -24,6 +25,7 @@ import {
 } from "./schema";
 import type { TenancyRepository } from "../../repositories";
 import type { Environments } from "../environments/service";
+import { LIMITS, type RateLimitsService } from "../../services/rate_limit.service";
 import type { SessionsService } from "../../services/session.service";
 import type { UsersService } from "../../services/user.service";
 import type { WorkspacesService } from "../../services/workspace.service";
@@ -33,6 +35,7 @@ import type { Provider, Strategy, User } from "../../types";
 export interface AuthDeps {
   accounts: TenancyRepository;
   users: UsersService;
+  rateLimits: RateLimitsService;
   sessions: SessionsService;
   workspaces: WorkspacesService;
   environments: Environments;
@@ -87,6 +90,7 @@ const strategyOf = (identity: SupabaseUser): Strategy | undefined =>
 export function authRoutes({
   accounts,
   users,
+  rateLimits,
   sessions,
   workspaces,
   environments,
@@ -197,6 +201,8 @@ export function authRoutes({
     if (!password) return passwordOff(c);
     const input = await parse(c, signupBody);
     if ("response" in input) return input.response;
+    const wait = await rateLimits.hit(LIMITS.signup(ipOf(c, trustProxy)), now());
+    if (wait > 0) return rateLimited(c, wait);
     const invite = input.data.invite ? await accounts.inviteByToken(input.data.invite, now()) : null;
     if (input.data.invite && !invite) return error(c, 403, "invite_invalid", "This invite is not valid any more");
     if (invite && invite.email !== input.data.email)
@@ -220,9 +226,17 @@ export function authRoutes({
     if (!password) return passwordOff(c);
     const input = await parse(c, loginBody);
     if ("response" in input) return input.response;
+    const email = normalizeEmail(input.data.email);
+    const ip = ipOf(c, trustProxy);
+    const limits = LIMITS.login(email, ip);
+    const wait = await rateLimits.hit(limits, now());
+    if (wait > 0) return rateLimited(c, wait);
     // The same answer for an unknown address, a wrong password, and an account that signs in with Supabase.
-    const user = await users.signInWithPassword(input.data.email, input.data.password);
+    const user = await users.signInWithPassword(email, input.data.password);
     if (!user) return error(c, 401, "invalid_credentials", "The email address or the password is not correct");
+    const [emailAndIp, ...others] = limits;
+    await rateLimits.reset(emailAndIp!.key);
+    for (const { key } of others) await rateLimits.undo(key);
     await startSession(c, sessions, user, now(), trustProxy);
     return answer(c, user);
   });
@@ -518,6 +532,9 @@ export function authRoutes({
     if ("response" in input) return input.response;
     if ((await users.providerOf(user.id)) !== "native")
       return error(c, 400, "password_not_used", "This account signs in elsewhere, and has no password in Kairos");
+    if (!input.data.current) return error(c, 400, "invalid_request", "current: is needed");
+    const wait = await rateLimits.hit(LIMITS.password(user.id), now());
+    if (wait > 0) return rateLimited(c, wait);
     if (!(await users.checkPassword(user.id, input.data.current)))
       return error(c, 403, "wrong_password", "The current password is not correct");
     await users.setPassword(user.id, await hashPassword(input.data.password), now());
@@ -530,6 +547,11 @@ export function authRoutes({
     const input = await parse(c, deleteAccountBody);
     if ("response" in input) return input.response;
     const isNative = (await users.providerOf(user.id)) === "native";
+    if (isNative) {
+      if (!input.data.password) return error(c, 400, "invalid_request", "password: is needed");
+      const wait = await rateLimits.hit(LIMITS.password(user.id), now());
+      if (wait > 0) return rateLimited(c, wait);
+    }
     if (
       isNative
         ? !(await users.checkPassword(user.id, input.data.password))

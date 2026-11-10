@@ -2,7 +2,7 @@ import type { Decider } from "@kairos/core";
 import type { Repositories } from "../../../repositories";
 import type { Executor } from "../../../platform/database";
 import type { JobKind } from "../../../platform/jobs/worker";
-import { WorkflowRunsService, WorkflowsService } from "../../../services/workflow.service";
+import { openSteps, WorkflowRunsService, WorkflowsService } from "../../../services/workflow.service";
 import type { StepScore } from "../../models";
 import { loadLists } from "../../rulesets";
 import {
@@ -285,7 +285,7 @@ export async function executeRun(
         name,
         version: 0,
         trigger: (run.definition as { trigger: Record<string, unknown> }).trigger,
-        steps: (run.definition as { steps: Record<string, unknown>[] }).steps,
+        steps: openSteps((run.definition as { steps: Record<string, unknown>[] }).steps, scope.workspaceId),
       }
     : await new WorkflowsService(deps.repos.db, scope).findVersion(name, version);
   if (!view) return (await fail(`the workflow "${name}" has no version ${version}`), notAnswered);

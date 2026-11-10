@@ -30,9 +30,8 @@ See [Sign-in and access](sign-in.md).
 
 | Variable | |
 |---|---|
-| `KAIROS_ENCRYPTION_KEY` | Necessary for webhooks. 32 bytes as base64 (`openssl rand -base64 32`) or as 64 hexadecimal characters. Encrypts the signing secrets of outbound webhooks and the secrets of inbound sources. Without it, webhooks cannot be created. Keep it with your other secrets and never change it: secrets sealed with one key cannot be read with another. |
+| `KAIROS_ENCRYPTION_KEY` | Necessary for webhooks. 32 bytes as base64 (`openssl rand -base64 32`) or as 64 hexadecimal characters. Encrypts the signing secrets of outbound webhooks, the secrets of inbound sources, and the header and query values of workflow HTTP steps. Without it, webhooks cannot be created, and those values are stored as written. Keep it with your other secrets and never change it: secrets sealed with one key cannot be read with another. |
 | `KAIROS_WEBHOOK_PAYLOAD_DAYS` | Days a webhook delivery keeps its payload in the log. Default 7; `0` keeps none. The row of each delivery stays for 30 days. |
-| `KAIROS_SECRET_<NAME>` | A secret that a workflow's HTTP step reads as `{{ secrets.NAME }}`. Kairos never logs its value. A step that names a secret the server does not have fails, with the name of the variable to set. |
 | `CRON_SECRET` | Opens `GET /internal/jobs/drain` to a caller that sends `Authorization: Bearer <CRON_SECRET>`. A server that keeps running does its background work itself and does not need it; it is for Vercel, or a scheduler outside Kairos. At least 16 characters. |
 | `KAIROS_CRON_SCHEDULE` | On Vercel only: the schedule of the job cron. See [Vercel](self-hosting.md#vercel). |
 

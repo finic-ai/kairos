@@ -36,19 +36,19 @@ const json = async (method: string, path: string, body?: unknown) =>
 describe("a step's input", () => {
   const vars = { trigger: { user: "u1", amount: 7200 }, steps: { xgb: { output: { score: 0.46 } } } };
 
-  it("fills in the templates, and keeps a secret as its template", () => {
+  it("fills in the templates, and hides header values", () => {
     const step = {
       id: "notify",
       name: "Notify",
       type: "http",
       method: "POST",
-      headers: { Authorization: "Bearer {{ secrets.OPS_TOKEN }}" },
+      headers: { "X-Request": "{{ trigger.user }}" },
       body: { user: "{{ trigger.user }}", amount: "{{ trigger.amount }}" },
       retry: { attempts: 2 },
     };
     expect(stepInput(step, vars)).toEqual({
       method: "POST",
-      headers: { Authorization: "Bearer {{ secrets.OPS_TOKEN }}" },
+      headers: { "X-Request": "…" },
       body: { user: "u1", amount: 7200 },
     });
   });

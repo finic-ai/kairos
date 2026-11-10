@@ -181,6 +181,39 @@ export class JobsService extends DatabaseService<"jobs"> {
       : null;
   }
 
+  /** The newest job of a kind whose key starts with `prefix`, with its payload. */
+  async latest(kind: string, prefix: string): Promise<(JobView & { payload: Record<string, unknown> }) | null> {
+    const [r] = await rows<{
+      id: string;
+      key: string;
+      status: JobView["status"];
+      run_at: Date;
+      attempts: number;
+      last_error: string | null;
+      created: Date;
+      finished: Date | null;
+      payload: Record<string, unknown>;
+    }>(
+      this.db,
+      sql`SELECT id, key, status, run_at, attempts, last_error, created, finished, payload FROM jobs
+          WHERE kind = ${kind} AND starts_with(key, ${prefix}) ORDER BY created DESC, id DESC LIMIT 1`,
+    );
+    return r
+      ? {
+          id: r.id,
+          kind,
+          key: r.key,
+          status: r.status,
+          run_at: iso(r.run_at),
+          attempts: r.attempts,
+          last_error: r.last_error,
+          created: iso(r.created),
+          finished: iso(r.finished),
+          payload: r.payload,
+        }
+      : null;
+  }
+
   /** In every workspace: delete `done` jobs older than `doneDays` and `dead` ones older than `deadDays`, in batches, within the budget. */
   async cleanup(now: Date, doneDays: number, deadDays: number, budgetMs = 10_000): Promise<number> {
     const started = Date.now();

@@ -11,6 +11,8 @@ There are two ways:
 - **In the console**, for entities: an **Import** button on each entity type's page. No code. See [From the console](#from-the-console).
 - **On the command line**, for events, entities and labels, and for large files. The rest of this page is about this way.
 
+For a Shopify store, the Shopify source can [import past orders and disputes](../platform/webhooks/inbound.md#import-past-shopify-orders) itself, with no file.
+
 There are two command-line importers with the same options and the same rules: `kairos import`, in the [Kairos CLI](../../README.md#the-cli), and `python -m kairos import`, in the [Python SDK](../reference/clients/python.md). They read CSV and JSON-lines files and send them through the normal API, so an imported event is the same as one you track. An import of history makes no decisions. A file gives the same events with both, with the same ids, so you can change from one to the other and nothing is stored twice.
 
 ## From the console

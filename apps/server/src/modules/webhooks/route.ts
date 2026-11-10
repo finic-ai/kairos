@@ -1,9 +1,10 @@
 import { Hono, type Context } from "hono";
 import type { Webhooks } from "../../context";
-import { bounded, parse, type Env } from "../../platform/http";
+import { bounded, parse, readCapped, type Env } from "../../platform/http";
 import { requireSession } from "../../platform/auth";
 import type { SessionsService } from "../../services/session.service";
 import {
+  backfillBody,
   createWebhookBody,
   previewBody,
   replayBody,
@@ -117,6 +118,17 @@ export function webhookRoutes({
     return c.json(replayed);
   });
 
+  app.get(`${base}/:webhook/backfill`, async (c) => c.json({ backfill: await admin.backfill(await findWebhook(c)) }));
+
+  app.post(`${base}/:webhook/backfill`, async (c) => {
+    const t = await findWebhook(c);
+    const input = await parse(c, backfillBody);
+    if ("response" in input) return input.response;
+    const backfill = await admin.startBackfill(t, new Date(input.data.since));
+    await logWebhook(c, t, "backfill_started", t.row, { since: input.data.since });
+    return c.json({ backfill });
+  });
+
   app.post(`${base}/preview`, async (c) => {
     await requireAdmin(c);
     const input = await parse(c, previewBody);
@@ -189,9 +201,8 @@ export function inboundRoutes({
   const app = new Hono<Env>();
   app.post("/webhooks/:token", async (c) => {
     if (!webhooks) return c.json({ error: { type: "not_found", message: "No such webhook" } }, 404);
-    const declared = Number(c.req.header("content-length"));
-    // Do not read a body that says it is too large; the source still records that it came.
-    const raw = declared > MAX_BODY ? Buffer.alloc(MAX_BODY + 1) : Buffer.from(await c.req.arrayBuffer());
+    // Not a 413 here: receive() still records the rejected delivery.
+    const raw = await readCapped(c.req.raw, MAX_BODY);
     const answer = await receive(
       repos,
       webhooks,

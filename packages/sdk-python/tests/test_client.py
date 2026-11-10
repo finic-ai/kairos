@@ -186,6 +186,16 @@ class DeliveryTest(unittest.TestCase):
         kairos.flush()
         self.assertEqual([len(c["body"]["batch"]) for c in server.to("/v1/events")], [500, 500, 203])
 
+    def test_keeps_each_batch_under_the_body_limit(self) -> None:
+        server = Server()
+        kairos = client(server, flush_at=10_000)
+        for i in range(10):
+            kairos.track("note", {"user_id": f"u{i}", "text": "x" * 200_000})
+        kairos.flush()
+        sizes = [len(c["body"]["batch"]) for c in server.to("/v1/events")]
+        self.assertEqual(sum(sizes), 10)
+        self.assertTrue(all(len(json.dumps(c["body"])) < 2 * 1024 * 1024 for c in server.to("/v1/events")), sizes)
+
     def test_retries_a_server_error_and_delivers_once(self) -> None:
         answers = iter([(503, {}), (202, {"accepted": 1})])
         server = Server(lambda call: next(answers))

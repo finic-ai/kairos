@@ -1,6 +1,6 @@
 import { sql, type SQLWrapper } from "drizzle-orm";
 import type { users } from "../db/schema";
-import { normalizeEmail, verifyPassword } from "../platform/crypto";
+import { normalizeEmail, verifyPassword, checkDummyPassword } from "../platform/crypto";
 import type { Executor } from "../platform/database";
 import { DatabaseService } from "../platform/orm";
 import { iso } from "../platform/sql";
@@ -104,8 +104,11 @@ export class UsersService extends DatabaseService<"users"> {
    */
   async signInWithPassword(email: string, password: string): Promise<User | null> {
     const r = await this.findFirst({ where: { email: normalizeEmail(email), status: "active" } });
-    if (!r || (r.auth as Auth).provider !== "native" || !(await verifyPassword(password, r.passwordHash))) return null;
-    return toUser(r);
+    if (!r || (r.auth as Auth).provider !== "native" || !r.passwordHash) {
+      await checkDummyPassword(password);
+      return null;
+    }
+    return (await verifyPassword(password, r.passwordHash)) ? toUser(r) : null;
   }
 
   /** The Cognito user of a person who signs in with Cognito, and how they sign in there. */

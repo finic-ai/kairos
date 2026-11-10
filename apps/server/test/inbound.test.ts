@@ -303,6 +303,40 @@ describe("receiving", () => {
     expect(await events()).toHaveLength(0);
   });
 
+  it("stops reading a streamed body at the limit, for a source and for an unknown token", async () => {
+    const { path } = await createSource();
+    const stream = () => {
+      const counter = { pulled: 0 };
+      const chunk = new Uint8Array(64 * 1024).fill(120);
+      const body = new ReadableStream<Uint8Array>({
+        pull(controller) {
+          counter.pulled += chunk.byteLength;
+          if (counter.pulled > 300 * 1024 * 1024) controller.close();
+          else controller.enqueue(chunk);
+        },
+      });
+      return { counter, body };
+    };
+    for (const [to, status] of [
+      [path, 413],
+      ["/v1/webhooks/whk_unknown", 404],
+    ] as const) {
+      const { counter, body } = stream();
+      const response = await app.request(
+        new Request(`http://localhost${to}`, { method: "POST", body, duplex: "half" } as RequestInit),
+      );
+      expect(response.status, to).toBe(status);
+      expect(counter.pulled, to).toBeLessThan(2 * 1024 * 1024);
+    }
+  });
+
+  it("takes no delivery for a suspended workspace", async () => {
+    const { path } = await createSource();
+    await database.db.execute(sql`UPDATE workspaces SET status = 'suspended' WHERE id = ${workspace}`);
+    expect((await deliver(path, payment())).status).toBe(404);
+    expect(await events()).toHaveLength(0);
+  });
+
   it("checks the signature on the raw bytes, with any of two secrets, inside 5 minutes", async () => {
     const { webhook, path } = await createSource();
     const respaced = JSON.stringify(payment(), null, 2);
@@ -425,7 +459,7 @@ describe("lookups and the Stripe preset", () => {
       "intercom@1",
       "lithic@1",
       "marqeta@1",
-      "shopify@1",
+      "shopify@2",
       "stripe@1",
       "sumsub@1",
       "zendesk@1",

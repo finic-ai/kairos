@@ -26,6 +26,7 @@ import { evaluateRef } from "../../rulesets";
 import { guardedLookup, urlProblem } from "../../webhooks/libs";
 import { ExpressionError, resolveValue, type Variables } from "./expressions";
 import { readFeatures } from "./models";
+import { NO_SECRETS, usesSecrets } from "./validate";
 import type { WorkflowStepDef } from "../types";
 
 /** A step that cannot be done. `retryable` says whether another attempt can succeed. */
@@ -71,14 +72,6 @@ const record = (value: unknown, field: string): Record<string, unknown> => {
   return value as Record<string, unknown>;
 };
 const limit = (value: unknown) => Math.min(200, Math.max(1, Number(value ?? 50) || 50));
-
-/** Secrets for an HTTP step: `secrets.NAME` reads the server's `KAIROS_SECRET_NAME`. Never logged. */
-export const serverSecrets = (): Record<string, string> => {
-  const out: Record<string, string> = {};
-  for (const [key, value] of Object.entries(process.env))
-    if (key.startsWith("KAIROS_SECRET_") && value) out[key.slice("KAIROS_SECRET_".length)] = value;
-  return out;
-};
 
 /** Run one step that acts (not a condition, loop, filter or delay) and return its output. */
 export async function runStep(step: WorkflowStepDef, vars: Variables, ctx: StepContext): Promise<unknown> {
@@ -130,49 +123,16 @@ const testOutput = (ctx: StepContext, would: Record<string, unknown>) => {
     : { test: true, would };
 };
 
-/** Resolve the fields of a step against the variables, without secrets. */
 const fields = (step: WorkflowStepDef, vars: Variables, names: string[]) =>
   Object.fromEntries(names.map((n) => [n, resolveValue(step[n], vars)]));
 
-/** Replace each secret value in a value with "…", so no secret reaches the run log. */
-function redact<T>(value: T, secrets: string[]): T {
-  if (secrets.length === 0) return value;
-  if (typeof value === "string")
-    return secrets.reduce((text, secret) => text.split(secret).join("…"), value as string) as T;
-  if (Array.isArray(value)) return value.map((v) => redact(v, secrets)) as T;
-  if (value && typeof value === "object")
-    return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, redact(v, secrets)])) as T;
-  return value;
-}
-
 async function httpStep(step: WorkflowStepDef, vars: Variables, ctx: StepContext) {
-  const secrets = serverSecrets();
-  const named = [
-    ...JSON.stringify([step.url, step.headers, step.query, step.body]).matchAll(/secrets\.([A-Za-z0-9_]+)/g),
-  ];
-  const missing = [...new Set(named.map((m) => m[1]!))].filter((name) => !(name in secrets));
-  if (missing.length)
-    throw new StepFailure(
-      `the secret ${missing.join(", ")} is not set: set ${missing.map((n) => `KAIROS_SECRET_${n}`).join(", ")} on the server`,
-    );
-  // Long values first, so a secret that holds a shorter one is replaced whole.
-  const hidden = Object.values(secrets)
-    .filter((v) => v.length >= 4)
-    .sort((a, b) => b.length - a.length);
-  try {
-    return redact(await callHttp(step, { ...vars, secrets }, ctx), hidden);
-  } catch (cause) {
-    if (cause instanceof StepFailure) throw new StepFailure(redact(cause.message, hidden), cause.retryable);
-    throw cause;
-  }
-}
-
-async function callHttp(step: WorkflowStepDef, withSecrets: Variables, ctx: StepContext) {
+  if (usesSecrets(step)) throw new StepFailure(NO_SECRETS);
   const method = String(step.method ?? "GET").toUpperCase();
-  const url = text(resolveValue(step.url, withSecrets), "url");
-  const headers = (resolveValue(step.headers ?? {}, withSecrets) ?? {}) as Record<string, string>;
-  const query = (resolveValue(step.query ?? {}, withSecrets) ?? {}) as Record<string, unknown>;
-  const body = step.body === undefined ? undefined : resolveValue(step.body, withSecrets);
+  const url = text(resolveValue(step.url, vars), "url");
+  const headers = (resolveValue(step.headers ?? {}, vars) ?? {}) as Record<string, string>;
+  const query = (resolveValue(step.query ?? {}, vars) ?? {}) as Record<string, unknown>;
+  const body = step.body === undefined ? undefined : resolveValue(step.body, vars);
   const would = testOutput(ctx, { method, url });
   if (would) return would;
 
@@ -300,6 +260,7 @@ async function decideStep(step: WorkflowStepDef, vars: Variables, ctx: StepConte
     const prior = await decisions.findByEvent(event.id);
     if (!prior) eventId = event.id;
   }
+  const asOf = typeof f.ts === "string" ? new Date(f.ts) : undefined;
   let result: Awaited<ReturnType<typeof runDecision>>;
   try {
     // The step key is written with the decision, so a retry after a crash finds it and does not decide again.
@@ -316,10 +277,10 @@ async function decideStep(step: WorkflowStepDef, vars: Variables, ctx: StepConte
         session: typeof f.session === "string" ? f.session : event?.session,
         metadata: { workflow_run_id: ctx.run.id, workflow_step_key: stepKey },
       },
-      typeof f.ts === "string" ? new Date(f.ts) : ctx.now,
+      asOf ?? ctx.now,
       ctx.now,
-      ctx.wake ? { wake: ctx.wake, now: ctx.now } : undefined,
-      { allowPrivate: ctx.allowPrivate, ...(ctx.wake ? { wake: ctx.wake } : {}) },
+      ctx.wake && !asOf ? { wake: ctx.wake, now: ctx.now } : undefined,
+      { allowPrivate: ctx.allowPrivate, ...(ctx.wake ? { wake: ctx.wake } : {}), live: !asOf },
     );
   } catch (cause) {
     // Another attempt of this step saved its decision first (the unique index on the step key).

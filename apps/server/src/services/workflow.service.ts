@@ -1,6 +1,7 @@
 import type { WorkflowRow } from "../db/schema";
 import type { Executor } from "../platform/database";
 import { DatabaseService } from "../platform/orm";
+import { openField, sealField } from "../platform/secrets";
 import { iso } from "../platform/sql";
 import { DefinitionVersionsService } from "./definition_version.service";
 
@@ -23,6 +24,36 @@ export interface WorkflowView {
   hook?: { hint: string };
 }
 
+type Step = Record<string, unknown>;
+
+/** Maps the header and query values of every HTTP step, also inside conditions and loops. */
+function mapHttpValues<T extends Step>(steps: T[], map: (value: string) => string): T[] {
+  return steps.map((step) => {
+    const out: Step = { ...step };
+    for (const nested of ["then", "else", "steps"])
+      if (Array.isArray(out[nested])) out[nested] = mapHttpValues(out[nested] as Step[], map);
+    if (out.type === "http")
+      for (const field of ["headers", "query"]) {
+        const values = out[field];
+        if (values && typeof values === "object" && !Array.isArray(values))
+          out[field] = Object.fromEntries(
+            Object.entries(values).map(([k, v]) => [k, typeof v === "string" ? map(v) : v]),
+          );
+      }
+    return out as T;
+  });
+}
+
+/** Header and query values usually hold tokens, so they are stored encrypted. */
+export const sealSteps = <T extends Step>(steps: T[], workspaceId: string) =>
+  mapHttpValues(steps, (v) => sealField(v, workspaceId));
+export const openSteps = <T extends Step>(steps: T[], workspaceId: string) =>
+  mapHttpValues(steps, (v) => openField(v, workspaceId));
+export const openDefinition = <D extends { steps: Step[] }>(definition: D, workspaceId: string): D => ({
+  ...definition,
+  steps: openSteps(definition.steps, workspaceId),
+});
+
 export const toWorkflowView = (r: WorkflowRow): WorkflowView => {
   const definition = r.definition as { trigger: Record<string, unknown>; steps: Record<string, unknown>[] };
   return {
@@ -32,11 +63,11 @@ export const toWorkflowView = (r: WorkflowRow): WorkflowView => {
     enabled: r.enabled,
     version: r.version,
     trigger: definition.trigger,
-    steps: definition.steps,
+    steps: openSteps(definition.steps, r.workspaceId),
     status: r.status,
     ...(r.publishedAt ? { published_at: iso(r.publishedAt) } : {}),
     ...(r.failingSince ? { failing_since: iso(r.failingSince) } : {}),
-    ...(r.draft ? { draft: r.draft as NonNullable<WorkflowView["draft"]> } : {}),
+    ...(r.draft ? { draft: openDefinition(r.draft as NonNullable<WorkflowView["draft"]>, r.workspaceId) } : {}),
     ...(r.hookTokenHint ? { hook: { hint: r.hookTokenHint } } : {}),
   };
 };
@@ -113,7 +144,7 @@ export class WorkflowsService extends DatabaseService<"workflows"> {
       status: live.status,
       version: r.version,
       trigger: definition.trigger,
-      steps: definition.steps,
+      steps: openSteps(definition.steps, this.scope.workspaceId),
     };
   }
 

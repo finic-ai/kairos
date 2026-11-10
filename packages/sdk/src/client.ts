@@ -19,6 +19,8 @@ import type {
 
 const RETRYABLE = new Set([408, 429, 500, 502, 503, 504]);
 const MAX_BATCH = 500;
+/** Under the server's body limit, which is 2 MB for a public key. */
+const MAX_BATCH_BYTES = 1800 * 1024;
 
 /** Aborts after `ms`. Where the runtime has no AbortSignal, as on Fastly Compute, a timer in its place. */
 function deadline(ms: number): { signal: AbortSignal; clear(): void } {
@@ -514,9 +516,20 @@ export class Kairos {
     this.onError(new KairosError(`Event queue is full; dropped the ${overflow} oldest events`));
   }
 
+  private batchSize(): number {
+    let bytes = 0;
+    let n = 0;
+    while (n < this.queue.length && n < MAX_BATCH) {
+      bytes += new TextEncoder().encode(JSON.stringify(this.queue[n])).byteLength + 1;
+      if (n > 0 && bytes > MAX_BATCH_BYTES) break;
+      n++;
+    }
+    return n;
+  }
+
   private async drain(): Promise<void> {
     while (this.queue.length > 0) {
-      const batch = this.queue.splice(0, MAX_BATCH);
+      const batch = this.queue.splice(0, this.batchSize());
       try {
         await this.request("POST", "/v1/events", { batch }, this.timeoutMs);
       } catch (cause) {

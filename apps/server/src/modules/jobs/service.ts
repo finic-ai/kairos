@@ -3,7 +3,7 @@ import type { Webhooks } from "../../context";
 import type { Config } from "../../platform/config";
 import type { Executor } from "../../platform/database";
 import { createJobs, type Jobs, type ModuleJobs } from "../../platform/jobs/worker";
-import { localEncryptionKey, secretBox } from "../../platform/secrets";
+import { localEncryptionKey, secretBox, setFieldKey } from "../../platform/secrets";
 import { waitUntil } from "../../platform/wait-until";
 import type { Repositories } from "../../repositories";
 import { JobsService } from "../../services/job.service";
@@ -72,6 +72,7 @@ export function createBackground({
   worker,
 }: BackgroundOptions): Background {
   const key = settings.encryptionKey ?? (settings.localKeyFile ? localEncryptionKey(settings.localKeyFile) : undefined);
+  setFieldKey(key);
   const store = new JobsService(db);
   let jobs: Jobs | undefined;
   // The worker process finds the job on its next tick.
@@ -89,6 +90,7 @@ export function createBackground({
     worker,
     wake,
     drain,
+    repos,
   });
   const { webhooks } = webhookWork;
   if (!worker) return { webhooks };

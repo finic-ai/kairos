@@ -1,5 +1,7 @@
 import { request, workspacePath as ws } from "./client";
 import type {
+  Backfill,
+  ShopifyConnection,
   SourceInput,
   Webhook,
   WebhookDelivery,
@@ -60,12 +62,20 @@ export const webhooks = {
   updateSource: (
     id: string,
     webhook: string,
-    changes: Partial<Omit<SourceInput, "preset">> & { enabled?: boolean; add_secret?: string },
+    changes: Partial<Omit<SourceInput, "preset">> & {
+      enabled?: boolean;
+      add_secret?: string;
+      shopify?: ShopifyConnection | null;
+    },
   ) => request<Webhook>("PATCH", hook(id, webhook), changes),
   newToken: (id: string, webhook: string) =>
     request<{ webhook: Webhook; token: string; path: string }>("POST", `${hook(id, webhook)}/token`),
   replay: (id: string, webhook: string, which: { delivery: string } | { status: "failed" }) =>
     request<{ replayed: number; statuses: Record<string, number> }>("POST", `${hook(id, webhook)}/replay`, which),
+  backfill: (id: string, webhook: string) =>
+    request<{ backfill: Backfill | null }>("GET", `${hook(id, webhook)}/backfill`),
+  startBackfill: (id: string, webhook: string, since: string) =>
+    request<{ backfill: Backfill }>("POST", `${hook(id, webhook)}/backfill`, { since }),
   about: (id: string, subject: string) =>
     request<{ deliveries: (WebhookDelivery & { webhook_name: string; webhook_url: string | null })[] }>(
       "GET",

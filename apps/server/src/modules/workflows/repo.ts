@@ -73,7 +73,9 @@ export async function workflowByHook(
 ): Promise<{ workspace_id: string; environment_id: string; name: string } | null> {
   const found = (
     await db.execute<{ workspace_id: string; environment_id: string; name: string }>(
-      sql`SELECT workspace_id, environment_id, name FROM workflows WHERE hook_token_hash = ${hash}`,
+      sql`SELECT w.workspace_id, w.environment_id, w.name FROM workflows w
+        JOIN workspaces ws ON ws.id = w.workspace_id
+        WHERE w.hook_token_hash = ${hash} AND ws.status = 'active'`,
     )
   ).rows;
   return found[0] ?? null;

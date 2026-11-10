@@ -33,7 +33,8 @@ def verify_edge(hash: Hash, header: str | None, method: str, path: str, now: flo
     payload, _, signature = (header or "").partition(".")
     if not payload or not signature or "." in signature:
         return None
-    if not hmac.compare_digest(signature, hash(f"kairos-edge.{payload}")):
+    # Bytes: compare_digest raises TypeError on a str with non-ASCII characters.
+    if not hmac.compare_digest(signature.encode(), hash(f"kairos-edge.{payload}").encode()):
         return None
     try:
         claim = json.loads(base64.urlsafe_b64decode(payload + "=" * (-len(payload) % 4)))

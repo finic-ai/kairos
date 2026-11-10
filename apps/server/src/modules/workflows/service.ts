@@ -8,7 +8,13 @@ import type { ModuleJobs } from "../../platform/jobs/worker";
 import { ActionsService } from "../../services/action.service";
 import { saveVersion } from "../../services/definition_version.service";
 import { LabelsService } from "../../services/label.service";
-import { WorkflowRunsService, WorkflowsService, type WorkflowView } from "../../services/workflow.service";
+import {
+  openDefinition,
+  sealSteps,
+  WorkflowRunsService,
+  WorkflowsService,
+  type WorkflowView,
+} from "../../services/workflow.service";
 import { canStartAutomatic } from "../decisions/libs";
 import type { Assessment, DecideRequest, DecisionFlowOptions } from "../decisions/service";
 import type { EventVia, StoredEvent } from "../ingest/types";
@@ -88,7 +94,9 @@ export const toRunView = (r: WorkflowRunRow): WorkflowRunView => {
     output: r.output ?? null,
     error: r.error,
     test: r.test,
-    ...(r.definition ? { definition: r.definition as Record<string, unknown> } : {}),
+    ...(r.definition
+      ? { definition: openDefinition(r.definition as { steps: Record<string, unknown>[] }, r.workspaceId) }
+      : {}),
     created: r.created.toISOString(),
     started: r.started?.toISOString() ?? null,
     finished: r.finished?.toISOString() ?? null,
@@ -154,7 +162,8 @@ export async function saveWorkflow(
   if (problems.length) throw invalid(problems.join("; "));
   await checkModels(db, scope, definition.steps);
   await checkRulesetsAndLists(db, scope, definition);
-  const { name, displayName, enabled, trigger, steps } = definition;
+  const { name, displayName, enabled, trigger } = definition;
+  const steps = sealSteps(definition.steps, scope.workspaceId);
   return db.transaction(async (tx) => {
     const current = await live(tx, scope, name);
     await onlyDecisionWorkflow(tx, scope, name, trigger);
@@ -210,7 +219,7 @@ export async function saveDraft(db: Executor, scope: Scope, body: DraftBody, now
   if (!body.trigger || typeof body.trigger !== "object" || typeof body.trigger.type !== "string")
     throw invalid("trigger: a workflow has one trigger");
   if (!Array.isArray(body.steps)) throw invalid("steps: must be a list of steps");
-  const draft = { trigger: body.trigger, steps: body.steps };
+  const draft = { trigger: body.trigger, steps: sealSteps(body.steps, scope.workspaceId) };
   if (Buffer.byteLength(JSON.stringify(draft)) > MAX_DRAFT_BYTES) throw invalid("the workflow is too big to save");
   return db.transaction(async (tx) => {
     const workflows = new WorkflowsService(tx, scope);

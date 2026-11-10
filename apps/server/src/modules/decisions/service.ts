@@ -400,6 +400,8 @@ export async function askModel(
 export interface DecisionFlowOptions {
   allowPrivate: boolean;
   wake?: () => void;
+  /** False for a decision as of a past moment: it starts no workflow and makes no case. */
+  live: boolean;
 }
 
 export async function runDecision(
@@ -417,7 +419,7 @@ export async function runDecision(
    * Not set for a decision as of a past moment, which is a test of the past and sends nothing.
    */
   outbound?: { wake(): void; now: Date },
-  flow: DecisionFlowOptions = { allowPrivate: false },
+  flow: DecisionFlowOptions = { allowPrivate: false, live: true },
 ): Promise<Decision & { decision_id: string; workflow_run_id?: string }> {
   const { db, transaction } = repos;
   const { action } = request;
@@ -455,9 +457,7 @@ export async function runDecision(
         ? await new EventsService(tx.db, scope).findIdByExternalId(record.event_id)
         : null;
       await new DecisionsService(tx.db, scope).createRecord(record, eventId, savedAt);
-      // A decision as of a past moment is a test of the past: it starts no workflow and makes no case,
-      // as it sends no webhook.
-      const live = now.getTime() >= savedAt.getTime() - 60_000;
+      const { live } = flow;
       if (byWorkflow) await byWorkflow.saved(tx, id, savedAt, live);
       let intake = false;
       if (live) {

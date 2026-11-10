@@ -125,6 +125,22 @@ The code is formatted with Prettier, at a width of 120: `pnpm format` writes it,
 
 A request goes route → service → repository. A route does not write SQL, a repository does not know about HTTP and imports no service, and a service refuses a request by throwing an `AppError`. `test/structure.test.ts` checks the direction of the imports, the one file of each layer, the `libs/` folders and their index, and that only `repo.ts` runs SQL in a module.
 
+### Rate limits
+
+Every limit is in `LIMITS` in `src/services/rate_limit.service.ts`. A limit counts hits on a `key` in a window that starts at the first hit, in the table `rate_limits`. `resource` is a name such as `login`, or a route pattern such as `POST /v1/events`; `ip` is set when the limit counts one IP address. Start each key with a prefix that no other limit uses.
+
+To limit a route, give `rateLimit` the limits of the request. It answers 429 `rate_limited` with `Retry-After`; `[]` means no limit:
+
+```ts
+app.post(
+  "/entities/:type/:id/commands/:key",
+  rateLimit(rateLimits, now, (c) => LIMITS.commands(c.get("apiKey")?.id ?? c.get("userId")!)),
+  handler,
+);
+```
+
+`routeOf(c)` gives the route pattern of the request, such as `POST /v1/entities/:type/:id`, both in middleware on the route and in `app.use`. When a hit depends on the body, call `rateLimits.hit(...)` and `rateLimited(c, wait)` in the handler, as `POST /auth/login` does; `undo` and `reset` take hits back. The hourly retention job deletes expired rows.
+
 ## Changing what a decision sees
 
 The context that the model reads decides the answers, and small changes move them. The order of the keys in a JSON object alone changed 14 decisions in 100 (`packages/eval/src/experiments/key-order.ts`). So a change to the context builder, the questions or the policy is measured before it is kept: see [The evaluation suite](evaluation.md).

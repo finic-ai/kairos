@@ -3,7 +3,9 @@ import type { Executor } from "../../../platform/database";
 import type { ModuleJobs } from "../../../platform/jobs/worker";
 import type { SecretBox } from "../../../platform/secrets";
 import type { JobsService } from "../../../services/job.service";
+import { shopifyBackfillKind } from "./backfill";
 import { WEBHOOK_CLEANUP_SCHEDULE, webhookCleanupKind } from "./cleanup";
+import type { InboundRepositories } from "./receive";
 import { webhookDeliveries, type WebhookWorker } from "./worker";
 
 export interface WebhookJobsOptions {
@@ -20,6 +22,9 @@ export interface WebhookJobsOptions {
   /** Run due jobs soon, after an enqueue. */
   wake: () => void;
   drain: (options?: { budgetMs?: number }) => Promise<number>;
+  /** To store what an import of past webhooks gives. Without it, nothing is imported. */
+  repos?: InboundRepositories;
+  fetch?: typeof fetch;
 }
 
 export function webhookJobs(options: WebhookJobsOptions): ModuleJobs & { webhooks: Webhooks } {
@@ -47,6 +52,9 @@ export function webhookJobs(options: WebhookJobsOptions): ModuleJobs & { webhook
     kinds: [
       webhookCleanupKind({ db, payloadDays: options.payloadDays, now }),
       ...(deliveries ? [deliveries.kind] : []),
+      ...(deliveries && options.repos
+        ? [shopifyBackfillKind({ repos: options.repos, hooks: webhooks, jobs, now, fetch: options.fetch })]
+        : []),
     ],
     schedules: [WEBHOOK_CLEANUP_SCHEDULE],
     webhooks,

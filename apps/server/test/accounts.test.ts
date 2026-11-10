@@ -178,6 +178,8 @@ describe("sign-up and sign-in", () => {
     const unknown = await call("POST", "/auth/login", { email: "nobody@example.com", password: "correct horse" });
     expect([wrong.status, unknown.status]).toEqual([401, 401]);
     expect(await wrong.json()).toEqual(await unknown.json());
+    for (const password of ["", "correct horse" + "x".repeat(60)])
+      expect((await call("POST", "/auth/login", { email: "ada@example.com", password })).status).toBe(400);
 
     const good = await call("POST", "/auth/login", { email: " Ada@Example.com ", password: "correct horse" });
     const cookie = good.headers.get("set-cookie")!.split(";")[0]!;
@@ -206,6 +208,7 @@ describe("sign-up and sign-in", () => {
     expect(
       (await call("POST", "/auth/password", { current: "correct horse", password: "short" }, { cookie })).status,
     ).toBe(400);
+    expect((await call("POST", "/auth/password", { password: "battery staple" }, { cookie })).status).toBe(400);
     expect(
       await (
         await call("POST", "/auth/password", { current: "correct horse", password: "battery staple" }, { cookie })
@@ -613,6 +616,7 @@ describe("deleting", () => {
     const ada = await signup("ada@example.com");
     await call("POST", "/v1/events", { batch: [event("e1")] }, { cookie: ada.cookie, workspace: ada.workspace });
     expect((await call("DELETE", "/auth/me", { password: "wrong horse" }, { cookie: ada.cookie })).status).toBe(403);
+    expect((await call("DELETE", "/auth/me", {}, { cookie: ada.cookie })).status).toBe(400);
     expect(
       await (await call("DELETE", "/auth/me", { password: "correct horse" }, { cookie: ada.cookie })).json(),
     ).toEqual({ ok: true, workspaces_deleted: 1 });
@@ -929,7 +933,7 @@ describe("Supabase sign-in", () => {
   it("does not let a Supabase account in without a password use the password form", async () => {
     build({ supabase, fetch: fakeSupabase });
     await call("POST", "/auth/supabase", { access_token: "good" });
-    expect((await call("POST", "/auth/login", { email: "ada@example.com", password: "" })).status).toBe(401);
+    expect((await call("POST", "/auth/login", { email: "ada@example.com", password: "" })).status).toBe(400);
     expect((await call("POST", "/auth/login", { email: "ada@example.com", password: "anything at all" })).status).toBe(
       401,
     );

@@ -69,6 +69,8 @@ Every error has the same shape:
 | 404 | `unknown_action` | `decide` named an action that is not defined. |
 | 404 | `no_trigger` | `events/decide` got an event that starts no action. |
 | 409 | `email_taken`, `already_member`, `last_owner`, `sole_owner`, `queue_has_cases`, `case_resolved`, `case_not_resolved`, `not_dead`, `name_taken`, `production_protected` | The change conflicts with what exists. |
+| 413 | `too_large` | The body is larger than 10 MB, or 2 MB with a public key. Some endpoints have a lower limit, which they name. |
+| 429 | `rate_limited` | Too many requests. `Retry-After` says when to try again. A public key: 600 requests a minute from one IP address, and 30,000 a minute in all. The [sign-in endpoints](../development/auth-api.md) have their own limits. |
 | 500 | `internal_error` | A fault in the server. |
 | 502 | `model_unavailable` | The model could not be reached or did not answer in time. |
 | 502 | `workflow_failed` | The action's decision workflow failed, or did not answer in time. The message names the step and the run. |
@@ -109,7 +111,7 @@ Store a batch of events. Answers `202`.
 | `type` | required | Any text up to 128 characters. |
 | `ts` | required | When it happened. |
 | `entities` | required | Entity type → id. At least one. |
-| `properties` | | Any JSON object. Default `{}`. |
+| `properties` | | Any JSON object, up to 512 KB as JSON. Default `{}`. |
 | `universal_id` | | Events with the same value are stages of one [record](#records). |
 | `status` | | The state of the record at this stage, up to 64 characters. |
 | `session` | | Events with the same value are one [session](#sessions). |
@@ -613,7 +615,7 @@ What the JavaScript tag, the mobile SDKs, the edge and the SDK middleware collec
 | | |
 |---|---|
 | `GET /v1/client-settings` | `{ version, consent, defaults, routing, pages, screens, routes }`. `version` is 0 until the first save. |
-| `PUT /v1/client-settings` | Replaces all of them, and answers them with the next `version`. |
+| `PUT /v1/client-settings` | Replaces all of them, and answers them with the next `version`. A secret key, or a signed-in admin. |
 
 ```json
 {
@@ -653,7 +655,7 @@ A provider sends its webhooks to Kairos, which stores them as events and labels.
 
 | | |
 |---|---|
-| `POST /v1/webhooks/:token` | A delivery. **No API key**: the token in the URL and the provider's signature stand for one. Answers `{ "status": "stored" \| "duplicate" \| "ignored" \| "failed" \| "no_entity" }` with 200, or 401 (signature), 400 (not JSON), 413 (over 1 MB), 404 (unknown or disabled), 503 (the server cannot read the secret). |
+| `POST /v1/webhooks/:token` | A delivery. **No API key**: the token in the URL and the provider's signature stand for one. Answers `{ "status": "stored" \| "duplicate" \| "ignored" \| "failed" \| "no_entity" }` with 200, or 401 (signature), 400 (not JSON), 413 (over 1 MB), 404 (unknown or disabled, or the workspace is suspended), 503 (the server cannot read the secret). |
 | `GET /v1/webhook-presets` | `{ presets }`: the providers Kairos knows (Fingerprint, Sumsub, Checkout.com, Stripe, Shopify, Intercom, Zendesk, Lithic, Marqeta), with their `category`, `checked`, verification, mapping, setup steps and sample payloads (and `sampleHeaders`, the request headers of each sample, for a provider that sends the topic in a header). |
 
 Sources are managed under `/app/workspaces/:workspace/webhooks` with a session and the admin role: see [Accounts and workspaces](#webhooks) below.
@@ -687,7 +689,7 @@ A workflow has one trigger and a list of steps, and Kairos runs it in the backgr
 | `GET /v1/workflow-experiments/:id` | `{ id: "wfx_…", workflow, base_version, status, error, config, dataset, results, best, selected, applied, created_by, created_at, started_at, finished_at }`. Each result has `key`, `name`, `model`, `models`, `metrics: { valid, test, gain, thresholds, at_review, at_block }`, `steps` and `problems`. |
 | `PATCH /v1/workflow-experiments/:id` | `{ name?, variants? }`, where `variants` maps a variant's key to its new name. Renames the experiment or its variants; the keys, models, steps and results stay. The experiment. 400 for a key it does not have. |
 | `POST /v1/workflow-experiments/:id/apply` | `{ variant, reason?, publish? }`. Writes the variant's steps, with the workflow's trigger, as its draft, or with `publish: true` as its next version. Records `selected: { variant, reason, by, at }` and `applied: { variant, version, published, at }`. `{ experiment, workflow }`. 400 while the experiment is not done, or when the steps cannot be saved. 409 when a variant was applied already, when the workflow has a newer version than the one the experiment ran on, or, without `publish`, when the workflow has a draft. |
-| `GET` / `POST` / `PUT /v1/workflow-hooks/:token` | A call to a webhook trigger. **No API key.** 202 `{ run_id }`, or 404 (unknown URL), 405 (wrong method), 409 (paused, archived or not published), 413 (over 1 MB). |
+| `GET` / `POST` / `PUT /v1/workflow-hooks/:token` | A call to a webhook trigger. **No API key.** 202 `{ run_id }`, or 404 (unknown URL, or the workspace is suspended), 405 (wrong method), 409 (paused, archived or not published), 413 (over 1 MB). |
 
 A run's `status` is `queued`, `running`, `waiting`, `filtered`, `done`, `failed` or `cancelled`. See [Runs](../platform/workflows.md#runs).
 

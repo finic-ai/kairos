@@ -1,4 +1,4 @@
-import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
+import { createCipheriv, createDecipheriv, createHmac, hkdfSync, randomBytes } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import type { StoredSecret } from "../db/schema";
@@ -45,6 +45,55 @@ export function secretBox(key: Buffer): SecretBox {
       );
     },
   };
+}
+
+const SEALED = "kenc:v1:";
+type FieldKeys = { cipher: Buffer; iv: Buffer };
+type Master = { key: Buffer; id: string; workspaces: Map<string, FieldKeys> };
+let master: Master | undefined;
+
+/** Set once at boot, from KAIROS_ENCRYPTION_KEY. Without a key, values are kept as they are. */
+export function setFieldKey(key: Buffer | undefined): void {
+  master = key
+    ? { key, id: createHmac("sha256", key).update("kairos key id").digest("hex").slice(0, 8), workspaces: new Map() }
+    : undefined;
+}
+
+/** Keys of their own for each workspace, so that a value copied into another workspace cannot be opened there. */
+function keysOf(m: Master, workspaceId: string): FieldKeys {
+  let keys = m.workspaces.get(workspaceId);
+  if (!keys) {
+    const derive = (info: string) => Buffer.from(hkdfSync("sha256", m.key, workspaceId, info, 32));
+    keys = { cipher: derive("kairos field cipher"), iv: derive("kairos field iv") };
+    m.workspaces.set(workspaceId, keys);
+  }
+  return keys;
+}
+
+export const isSealed = (value: unknown): value is string => typeof value === "string" && value.startsWith(SEALED);
+
+/**
+ * `kenc:v1:<key id>:<iv, tag, ciphertext>`. The IV comes from the value, so that a definition that
+ * did not change compares equal and makes no new version.
+ */
+export function sealField(value: string, workspaceId: string): string {
+  if (!master || isSealed(value)) return value;
+  const keys = keysOf(master, workspaceId);
+  const iv = createHmac("sha256", keys.iv).update(value).digest().subarray(0, 12);
+  const cipher = createCipheriv("aes-256-gcm", keys.cipher, iv);
+  const ciphertext = Buffer.concat([cipher.update(value, "utf8"), cipher.final()]);
+  return `${SEALED}${master.id}:${Buffer.concat([iv, cipher.getAuthTag(), ciphertext]).toString("base64url")}`;
+}
+
+export function openField(value: string, workspaceId: string): string {
+  if (!isSealed(value)) return value;
+  if (!master) throw new Error("KAIROS_ENCRYPTION_KEY is not set, so an encrypted value cannot be read");
+  const [id, payload = ""] = value.slice(SEALED.length).split(":");
+  if (id !== master.id) throw new Error(`The value was encrypted with another KAIROS_ENCRYPTION_KEY (key ${id})`);
+  const raw = Buffer.from(payload, "base64url");
+  const decipher = createDecipheriv("aes-256-gcm", keysOf(master, workspaceId).cipher, raw.subarray(0, 12));
+  decipher.setAuthTag(raw.subarray(12, 28));
+  return Buffer.concat([decipher.update(raw.subarray(28)), decipher.final()]).toString("utf8");
 }
 
 /**

@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { bigint, check, foreignKey, index, jsonb, pgTable, text, unique, uniqueIndex } from "drizzle-orm/pg-core";
+import { bigint, check, foreignKey, index, inet, jsonb, pgTable, text, unique, uniqueIndex } from "drizzle-orm/pg-core";
 import { time, created, updated } from "./columns";
 
 export const workspace = () =>
@@ -156,3 +156,20 @@ export type EnvironmentRow = typeof environments.$inferSelect;
 export type InviteRow = typeof invites.$inferSelect;
 export type MembershipRow = typeof memberships.$inferSelect;
 export type NewApiKeyRow = typeof apiKeys.$inferInsert;
+
+export const rateLimits = pgTable(
+  "rate_limits",
+  {
+    key: text("key").primaryKey(),
+    /** A name such as `login`, or a route such as `POST /v1/events`. */
+    resource: text("resource").notNull(),
+    ip: inet("ip"),
+    hits: bigint("hits", { mode: "number" }).notNull(),
+    expires: time("expires").notNull(),
+  },
+  (t) => [
+    index("rate_limits_by_expiry").on(t.expires),
+    index("rate_limits_by_resource").on(t.resource),
+    index("rate_limits_by_ip").on(t.ip),
+  ],
+);

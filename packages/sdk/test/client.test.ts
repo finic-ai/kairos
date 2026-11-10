@@ -101,6 +101,14 @@ describe("track", () => {
     ]);
   });
 
+  it("keeps each batch under the server's body limit", async () => {
+    const kairos = client({ flushAt: 10_000 });
+    for (let i = 0; i < 10; i++) kairos.track("note", { userId: `u${i}`, text: "x".repeat(200_000) });
+    await kairos.flush();
+    expect(events().flatMap((c) => c.body.batch)).toHaveLength(10);
+    for (const c of events()) expect(JSON.stringify(c.body).length).toBeLessThan(2 * 1024 * 1024);
+  });
+
   it("sends $set and $set_once for the entity an event is about", async () => {
     const kairos = client();
     kairos.track("kyc_completed", {
