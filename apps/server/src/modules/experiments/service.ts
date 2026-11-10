@@ -1,9 +1,18 @@
-import { loadLogistic, loadXgboost, trainGbdt, type GbdtParams, type XgboostModel } from "@kairos/core";
+import {
+  loadLogistic,
+  loadXgboost,
+  trainGbdt,
+  triggerOf,
+  type Decider,
+  type GbdtParams,
+  type XgboostModel,
+} from "@kairos/core";
 import type { Executor } from "../../platform/database";
 import { AppError, invalid, notFound } from "../../platform/error";
 import { PermanentError, type ModuleJobs } from "../../platform/jobs/worker";
+import { ActionsService } from "../../services/action.service";
 import { JobsService } from "../../services/job.service";
-import { WorkflowsService } from "../../services/workflow.service";
+import { openSteps, WorkflowsService } from "../../services/workflow.service";
 import {
   toExperimentView,
   WorkflowExperimentsService,
@@ -20,6 +29,9 @@ import {
 } from "../workflows";
 import {
   averagePrecision,
+  backtestBatch,
+  backtestReport,
+  type BacktestState,
   bootstrapGain,
   fitLogistic,
   rates,
@@ -39,6 +51,14 @@ const MIN_ROWS = 100;
 const MAX_ROWS = 100_000;
 const SAMPLES = 200;
 const LEASE_MS = 20 * 60_000;
+/** A backtest replays for this long in one job, then goes on in the next. */
+const BACKTEST_BUDGET_MS = 10 * 60_000;
+
+/** What a backtest needs to run the workflow: its model calls. */
+export interface ExperimentRuntime {
+  decider: Decider;
+  allowPrivate: boolean;
+}
 
 const conflict = (message: string) => new AppError("conflict", "conflict", message);
 
@@ -52,6 +72,16 @@ export async function createExperiment(
 ): Promise<ExperimentView> {
   const current = await new WorkflowsService(db, scope).findByName(workflow);
   if (!current) throw notFound(`No workflow "${workflow}"`);
+  if (body.backtest) {
+    const trigger = current.draft?.trigger ?? current.trigger;
+    if (trigger.type !== "decision")
+      throw invalid("backtest: a backtest replays the decision requests of a decision workflow");
+    const action = await new ActionsService(db, scope).findLatest(String(trigger.action));
+    if (action && !triggerOf(action))
+      throw invalid(
+        `backtest: the action "${action.name}" has no trigger event, so there are no past requests to replay. Set its trigger first.`,
+      );
+  }
   if (current.trigger.type !== "decision" && !body.subject)
     throw invalid(
       'subject: the entity each run is about, as { "type": "user", "id": "{{ … }}" }, for a workflow that makes no decisions',
@@ -363,6 +393,7 @@ export async function runExperiment(
   id: string,
   now: () => Date,
   attempt: { last: boolean } = { last: true },
+  runtime?: ExperimentRuntime,
 ): Promise<void> {
   const experiments = new WorkflowExperimentsService(db, scope);
   const row = await getExperiment(db, scope, id);
@@ -377,6 +408,65 @@ export async function runExperiment(
   if (!claimed) return;
   try {
     const config = row.config as unknown as ExperimentBody;
+    let state: BacktestState | null = null;
+    let report: Awaited<ReturnType<typeof backtestReport>> | null = null;
+    if (config.backtest) {
+      if (!runtime) throw new Error("this process cannot run a backtest: it has no model client");
+      const progress = row.dataset as { backtest_state?: BacktestState; batches?: number } | null;
+      state = await backtestBatch(
+        { db, ...runtime, now },
+        scope,
+        { id, workflow: row.workflow, config: config.backtest },
+        progress?.backtest_state ?? null,
+        BACKTEST_BUDGET_MS,
+      );
+      if (!state.done) {
+        const batches = (progress?.batches ?? 0) + 1;
+        await db.transaction(async (tx) => {
+          await new WorkflowExperimentsService(tx, scope).updateMany(
+            { id },
+            { status: "queued", dataset: { backtest_state: state, batches } },
+            now(),
+          );
+          await new JobsService(tx).enqueue(
+            { kind: EXPERIMENT_JOB, key: `${id}:${batches}`, payload: { id }, ...scope },
+            now(),
+          );
+        });
+        return;
+      }
+      report = await backtestReport(
+        db,
+        scope,
+        { id, workflow: row.workflow },
+        state,
+        { labels: config.labels, window: config.window },
+        now(),
+      );
+    }
+    // A backtest that cannot train still answers what the workflow would have decided.
+    const finishUntrained = async (reason: string | null, extra: Record<string, unknown> = {}) => {
+      await experiments.updateMany(
+        { id },
+        {
+          status: "done",
+          finished: now(),
+          best: null,
+          results: [],
+          dataset: {
+            ...extra,
+            labels: config.labels,
+            window: config.window,
+            not_trained: reason,
+            backtest: report,
+            ran_on: state!.ran_on,
+            workflow_version: (await new WorkflowsService(db, scope).findByName(row.workflow))?.version ?? null,
+          },
+        },
+        now(),
+      );
+    };
+    if (report && config.variants.length === 0) return await finishUntrained(null);
     const data = await collectTrainingRows(
       db,
       scope,
@@ -390,22 +480,36 @@ export async function runExperiment(
         ...(config.to ? { to: config.to } : {}),
         limit: MAX_ROWS,
         newest: true,
+        ...(config.backtest ? { backtest: id } : {}),
       },
       now(),
     );
     const { rows, names } = data;
+    const cannotTrain = async (reason: string) => {
+      if (!report) throw new PermanentError(reason);
+      await finishUntrained(reason, { rows: rows.length, export: data.counts });
+    };
     if (rows.length < MIN_ROWS)
-      throw new PermanentError(`${rows.length} labeled runs: an experiment needs at least ${MIN_ROWS}`);
+      return await cannotTrain(`${rows.length} labeled runs: an experiment needs at least ${MIN_ROWS}`);
     const split = splitByTime(rows, config.split.train, config.split.valid);
     const labels: number[] = rows.map((r) => r.label);
     for (const [part, idx] of Object.entries(split) as [string, number[]][]) {
       const positives = idx.reduce((n, i) => n + labels[i]!, 0);
       if (positives === 0 || positives === idx.length)
-        throw new PermanentError(`The ${part} rows need both outcomes: ${positives} of ${idx.length} are positive`);
+        return await cannotTrain(`The ${part} rows need both outcomes: ${positives} of ${idx.length} are positive`);
     }
 
-    const workflow = await new WorkflowsService(db, scope).findByName(row.workflow);
-    if (!workflow) throw new PermanentError(`No workflow "${row.workflow}"`);
+    const current = await new WorkflowsService(db, scope).findByName(row.workflow);
+    if (!current) throw new PermanentError(`No workflow "${row.workflow}"`);
+    // A backtest of the draft builds the variants on the steps it ran.
+    const workflow =
+      state?.ran_on === "draft" && state.definition
+        ? {
+            ...current,
+            trigger: state.definition.trigger,
+            steps: openSteps(state.definition.steps, scope.workspaceId),
+          }
+        : current;
     const prefix = config.model_prefix ?? prefixOf(row.workflow);
     const failed: { key: string; error: string }[] = [];
     const trained = config.variants.flatMap((variant) => {
@@ -541,6 +645,7 @@ export async function runExperiment(
           metric,
           baseline: baselineKey,
           workflow_version: workflow.version,
+          ...(report ? { backtest: report, ran_on: state!.ran_on } : {}),
           ...(failed.length ? { failed } : {}),
         },
       },
@@ -592,7 +697,8 @@ export async function applyExperiment(
       throw conflict(
         `The workflow is at version ${current.version}, and the experiment ran on version ${ranOn}: run the experiment again`,
       );
-    if (!choice.publish && current.draft)
+    const ranOnDraft = (row.dataset as { ran_on?: unknown } | null)?.ran_on === "draft";
+    if (!choice.publish && current.draft && !ranOnDraft)
       throw conflict("The workflow has a draft: publish or discard it before you apply a variant as a draft");
     const definition = {
       name: row.workflow,
@@ -621,7 +727,15 @@ export async function applyExperiment(
   });
 }
 
-export function experimentJobs({ db, now }: { db: Executor; now: () => Date }): ModuleJobs {
+export function experimentJobs({
+  db,
+  now,
+  runtime,
+}: {
+  db: Executor;
+  now: () => Date;
+  runtime?: ExperimentRuntime;
+}): ModuleJobs {
   return {
     kinds: [
       {
@@ -632,9 +746,16 @@ export function experimentJobs({ db, now }: { db: Executor; now: () => Date }): 
         leaseMs: LEASE_MS,
         async run(payload: { id: string }, job) {
           if (!job.workspaceId || !job.environmentId) throw new PermanentError("the job has no environment");
-          await runExperiment(db, { workspaceId: job.workspaceId, environmentId: job.environmentId }, payload.id, now, {
-            last: job.retryAt === undefined,
-          });
+          await runExperiment(
+            db,
+            { workspaceId: job.workspaceId, environmentId: job.environmentId },
+            payload.id,
+            now,
+            {
+              last: job.retryAt === undefined,
+            },
+            runtime,
+          );
         },
       },
     ],

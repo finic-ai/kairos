@@ -21,6 +21,15 @@ export interface ExperimentView {
   finished_at: string | null;
 }
 
+/** While a backtest runs, how far it is: never its cursor or the steps it keeps. */
+function datasetView(dataset: WorkflowExperimentRow["dataset"]) {
+  const state = (dataset as { backtest_state?: Record<string, unknown> } | null)?.backtest_state;
+  if (!state) return dataset ?? null;
+  return {
+    backtest_progress: { runs: state.runs, skipped: state.skipped, requests: state.total, ran_on: state.ran_on },
+  };
+}
+
 export function toExperimentView(row: WorkflowExperimentRow, withSteps = true): ExperimentView {
   return {
     id: row.id,
@@ -29,7 +38,7 @@ export function toExperimentView(row: WorkflowExperimentRow, withSteps = true): 
     status: row.status,
     error: row.error,
     config: row.config,
-    dataset: row.dataset ?? null,
+    dataset: datasetView(row.dataset),
     results: row.results ? (withSteps ? row.results : row.results.map(({ steps: _s, ...rest }) => rest)) : null,
     best: row.best,
     selected: row.selected ?? null,

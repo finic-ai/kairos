@@ -321,11 +321,7 @@ export function workflowRoutes({ repos, now, decider, allowPrivate, wake }: Work
     const workflow = await workflowsOf(c).findByName(c.req.param("name"));
     if (!workflow) return notFound(c);
     const limit = Math.min(500, Math.max(1, Math.floor(Number(c.req.query("limit"))) || 50));
-    const runs = await runsOf(c).findMany({
-      where: { workflowId: workflow.id },
-      orderBy: { created: "desc" },
-      limit,
-    });
+    const runs = await runsOf(c).listRecent(workflow.id, limit);
     return c.json({ runs: runs.map(toRunView) });
   });
 

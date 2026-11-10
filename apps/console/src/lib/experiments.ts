@@ -74,7 +74,18 @@ export const appliedBadge = (applied: NonNullable<Experiment["applied"]>) =>
   applied.published && applied.version !== null ? `Applied v${applied.version}` : "Applied as draft";
 
 export const periodOf = (dataset: Pick<NonNullable<Experiment["dataset"]>, "from" | "to">) =>
-  `${dayOf(dataset.from)} – ${dayOf(dataset.to)}`;
+  dataset.from && dataset.to ? `${dayOf(dataset.from)} – ${dayOf(dataset.to)}` : "—";
+
+/** The dataset of an experiment that trained, with every training field. */
+export type TrainedDataset = Required<
+  Pick<NonNullable<Experiment["dataset"]>, "rows" | "positives" | "from" | "to" | "labels" | "window" | "split">
+> &
+  NonNullable<Experiment["dataset"]>;
+
+export const trainedOn = (experiment: Pick<Experiment, "dataset">): TrainedDataset | null => {
+  const d = experiment.dataset;
+  return d && typeof d.rows === "number" && d.split ? (d as TrainedDataset) : null;
+};
 
 export const resultOf = (experiment: Pick<Experiment, "results">, key: string | null | undefined) =>
   key ? experiment.results?.find((r) => r.key === key) : undefined;

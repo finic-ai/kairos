@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import type { WorkflowRow } from "../db/schema";
 import type { Executor } from "../platform/database";
 import { DatabaseService } from "../platform/orm";
@@ -25,6 +26,9 @@ export interface WorkflowView {
 }
 
 type Step = Record<string, unknown>;
+
+/** A backtest run's key starts with it, so the runs of one experiment's backtest are found together. */
+export const backtestKeyPrefix = (experimentId: string) => `backtest:${experimentId}:`;
 
 /** Maps the header and query values of every HTTP step, also inside conditions and loops. */
 function mapHttpValues<T extends Step>(steps: T[], map: (value: string) => string): T[] {
@@ -160,11 +164,37 @@ export class WorkflowRunsService extends DatabaseService<"workflowRuns"> {
 
   /** Ids sort by time, so this is oldest first. */
   /** Oldest first after `cursor`, or newest first before it. */
-  async listFinished(workflowId: string, cursor: string, limit: number, newest = false) {
+  /** The newest runs of a workflow, without its experiments' backtests, which are read from the experiment. */
+  listRecent(workflowId: string, limit: number) {
+    return this.findMany({
+      where: { workflowId, RAW: (t) => sql`NOT starts_with(${t.key}, 'backtest:')` },
+      orderBy: { created: "desc" },
+      limit,
+    });
+  }
+
+  /** One experiment's backtest runs, in pages after `cursor`, with what its report reads. */
+  listBacktest(workflowId: string, experimentId: string, cursor: string, limit: number) {
     return this.findMany({
       where: {
         workflowId,
-        test: false,
+        RAW: (t) => sql`starts_with(${t.key}, ${backtestKeyPrefix(experimentId)})`,
+        ...(cursor ? { id: { gt: cursor } } : {}),
+      },
+      columns: { id: true, status: true, trigger: true, output: true, error: true, steps: true },
+      orderBy: (t, { asc }) => [asc(t.id)],
+      limit,
+    });
+  }
+
+  /** With `backtest`, the runs of that experiment's backtest; without, the runs that were not tests. */
+  async listFinished(workflowId: string, cursor: string, limit: number, newest = false, backtest?: string) {
+    return this.findMany({
+      where: {
+        workflowId,
+        ...(backtest
+          ? { test: true, RAW: (t) => sql`starts_with(${t.key}, ${backtestKeyPrefix(backtest)})` }
+          : { test: false }),
         status: { in: ["done", "waiting", "cancelled"] },
         ...(!newest ? { id: { gt: cursor } } : cursor ? { id: { lt: cursor } } : {}),
       },

@@ -70,12 +70,25 @@ export const experimentFields = z
       .optional(),
     from: z.string().datetime({ offset: true }).optional(),
     to: z.string().datetime({ offset: true }).optional(),
+    /**
+     * Replay the action's past requests through the workflow (its draft, else its live version)
+     * before training, as test runs: the rows are those runs, not the workflow's live ones.
+     */
+    backtest: z
+      .object({
+        from: z.string().datetime({ offset: true }).optional(),
+        to: z.string().datetime({ offset: true }).optional(),
+        limit: z.number().int().min(1).max(100_000).optional(),
+      })
+      .strict()
+      .optional(),
     /** Feature name → a template read over each run, as a score step reads it. */
     features: z
       .record(z.union([z.string().max(2000), z.number(), z.boolean(), z.null()]))
-      .refine((f) => Object.keys(f).length >= 1 && Object.keys(f).length <= 500, "1 to 500 features")
-      .refine((f) => Object.keys(f).every((k) => FEATURE.test(k)), "feature names are letters, digits and _"),
-    variants: z.array(experimentVariant).min(1).max(12),
+      .refine((f) => Object.keys(f).length <= 500, "at most 500 features")
+      .refine((f) => Object.keys(f).every((k) => FEATURE.test(k)), "feature names are letters, digits and _")
+      .default({}),
+    variants: z.array(experimentVariant).max(12).default([]),
     split: z
       .object({ train: z.number().gt(0).lt(1), valid: z.number().gt(0).lt(1) })
       .strict()
@@ -93,6 +106,13 @@ export const experimentFields = z
   .strict();
 
 export const experimentBody = experimentFields.superRefine((body, ctx) => {
+  // A backtest alone reports what the workflow would have decided; anything else compares variants.
+  if (!body.backtest && body.variants.length === 0)
+    ctx.addIssue({ code: "custom", path: ["variants"], message: "1 to 12 variants, or a backtest" });
+  if (body.variants.length > 0 && Object.keys(body.features).length === 0)
+    ctx.addIssue({ code: "custom", path: ["features"], message: "the features the variants read" });
+  if (body.backtest?.from && body.backtest.to && body.backtest.from >= body.backtest.to)
+    ctx.addIssue({ code: "custom", path: ["backtest", "to"], message: "after from" });
   const keys = body.variants.map((v) => v.key);
   if (new Set(keys).size !== keys.length) ctx.addIssue({ code: "custom", path: ["variants"], message: "a key twice" });
   if (body.baseline !== undefined && !keys.includes(body.baseline))

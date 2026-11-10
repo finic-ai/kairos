@@ -4,6 +4,7 @@ import { Card } from "../../components/ui/Card";
 import { KV } from "../../components/ui/KV";
 import { Modal } from "../../components/ui/Modal";
 import { Failure, Loading } from "../../components/ui/states";
+import { BacktestSection, backtestProgressText, isBacktest } from "../../components/workflows/Backtest";
 import { WorkflowCanvas } from "../../components/workflows/WorkflowCanvas";
 import { useApi } from "../../hooks/useApi";
 import {
@@ -17,6 +18,7 @@ import {
   metricLabel,
   metricOf,
   periodOf,
+  trainedOn,
   POLL_MS,
   rateText,
   resultOf,
@@ -58,7 +60,8 @@ export function WorkflowExperimentPage({ name, id }: { name: string; id: string 
   if (error) return <Failure message={error.message} />;
   if (!experiment) return <Loading />;
 
-  const { dataset, results, selected } = experiment;
+  const { results, selected } = experiment;
+  const dataset = trainedOn(experiment);
   const m = metricOf(experiment);
   const baselineKey = baselineOf(experiment);
   const baseline = resultOf(experiment, baselineKey);
@@ -90,7 +93,8 @@ export function WorkflowExperimentPage({ name, id }: { name: string; id: string 
           {experiment.config.hypothesis && <p className="lede">{experiment.config.hypothesis}</p>}
           <p className="note" style={{ margin: "8px 0 0" }}>
             On {title}, {stamp(experiment.created_at)} UTC{experiment.created_by ? ` by ${experiment.created_by}` : ""}.
-            Each variant was trained on the oldest runs, compared on the next ones, and tested on the newest.
+            {experiment.config.variants.length > 0 &&
+              "Each variant was trained on the oldest runs, compared on the next ones, and tested on the newest."}
           </p>
         </div>
         <a className="btn" href={href("workflows", name)}>
@@ -99,9 +103,11 @@ export function WorkflowExperimentPage({ name, id }: { name: string; id: string 
       </header>
       {isPending(experiment) && (
         <div className="banner info">
-          {experiment.status === "queued"
-            ? `Queued: the server will train ${experiment.config.variants.length} variants. This page updates when they are done.`
-            : `Training and testing ${experiment.config.variants.length} variants. This page updates when they are done.`}
+          {isBacktest(experiment)
+            ? `${backtestProgressText(experiment)} This page updates as it goes.`
+            : experiment.status === "queued"
+              ? `Queued: the server will train ${experiment.config.variants.length} variants. This page updates when they are done.`
+              : `Training and testing ${experiment.config.variants.length} variants. This page updates when they are done.`}
         </div>
       )}
       {experiment.status === "failed" && (
@@ -138,6 +144,8 @@ export function WorkflowExperimentPage({ name, id }: { name: string; id: string 
           }}
         />
       )}
+
+      <BacktestSection experiment={experiment} workflow={name} />
 
       {dataset && (
         <div className="summary-row">

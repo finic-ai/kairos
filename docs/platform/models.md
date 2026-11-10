@@ -43,16 +43,7 @@ Publish it without a score step for now, with an Answer step that gives an outco
 The training rows are the workflow's own runs: each run that is done, cancelled, or waiting. A run that failed, or that is still running, is not a row. There are two ways to get runs:
 
 - **Live:** let the workflow decide for some weeks, then train.
-- **From history:** in a sandbox, make decisions as of past moments over your history. Each one runs the workflow as far as its answer.
-
-For history, copy the events, entities and actions from production into a new sandbox (**Settings › Environments**), build the workflow there, and call `decide` with a `ts` for each past request:
-
-```python
-for row in past_requests:
-    kairos.decide("loan", {"user_id": row["user"], "amount": row["amount"], "purpose": row["purpose"]}, timestamp=row["created_at"])
-```
-
-Use a sandbox: these decisions go into the decision log. Each one costs a model call for each `ask` and `assess` step.
+- **From history:** run an [experiment with a backtest](#backtests). It runs the workflow on each past request of its action, as of the moment it came, and trains on those runs. Nothing is decided, and nothing goes into the decision log.
 
 ### 3. Labels
 
@@ -218,6 +209,48 @@ How the server runs it:
 3. Each variant scores the validation and test rows with the same scorer as a score step. Its review and block thresholds come from its validation scores.
 4. It reports, for each variant, the validation and test ROC-AUC and PR-AUC, the gain over the baseline on the test rows with a 95% bootstrap interval, and precision and recall at its thresholds. `best` is the variant with the best validation metric.
 5. It uploads each variant's models as `<prefix>-<key>-<id>` (and `<prefix>-<key>-base-<id>`), and writes the workflow's steps with the variant deciding: the workflow's steps without their answers and the dropped steps, then score steps, then block, review or approve by the score. `removed_steps` lists the steps it leaves out. A variant gets a problem, and cannot be applied, when a feature it reads comes from a removed step, or when a `probability` feature has no value in some runs.
+
+### Backtests
+
+With `backtest`, an experiment first runs the workflow on the past requests of its action, then trains on those runs instead of the live ones. You do not need a sandbox, or weeks of live runs.
+
+```json
+POST /v1/workflows/order_review/experiments
+{
+  "name": "Review orders over 8,000",
+  "labels": ["chargeback"],
+  "window": "90d",
+  "backtest": { "from": "2026-05-01T00:00:00Z" }
+}
+```
+
+| Key | |
+|---|---|
+| `backtest.from`, `backtest.to` | The period of the requests. Without them, all of the history. |
+| `backtest.limit` | At most this many requests, the oldest first. At most 100,000. |
+
+- **The requests** are the events that match the action's [trigger](../concepts/actions.md), such as `order` with the status `created`. Each one becomes the decision request that [`POST /v1/events/decide`](../reference/api.md) would make, with its entities, properties and session. An action with no trigger has no past requests to run.
+- **The version** is the workflow's draft when it has one, else its live version. So you can try a change before you publish it.
+- **As of the moment.** The model steps (`ask`, `assess`) see only the events and labels from before the request, as a [decision as of a past moment](../concepts/decisions.md) does. Score and ruleset steps read the run's own values. **Lists, and the records that record steps read, are as they are now**: a backtest of a rule on a block list sees the entries added since.
+- **Nothing acts.** The runs are test runs: HTTP requests, decisions, record changes, cases and lists only show what they would do. Rulesets, scoring models and questions to the model run. Each `ask` and `assess` step asks the model once for each request.
+- **The runs** belong to the experiment. The workflow's **Runs** list does not show them, and they are not training data for other experiments. The experiment's flagged requests link to theirs.
+- **A long backtest** goes on in the background, in parts. While it runs, `dataset.backtest_progress` says how far it is: `{ runs, skipped, requests, ran_on }`.
+
+When the backtest is done, `dataset.backtest` reports what the workflow would have decided:
+
+| Field | |
+|---|---|
+| `ran_on` | `"draft"`, or the version. |
+| `requests`, `runs`, `skipped` | The past requests, the runs, and the requests that named no subject. |
+| `outcomes`, `rates` | How many runs gave each outcome, and its share. `failed` counts runs that failed. |
+| `reasons` | The 20 reasons given most often, with how many runs gave each. |
+| `labelled` | For each outcome: its runs, how many of their subjects got one of `labels` within `window`, and how many are too recent to know. |
+| `flagged` | Up to 100 requests it would have sent to review or blocked, highest risk first, each with its run. |
+| `errors` | The first failed runs, with why. |
+
+`variants` and `features` are optional with a backtest. With none, the experiment only reports. With variants, it trains them on the backtest's runs as above. When there are too few labeled runs to train, it still reports and is `done`, and `dataset.not_trained` says why.
+
+In the console, open the workflow's **Experiments** tab and choose **Backtest**.
 
 An experiment is `queued`, then `running`, then `done` or `failed` with its `error`. It needs at least 100 labeled runs, with both outcomes in each part. After an error that can pass, such as a lost database connection, it is `queued` again with its `error` until the retry. A variant that cannot be trained is left out of the results and listed in `dataset.failed`; the others still run.
 

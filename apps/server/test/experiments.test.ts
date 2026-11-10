@@ -1,7 +1,7 @@
 import { loadLogistic, logit } from "@kairos/core";
 import { beforeEach, describe, expect, it } from "vitest";
 import { createApp } from "../src/app";
-import { runExperiment } from "../src/modules/experiments";
+import { backtestBatch, runExperiment } from "../src/modules/experiments";
 import { createRepositories, environmentsRepository, tenancyRepository } from "../src/repositories";
 import { testDatabase } from "./helpers/database";
 
@@ -427,5 +427,244 @@ describe("an experiment", { timeout: 60_000 }, () => {
 
     expect((await call("PATCH", path, { variants: { nope: "X" } })).status).toBe(400);
     expect((await call("PATCH", path, {})).status).toBe(400);
+  });
+});
+
+/** Past order requests: no decision was made for them, as they came before the workflow. */
+async function pastOrders(count: number) {
+  await call("PUT", "/v1/actions/order", {
+    subject: "user",
+    hold: "Should this order be held?",
+    trigger: { event: "order", status: "created" },
+  });
+  let seed = 7;
+  const random = () => (seed = (seed * 1103515245 + 12345) % 2 ** 31) / 2 ** 31;
+  const events: unknown[] = [];
+  const labels: unknown[] = [];
+  for (let i = 0; i < count; i++) {
+    const ts = new Date(Date.parse("2026-03-01T00:00:00Z") + i * 3_600_000 * 4);
+    const amount = 50 + Math.floor(random() * 9950);
+    const risky = random() < 0.3;
+    events.push({
+      id: `o${i}`,
+      type: "order",
+      status: "created",
+      ts: ts.toISOString(),
+      entities: { user: `u${i}` },
+      properties: { amount, risky_country: risky },
+    });
+    // The other stage of the same order is not a request.
+    events.push({ id: `o${i}-paid`, type: "order", status: "paid", ts: ts.toISOString(), entities: { user: `u${i}` } });
+    if (random() < (risky ? 0.6 : 0.05))
+      labels.push({
+        entity: { type: "user", id: `u${i}` },
+        label: "chargeback",
+        ts: new Date(ts.getTime() + 20 * 86_400_000).toISOString(),
+      });
+  }
+  for (let i = 0; i < events.length; i += 500) {
+    const sent = await call("POST", "/v1/events", { batch: events.slice(i, i + 500) });
+    expect(sent.status).toBe(202);
+  }
+  for (let i = 0; i < labels.length; i += 400) await call("POST", "/v1/labels", { batch: labels.slice(i, i + 400) });
+}
+
+/** Reviews large orders. The steps before the answer would act, were it not a backtest. */
+const orderReview = (threshold: number) => ({
+  trigger: { type: "decision", action: "order" },
+  steps: [
+    {
+      id: "notify",
+      name: "Notify",
+      type: "http",
+      method: "POST",
+      url: "https://hooks.example.com/orders",
+      body: { user: "{{ trigger.entities.user }}" },
+    },
+    {
+      id: "mark",
+      name: "Mark the user",
+      type: "record.update",
+      record: "object",
+      entity: "user",
+      record_id: "{{ trigger.entities.user }}",
+      properties: { seen_by_workflow: true },
+    },
+    {
+      id: "big",
+      name: "Big order",
+      type: "condition",
+      when: `trigger.properties.amount >= ${threshold}`,
+      then: [
+        {
+          id: "review",
+          name: "Review",
+          type: "answer",
+          value: {
+            outcome: "review",
+            reasons: ["large_amount"],
+            risk_score: "{{ trigger.properties.amount / 100.0 }}",
+          },
+        },
+      ],
+      else: [{ id: "approve", name: "Approve", type: "answer", value: { outcome: "approve", risk_score: 5 } }],
+    },
+  ],
+});
+
+const runtime = {
+  decider: async () => {
+    throw new Error("no model call in these tests");
+  },
+  allowPrivate: false,
+};
+
+describe("a backtest", { timeout: 120_000 }, () => {
+  it("replays the past requests, decides nothing and acts on nothing, and reports what it would have decided", async () => {
+    await pastOrders(120);
+    expect((await call("PUT", "/v1/workflows/order_review", orderReview(8000))).status).toBe(200);
+
+    const made = await call("POST", "/v1/workflows/order_review/experiments", {
+      name: "Review orders over 8,000",
+      labels: ["chargeback"],
+      window: "90d",
+      backtest: {},
+    });
+    expect(made.status).toBe(202);
+    await runExperiment(database.db, await scopeOf(), made.body.id, () => NOW, { last: true }, runtime);
+    const done = (await call("GET", `/v1/workflow-experiments/${made.body.id}`)).body;
+    expect(done).toMatchObject({ status: "done", results: [], best: null });
+    const report = done.dataset.backtest;
+    expect(report).toMatchObject({ ran_on: 1, action: "order", requests: 120, runs: 120, skipped: 0, errors: [] });
+    expect(report.outcomes.approve + report.outcomes.review).toBe(120);
+    expect(report.rates.review).toBeCloseTo(report.outcomes.review / 120, 10);
+    expect(report.reasons).toEqual([{ code: "large_amount", runs: report.outcomes.review }]);
+    expect(report.flagged).toHaveLength(report.outcomes.review);
+    const scores = report.flagged.map((f: any) => f.risk_score);
+    expect(scores).toEqual([...scores].sort((a, b) => b - a));
+    expect(report.flagged[0]).toMatchObject({ outcome: "review", subject: { type: "user" } });
+    const { approve, review } = report.labelled;
+    expect(approve.runs + review.runs).toBe(120);
+    expect(approve.labelled + review.labelled).toBeGreaterThan(0);
+
+    // Nothing was decided or written, and the runs list does not fill with the backtest.
+    expect((await call("GET", "/v1/decisions")).body.decisions).toEqual([]);
+    expect((await call("GET", "/v1/entities/user/u0")).body.properties.seen_by_workflow).toBeUndefined();
+    expect((await call("GET", "/v1/workflows/order_review/runs")).body.runs).toEqual([]);
+    const run = (await call("GET", `/v1/workflow-runs/${report.flagged[0].run_id}`)).body;
+    expect(run).toMatchObject({ test: true, status: "cancelled" });
+    expect(run.steps.find((s: any) => s.id === "notify").output).toMatchObject({ test: true });
+    expect(run.trigger).toMatchObject({ action: "order", ts: report.flagged[0].ts });
+  });
+
+  it("replays the draft when there is one", async () => {
+    await pastOrders(30);
+    await call("PUT", "/v1/workflows/order_review", orderReview(100_000));
+    // The draft reviews every order; the live version reviews none.
+    expect((await call("PUT", "/v1/workflows/order_review/draft", orderReview(0))).status).toBe(200);
+    const made = await call("POST", "/v1/workflows/order_review/experiments", {
+      labels: ["chargeback"],
+      window: "90d",
+      backtest: {},
+    });
+    await runExperiment(database.db, await scopeOf(), made.body.id, () => NOW, { last: true }, runtime);
+    const report = (await call("GET", `/v1/workflow-experiments/${made.body.id}`)).body.dataset.backtest;
+    expect(report).toMatchObject({ ran_on: "draft", outcomes: { review: 30 } });
+  });
+
+  it("trains the variants on the backtest's runs", async () => {
+    await pastOrders(400);
+    await call("PUT", "/v1/workflows/order_review", orderReview(100_000));
+    const made = await call("POST", "/v1/workflows/order_review/experiments", {
+      labels: ["chargeback"],
+      window: "90d",
+      backtest: { from: "2026-03-01T00:00:00Z" },
+      features: {
+        amount: "{{ trigger.properties.amount }}",
+        risky_country: "{{ trigger.properties.risky_country ? 1 : 0 }}",
+      },
+      variants: [
+        { key: "amount", name: "The amount", model: { type: "logistic", features: ["amount"] } },
+        {
+          key: "country",
+          name: "The amount and the country",
+          model: { type: "logistic", features: ["amount", "risky_country"] },
+        },
+      ],
+    });
+    expect(made.status).toBe(202);
+    await runExperiment(database.db, await scopeOf(), made.body.id, () => NOW, { last: true }, runtime);
+    const done = (await call("GET", `/v1/workflow-experiments/${made.body.id}`)).body;
+    expect(done.status).toBe("done");
+    expect(done.dataset).toMatchObject({ ran_on: 1, backtest: { runs: 400 } });
+    expect(done.dataset.rows).toBeGreaterThanOrEqual(100);
+    expect(done.best).toBe("country");
+    expect(done.results.find((r: any) => r.key === "country").metrics.test.roc_auc).toBeGreaterThan(0.7);
+  });
+
+  it("reports what it would have decided when there is nothing to learn from", async () => {
+    await pastOrders(30);
+    await call("PUT", "/v1/workflows/order_review", orderReview(5000));
+    const made = await call("POST", "/v1/workflows/order_review/experiments", {
+      labels: ["chargeback"],
+      window: "90d",
+      backtest: {},
+      features: { amount: "{{ trigger.properties.amount }}" },
+      variants: [{ key: "amount", name: "The amount", model: { type: "logistic", features: ["amount"] } }],
+    });
+    await runExperiment(database.db, await scopeOf(), made.body.id, () => NOW, { last: true }, runtime);
+    const done = (await call("GET", `/v1/workflow-experiments/${made.body.id}`)).body;
+    expect(done).toMatchObject({
+      status: "done",
+      results: [],
+      dataset: { not_trained: "30 labeled runs: an experiment needs at least 100", backtest: { runs: 30 } },
+    });
+  });
+
+  it("goes on where it stopped, and runs each request once", async () => {
+    await pastOrders(120);
+    await call("PUT", "/v1/workflows/order_review", orderReview(8000));
+    const made = await call("POST", "/v1/workflows/order_review/experiments", {
+      labels: ["chargeback"],
+      window: "90d",
+      backtest: { limit: 100 },
+    });
+    const scope = await scopeOf();
+    const deps = { db: database.db, ...runtime, now: () => NOW };
+    const experiment = { id: made.body.id, workflow: "order_review", config: { limit: 100 } };
+    const first = await backtestBatch(deps, scope, experiment, null, 1);
+    expect(first).toMatchObject({ done: false, runs: 50, total: 100 });
+    const second = await backtestBatch(deps, scope, experiment, { ...first }, 60_000);
+    expect(second).toMatchObject({ done: true, runs: 100 });
+    // A replay of a request that ran already does not run it again.
+    const again = await backtestBatch(deps, scope, experiment, null, 60_000);
+    expect(again.runs).toBe(100);
+    const { rows } = await database.db.execute<{ n: number }>(
+      "SELECT COUNT(*)::int AS n FROM workflow_runs WHERE starts_with(key, 'backtest:')" as never,
+    );
+    expect(rows[0]!.n).toBe(100);
+  });
+
+  it("is only for a decision workflow whose action has a trigger, and needs variants without one", async () => {
+    await call("PUT", "/v1/actions/order", { subject: "user", hold: "Hold?" });
+    await call("PUT", "/v1/workflows/order_review", orderReview(8000));
+    const body = { labels: ["chargeback"], window: "90d", backtest: {} };
+    const noTrigger = await call("POST", "/v1/workflows/order_review/experiments", body);
+    expect(noTrigger.status).toBe(400);
+    expect(noTrigger.body.error.message).toContain('the action "order" has no trigger event');
+
+    await call("PUT", "/v1/workflows/on_payout", {
+      trigger: { type: "event", event: "payout" },
+      steps: [{ id: "done", name: "Done", type: "return", value: {} }],
+    });
+    const notDecision = await call("POST", "/v1/workflows/on_payout/experiments", body);
+    expect(notDecision.body.error.message).toContain("decision workflow");
+
+    const nothing = await call("POST", "/v1/workflows/order_review/experiments", {
+      labels: ["chargeback"],
+      window: "90d",
+    });
+    expect(nothing.status).toBe(400);
+    expect(JSON.stringify(nothing.body)).toContain("1 to 12 variants, or a backtest");
   });
 });
