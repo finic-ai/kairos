@@ -92,6 +92,19 @@ def _encode(body: Any) -> bytes:
     return json.dumps(body, default=_json_default, separators=(",", ":"), allow_nan=False).encode("utf-8")
 
 
+def _span(value: Any) -> dict[str, str]:
+    """``$trace`` as the API takes it: the span this event records."""
+    if not isinstance(value, Mapping) or not all(isinstance(value.get(k), str) and value.get(k) for k in ("trace_id", "span_id")):
+        raise KairosError("$trace needs a trace_id and a span_id, as text")
+    span = {"trace_id": value["trace_id"], "span_id": value["span_id"]}
+    for key in ("parent_span_id", "name", "status"):
+        if value.get(key):
+            span[key] = str(value[key])
+    if value.get("end"):
+        span["end"] = _iso(value["end"])
+    return span
+
+
 def _session(value: Any) -> dict[str, str]:
     """``$session`` as the API takes it. An empty value is no session."""
     if value is None or value == "":
@@ -337,6 +350,9 @@ class Kairos:
 
         Each of these can also be a key of ``properties``, as ``$session``, ``$set``, ``$set_once``,
         ``timestamp``, ``event_id``, ``universal_id``, ``status`` and ``entities``.
+
+        ``$trace`` in ``properties`` is the span the event records, for the console's trace view:
+        ``{"trace_id", "span_id", "parent_span_id", "name", "end", "status"}``. A decision does not read it.
         """
         self._put(self._event(type, properties, timestamp, event_id, universal_id, status, session, set, set_once, entities, _context.current(self)))
 
@@ -619,6 +635,7 @@ class Kairos:
         event_id = take(event_id, *_EVENT_ID)
         universal_id = take(universal_id, *_UNIVERSAL_ID)
         session = take(session, "$session")
+        trace = given.pop("$trace", None)
         set = take(set, "$set")
         set_once = take(set_once, "$set_once")
         # A status that is not text is an ordinary property.
@@ -637,6 +654,8 @@ class Kairos:
         if status:
             event["status"] = status
         event.update(visit)
+        if trace is not None:
+            event["trace"] = _span(trace)
         for field, value in (("set", _by_subject("$set", set, named, about, type)), ("set_once", _by_subject("$set_once", set_once, named, about, type))):
             if value is not None:
                 event[field] = value

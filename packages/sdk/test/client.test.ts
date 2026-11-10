@@ -212,6 +212,41 @@ describe("track", () => {
     expect(() => kairos.track("login", { userId: "u", $session: { id: 1 } as any })).toThrow(/\$session/);
   });
 
+  it("sends $trace as the span of an event, not as properties or entities", async () => {
+    const kairos = client();
+    kairos.track("tool_called", {
+      agentId: "a1",
+      tool: "lookup_order",
+      eventId: "e1",
+      timestamp: "2026-10-01T10:00:00Z",
+      $trace: {
+        traceId: "t1",
+        spanId: "s2",
+        parentSpanId: "s1",
+        name: "execute_tool lookup_order",
+        end: new Date("2026-10-01T10:00:01.5Z"),
+        status: "error",
+      },
+    });
+    await kairos.flush();
+    expect(events()[0]!.body.batch[0]).toEqual({
+      id: "e1",
+      type: "tool_called",
+      ts: "2026-10-01T10:00:00.000Z",
+      entities: { agent: "a1" },
+      properties: { tool: "lookup_order" },
+      trace: {
+        trace_id: "t1",
+        span_id: "s2",
+        parent_span_id: "s1",
+        name: "execute_tool lookup_order",
+        end: "2026-10-01T10:00:01.500Z",
+        status: "error",
+      },
+    });
+    expect(() => kairos.track("tool_called", { agentId: "a1", $trace: { traceId: "t1" } as any })).toThrow(/\$trace/);
+  });
+
   it("sends on the timer", async () => {
     const kairos = client({ flushIntervalMs: 20 });
     kairos.track("login", { userId: "u" });

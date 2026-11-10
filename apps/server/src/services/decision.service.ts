@@ -92,10 +92,12 @@ export class DecisionsService extends DatabaseService<"decisions"> {
       final_outcome: string;
       automatic: boolean;
       decision_workflow: string | null;
+      event_id: string | null;
     }>(
       this.db,
       sql`SELECT id, ts, action, subject_type, subject_id, decision, session_id, revision, resolution, final_outcome, automatic,
-                 metadata ->> 'decision_workflow' AS decision_workflow
+                 metadata ->> 'decision_workflow' AS decision_workflow,
+                 (SELECT e.external_id FROM events e WHERE e.id = decisions.event_id) AS event_id
             FROM decisions WHERE ${this.matching(filter)}
            ORDER BY ts DESC, id COLLATE "C" DESC LIMIT ${filter.limit} OFFSET ${filter.offset ?? 0}`,
     );
@@ -105,6 +107,7 @@ export class DecisionsService extends DatabaseService<"decisions"> {
       action: r.action,
       subject: { type: r.subject_type, id: r.subject_id },
       decision: r.decision,
+      ...(r.event_id ? { event_id: r.event_id } : {}),
       ...(r.session_id ? { session: r.session_id } : {}),
       revision: r.revision,
       resolution: r.resolution,

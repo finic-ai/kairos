@@ -5537,6 +5537,279 @@ a.replay-fact:hover {
   font-weight: 600;
 }
 
+.spans {
+  padding: 16px 20px;
+  display: grid;
+  gap: 18px;
+}
+
+.spans-one {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.spans-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: 12.5px;
+}
+
+.spans-id {
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+
+.spans-axis,
+.spans-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 34%) minmax(0, 1fr) 64px;
+  align-items: center;
+  gap: 10px;
+}
+
+.spans-axis {
+  position: relative;
+  height: 18px;
+  border-bottom: 1px solid var(--line);
+}
+
+.spans-ticks {
+  position: relative;
+  height: 100%;
+}
+
+.spans-ticks i {
+  position: absolute;
+  bottom: 3px;
+  font-style: normal;
+  font-size: 11px;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  transform: translateX(-50%);
+}
+
+.spans-ticks i:first-child {
+  transform: none;
+}
+
+.spans-ticks i:last-child {
+  transform: translateX(-100%);
+}
+
+.spans-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.spans-row {
+  min-height: 28px;
+  border-radius: 6px;
+  font-size: 12.5px;
+}
+
+.spans-row:hover,
+.spans-row.on {
+  background: var(--hover);
+}
+
+.spans-name {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.spans-fold {
+  flex: 0 0 18px;
+  width: 18px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink-3);
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.spans-pick {
+  min-width: 0;
+  padding: 3px 4px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.spans-label {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.spans-row.error .spans-label {
+  color: var(--block-text);
+}
+
+.spans-lane {
+  position: relative;
+  height: 22px;
+  cursor: pointer;
+}
+
+.spans-bar {
+  position: absolute;
+  top: 6px;
+  height: 10px;
+  border-radius: 3px;
+  background: var(--ink-3);
+  opacity: 0.55;
+}
+
+.spans-bar.point {
+  width: 2px;
+  top: 3px;
+  height: 16px;
+}
+
+.spans-row.error .spans-bar {
+  background: var(--block);
+  opacity: 0.8;
+}
+
+.spans-bar.decided {
+  background: var(--tone);
+  opacity: 1;
+}
+
+.spans-mark {
+  position: absolute;
+  top: 2px;
+  margin-left: 6px;
+  padding: 0 6px;
+  border-radius: 9px;
+  background: var(--tone-soft);
+  color: var(--tone);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 18px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.spans-mark.before {
+  margin-left: -6px;
+  transform: translateX(-100%);
+}
+
+.spans-length {
+  text-align: right;
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.spans-detail {
+  padding: 10px 12px 14px;
+  margin: 2px 0 6px;
+  border-left: 2px solid var(--line);
+  background: var(--surface-2);
+  border-radius: 0 6px 6px 0;
+}
+
+.spans-facts {
+  display: grid;
+  gap: 12px;
+}
+
+.spans-groups {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px 24px;
+}
+
+.spans-group h4 {
+  margin: 0 0 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.spans-group dl {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 4px 12px;
+  margin: 0;
+  font-size: 12.5px;
+}
+
+.spans-group dt {
+  color: var(--ink-3);
+}
+
+.spans-group dd {
+  margin: 0;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.spans-group dd a {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: var(--line);
+  text-underline-offset: 2px;
+}
+
+.spans-group dd a:hover {
+  text-decoration-color: currentColor;
+}
+
+.spans-json {
+  margin: 0;
+  font: inherit;
+  white-space: pre-wrap;
+}
+
+.spans-decision {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--tone);
+  border-radius: 6px;
+  background: var(--surface);
+  color: inherit;
+  font-size: 12.5px;
+  text-decoration: none;
+}
+
+.spans-decision:hover {
+  border-color: var(--ink-3);
+  border-left-color: var(--tone);
+}
+
+@media (max-width: 640px) {
+  .spans {
+    padding: 14px 12px;
+  }
+  .spans-axis,
+  .spans-row {
+    grid-template-columns: minmax(96px, 40%) minmax(0, 1fr);
+  }
+  .spans-length {
+    display: none;
+  }
+}
+
 @keyframes replay-in {
   from {
     opacity: 0;

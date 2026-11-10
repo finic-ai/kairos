@@ -56,7 +56,24 @@ export interface EventProperties {
    * entity: `sessionId` still names an entity of your own called "session". `null` is no session.
    */
   $session?: string | null;
+  /**
+   * The span this event records, for an agent or a service that is traced: the console draws the
+   * spans of a session as a trace. `timestamp` is when the span started. A decision does not read it.
+   */
+  $trace?: TraceSpan;
   [property: string]: unknown;
+}
+
+/** A span of a trace, as in OpenTelemetry. The ids are the hex ids of your tracer. */
+export interface TraceSpan {
+  traceId: string;
+  spanId: string;
+  parentSpanId?: string;
+  /** The span's name, for example "execute_tool lookup_order". */
+  name?: string;
+  /** When the span ended. */
+  end?: Date | string;
+  status?: "ok" | "error";
 }
 
 /** The pending action. Entities are read from the properties as for an event. */
@@ -281,6 +298,14 @@ export interface WireEvent {
   universal_id?: string;
   status?: string;
   session?: string;
+  trace?: {
+    trace_id: string;
+    span_id: string;
+    parent_span_id?: string;
+    name?: string;
+    end?: string;
+    status?: "ok" | "error";
+  };
   /** Entity type → properties to set on that entity. */
   set?: Record<string, Record<string, unknown>>;
   set_once?: Record<string, Record<string, unknown>>;

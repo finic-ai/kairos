@@ -45,6 +45,8 @@ export interface DecisionSummary {
   action: string;
   subject: EntityRef;
   decision: Decision;
+  /** The event that asked for it, for a decision from `trackAndDecide`. */
+  event_id?: string;
   session?: string;
   /** 1, and one more for each change of the resolution. */
   revision?: number;
@@ -183,6 +185,17 @@ export interface StoredEvent {
   universal_id?: string;
   status?: string;
   session?: string;
+  /** The span the event records, when it was sent with `$trace`. `ts` is when the span started. */
+  trace?: EventTrace;
+}
+
+export interface EventTrace {
+  trace_id: string;
+  span_id: string;
+  parent_span_id?: string;
+  name?: string;
+  end?: string;
+  status?: "ok" | "error";
 }
 
 export interface EventDetail extends StoredEvent {

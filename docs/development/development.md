@@ -33,6 +33,8 @@ pnpm example:ecommerce  # run examples/ecommerce.ts: six checkout scenarios
 pnpm example:atm        # run examples/mule-atm.ts: mules and honest customers at the same ATM
 pnpm example:session    # run examples/session.ts: a usual visit and a takeover visit of one customer
 pnpm example:sessions   # run examples/sessions.ts: six visits with several decisions in each, some approved and some held
+pnpm example:agents     # run examples/agent-traces.ts: twelve AI agent runs: risky tool calls decided before they run, read-only calls only tracked until a run gets long
+pnpm example:agents:otel  # run examples/agent-otel.ts: the same, from OpenTelemetry GenAI spans sent to an OTLP receiver on port 4318
 pnpm console        # start the web console on http://localhost:5273 (needs the server running)
 pnpm eval:replay    # send the 100 evaluation cases through a running server, to fill it with data
 pnpm eval           # run the evaluation suite and compare with the accepted baseline

@@ -19,6 +19,7 @@ export type {
   EventProperties,
   KairosOptions,
   RunWorkflowOptions,
+  TraceSpan,
   WireEvent,
   WorkflowRun,
 } from "./types.js";

@@ -1,3 +1,4 @@
+import type { EventTrace } from "../../db/schema";
 import type { EntityRef } from "../catalog/types";
 
 /** How an event came. Only one from a server can start an automatic decision: not "public". */
@@ -16,6 +17,7 @@ export interface StoredEvent {
   universal_id?: string;
   status?: string;
   session?: string;
+  trace?: EventTrace;
   /** Provenance about the event: for one a workflow made, `{ workflow_run_id }`. */
   metadata?: Record<string, unknown>;
 }

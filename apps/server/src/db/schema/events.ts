@@ -3,6 +3,20 @@ import { foreignKey, index, json, jsonb, pgTable, primaryKey, text, uniqueIndex 
 import { time, created, updated, environment } from "./columns";
 import { workspace, environments } from "./accounts";
 
+/**
+ * Where an event sits in a trace: the span it records, as in OpenTelemetry. The event's `ts` is
+ * when the span started. For the console only: a decision does not read it.
+ */
+export interface EventTrace {
+  trace_id: string;
+  span_id: string;
+  parent_span_id?: string;
+  name?: string;
+  /** When the span ended. */
+  end?: string;
+  status?: "ok" | "error";
+}
+
 export const events = pgTable(
   "events",
   {
@@ -25,7 +39,10 @@ export const events = pgTable(
      * whose key is in a web page. Null on events from before it was kept.
      */
     via: text("via"),
-    /** Provenance and other facts about the row that are not fields of the record itself: for an event a workflow made, `{ workflow_run_id }`. */
+    /**
+     * Provenance and other facts about the row that are not fields of the record itself: for an
+     * event a workflow made, `{ workflow_run_id }`; for an event sent with a span, `{ trace }`.
+     */
     metadata: jsonb("metadata")
       .$type<Record<string, unknown>>()
       .notNull()

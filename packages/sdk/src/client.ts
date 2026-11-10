@@ -12,6 +12,7 @@ import type {
   EventProperties,
   KairosOptions,
   RunWorkflowOptions,
+  TraceSpan,
   WireEvent,
   WorkflowRun,
 } from "./types.js";
@@ -47,6 +48,21 @@ function session(value: unknown): { session?: string } {
   if (typeof value !== "string" && typeof value !== "number")
     throw new KairosError("$session must be the id of a session, as text");
   return { session: String(value) };
+}
+
+/** `$trace` in the form the API takes. */
+function wireSpan(value: unknown): NonNullable<WireEvent["trace"]> {
+  const span = value as Partial<TraceSpan> | null;
+  if (!span || typeof span.traceId !== "string" || typeof span.spanId !== "string" || !span.traceId || !span.spanId)
+    throw new KairosError("$trace needs a traceId and a spanId, as text");
+  return {
+    trace_id: span.traceId,
+    span_id: span.spanId,
+    ...(span.parentSpanId ? { parent_span_id: span.parentSpanId } : {}),
+    ...(span.name ? { name: span.name } : {}),
+    ...(span.end ? { end: (span.end instanceof Date ? span.end : new Date(span.end)).toISOString() } : {}),
+    ...(span.status ? { status: span.status } : {}),
+  };
 }
 
 const optional = <K extends string, V>(key: K, value: V | undefined) =>
@@ -226,7 +242,7 @@ export class Kairos {
   private event(type: string, properties: EventProperties, scope: Scope | undefined): WireEvent {
     if (this.closed) throw new KairosError("An event was sent after shutdown()");
     if (!type) throw new KairosError("An event needs a type");
-    const { timestamp, eventId, universalId, status, $set, $set_once, $session, ...rest } = properties;
+    const { timestamp, eventId, universalId, status, $set, $set_once, $session, $trace, ...rest } = properties;
     // A status that is not text is an ordinary property.
     const body = split(typeof status === "string" || status === undefined ? rest : { ...rest, status });
     const who = this.acting(scope, body.entities, $session);
@@ -240,6 +256,7 @@ export class Kairos {
       ...(universalId ? { universal_id: String(universalId) } : {}),
       ...(typeof status === "string" && status ? { status } : {}),
       ...who.session,
+      ...optional("trace", $trace === undefined ? undefined : wireSpan($trace)),
       ...optional("set", bySubject("$set", $set, who.entities, who.about, type)),
       ...optional("set_once", bySubject("$set_once", $set_once, who.entities, who.about, type)),
     };
