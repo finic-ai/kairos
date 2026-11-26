@@ -131,6 +131,12 @@ describe("events", () => {
     expect(all.total).toBe(4);
     expect(all.buckets.length).toBeLessThanOrEqual(61);
     expect((await get("/v1/event-counts?type=nothing")).buckets).toEqual([]);
+
+    // A very long period gives a step too large for an int; it still has a chart.
+    const long = await get("/v1/event-counts?from=0001-01-01T00:00:00Z&to=9999-12-31T00:00:00Z");
+    expect(long.total).toBe(4);
+    expect(long.buckets.length).toBeLessThanOrEqual(61);
+    expect((await call("GET", "/v1/event-counts?to=%2B275760-01-01T00:00:00Z")).status).toBe(400);
   });
 
   it("answers the events that arrived after a moment", async () => {

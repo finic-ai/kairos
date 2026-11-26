@@ -21,6 +21,8 @@ const moment = (name: string, value: string | undefined): string | undefined => 
   if (!value) return undefined;
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) throw invalid(`${name}: not a date and time`);
+  const year = date.getUTCFullYear();
+  if (year < 1 || year > 9999) throw invalid(`${name}: the year must be from 1 to 9999`);
   return date.toISOString();
 };
 

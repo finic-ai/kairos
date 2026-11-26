@@ -100,14 +100,18 @@ export class EventsService extends DatabaseService<"events"> {
     return r ? iso(r.ts) : null;
   }
 
-  /** How many events match in each step of time from `from` to `to`, by type. Step 0 starts at the epoch. */
+  /**
+   * How many events match in each step of time from `from` to `to`, by type. Step 0 starts at the epoch.
+   * The step is a float8, not an int, because a long period (or a very old event) gives a step or a step
+   * number that is too large for an int.
+   */
   countOverTime(
     filter: EventFilter & { from: string; to: string },
     stepSeconds: number,
   ): Promise<{ step: number; type: string; n: number }[]> {
     return rows(
       this.db,
-      sql`SELECT floor(extract(epoch FROM ts) / ${stepSeconds}::int)::int AS step, type, COUNT(*)::int AS n FROM events
+      sql`SELECT floor(extract(epoch FROM ts) / ${stepSeconds}::float8)::float8 AS step, type, COUNT(*)::int AS n FROM events
           WHERE workspace_id = ${this.scope.workspaceId} AND environment_id = ${this.scope.environmentId}
           AND ts >= ${at(filter.from)} AND ts < ${at(filter.to)}
           ${filter.type ? sql`AND type = ${filter.type}` : sql``}
