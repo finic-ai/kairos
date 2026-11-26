@@ -34,6 +34,8 @@ export const timeOf = (ts: string) =>
   parse(ts).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "UTC" });
 export const stamp = (ts: string) =>
   `${parse(ts).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" })}, ${timeOf(ts)}`;
+/** To the millisecond, in UTC: "2026-11-11 11:56:30.585". */
+export const preciseStamp = (ts: string) => parse(ts).toISOString().replace("T", " ").slice(0, 23);
 
 const ISO = /^\d{4}-\d\d-\d\dT\d\d:\d\d/;
 /** A date and time, or the text as it is when it only starts like one ("2026-10-03T21:00Z to 22:00Z"). */

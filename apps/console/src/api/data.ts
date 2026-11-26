@@ -11,6 +11,7 @@ import type {
   EntityList,
   EntityRef,
   EntityShape,
+  EventCounts,
   EventDetail,
   FactValue,
   Interval,
@@ -25,6 +26,22 @@ import type {
   Stats,
   Usage,
 } from "../types/interfaces";
+
+export interface EventFilter {
+  type?: string;
+  status?: string;
+  entity?: EntityRef;
+}
+
+function eventQuery(filter: EventFilter & { from?: string; to?: string; after?: string }) {
+  const query = new URLSearchParams();
+  for (const key of ["type", "status", "from", "to", "after"] as const) if (filter[key]) query.set(key, filter[key]!);
+  if (filter.entity) {
+    query.set("entity_type", filter.entity.type);
+    query.set("entity_id", filter.entity.id);
+  }
+  return query;
+}
 
 export const api = {
   stats: () => request<Stats>("GET", "/v1/stats"),
@@ -111,16 +128,16 @@ export const api = {
   },
   session: (id: string) => request<SessionDetail>("GET", `/v1/sessions/${encodeURIComponent(id)}`),
   event: (id: string) => request<EventDetail>("GET", `/v1/events/${encodeURIComponent(id)}`),
-  events: (filter: { type?: string; status?: string; entity?: EntityRef; limit: number; offset: number }) => {
-    const query = new URLSearchParams({ limit: String(filter.limit), offset: String(filter.offset) });
-    if (filter.type) query.set("type", filter.type);
-    if (filter.status) query.set("status", filter.status);
-    if (filter.entity) {
-      query.set("entity_type", filter.entity.type);
-      query.set("entity_id", filter.entity.id);
-    }
+  events: (filter: EventFilter & { from?: string; to?: string; limit: number; offset: number }) => {
+    const query = eventQuery(filter);
+    query.set("limit", String(filter.limit));
+    query.set("offset", String(filter.offset));
     return request<{ events: StoredEvent[]; total: number; total_capped: boolean }>("GET", `/v1/events?${query}`);
   },
+  eventCounts: (filter: EventFilter & { from?: string; to?: string }) =>
+    request<EventCounts>("GET", `/v1/event-counts?${eventQuery(filter)}`),
+  eventArrivals: (filter: EventFilter & { after?: string }) =>
+    request<{ events: StoredEvent[]; cursor: string }>("GET", `/v1/event-arrivals?${eventQuery(filter)}`),
   entity: (ref: EntityRef) =>
     request<Entity>("GET", `/v1/entities/${encodeURIComponent(ref.type)}/${encodeURIComponent(ref.id)}`),
   entityMedia: (ref: EntityRef, property: string) =>

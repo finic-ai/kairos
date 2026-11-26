@@ -127,10 +127,11 @@ You do not summarise anything yourself. Older history also reaches a decision th
 
 ## See your events
 
-- **Events** lists every event, newest first, imported history included. Filter it by type, status or entity, and select an event to see its properties, its entities and the decision it started.
+- **Events** lists every event, newest first, imported history included. Filter it by type, status, entity or period, and select an event to see its properties, its entities and the decision it started. The chart shows how many events happened through the period, by type.
+- **Events › Live** shows the events as they arrive. **Pause** holds the list, and **Resume** adds the events that arrived in the pause. **Stop** goes back to the list.
 - **Entities › a type › an entity** shows its event history. An event in one of the entity's [lists](entities/lists.md) opens in a window, with its properties, its entities and the decision it started.
 - **Sessions** shows each visit with its events and decisions.
-- With the API: [`GET /v1/events`](../reference/api.md#get-v1events) for the list, [`GET /v1/events/:id`](../reference/api.md#get-v1eventsid) for one event, and [`GET /v1/entities/:type/:id`](../reference/api.md#get-v1entitiestypeid) for an entity's recent events.
+- With the API: [`GET /v1/events`](../reference/api.md#get-v1events) for the list, [`GET /v1/event-arrivals`](../reference/api.md#get-v1event-arrivals) for the events as they arrive, [`GET /v1/events/:id`](../reference/api.md#get-v1eventsid) for one event, and [`GET /v1/entities/:type/:id`](../reference/api.md#get-v1entitiestypeid) for an entity's recent events.
 
 ## Limits
 

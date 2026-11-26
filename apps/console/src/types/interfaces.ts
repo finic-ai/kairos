@@ -198,6 +198,14 @@ export interface EventTrace {
   status?: "ok" | "error";
 }
 
+/** How many events happened in each step of a period, by type. */
+export interface EventCounts {
+  buckets: string[];
+  step_seconds: number;
+  series: { key: string; total: number; values: number[] }[];
+  total: number;
+}
+
 export interface EventDetail extends StoredEvent {
   decision: { id: string; outcome: Outcome; risk_score: number } | null;
 }

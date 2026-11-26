@@ -102,6 +102,56 @@ describe("events", () => {
     // Another workspace's events are not in the list.
     expect((await (await call("GET", "/v1/events", undefined, "key_b")).json()).total).toBe(0);
   });
+
+  it("lists and counts the events of a period", async () => {
+    await track([
+      event("order", "2026-10-01T10:00:00Z", { user: "u1" }),
+      event("order", "2026-10-01T10:20:00Z", { user: "u1" }),
+      event("login", "2026-10-01T10:20:30Z", { user: "u2" }),
+      event("login", "2026-10-01T11:00:00Z", { user: "u1" }),
+    ]);
+    const get = async (path: string) => (await (await call("GET", path)).json()) as any;
+    const period = "from=2026-10-01T10:00:00Z&to=2026-10-01T11:00:00Z";
+
+    expect((await get(`/v1/events?${period}`)).total).toBe(3);
+    expect((await call("GET", "/v1/events?from=yesterday")).status).toBe(400);
+
+    const counts = await get(`/v1/event-counts?${period}`);
+    expect(counts).toMatchObject({ step_seconds: 60, total: 3 });
+    expect(counts.buckets).toHaveLength(60);
+    expect(counts.buckets[20]).toBe("2026-10-01T10:20:00.000Z");
+    expect(counts.series.map((s: any) => [s.key, s.total, s.values[0], s.values[20]])).toEqual([
+      ["order", 2, 1, 1],
+      ["login", 1, 0, 1],
+    ]);
+    expect((await get(`/v1/event-counts?${period}&entity_type=user&entity_id=u2`)).total).toBe(1);
+
+    // With no period, the chart starts at the oldest event and ends now.
+    const all = await get("/v1/event-counts");
+    expect(all.total).toBe(4);
+    expect(all.buckets.length).toBeLessThanOrEqual(61);
+    expect((await get("/v1/event-counts?type=nothing")).buckets).toEqual([]);
+  });
+
+  it("answers the events that arrived after a moment", async () => {
+    const get = async (query = "") => (await (await call("GET", `/v1/event-arrivals?${query}`)).json()) as any;
+    expect(await get()).toEqual({ events: [], cursor: NOW.toISOString() });
+
+    await track([
+      event("order", "2026-10-01T10:00:00Z", { user: "u1" }),
+      event("login", "2026-10-01T09:00:00Z", { user: "u1" }),
+    ]);
+    const before = new Date(NOW.getTime() - 60_000).toISOString();
+    const arrived = await get(`after=${before}`);
+    expect(arrived.cursor).toBe(NOW.toISOString());
+    expect(arrived.events.map((e: any) => e.type).sort()).toEqual(["login", "order"]);
+    expect((await get(`after=${before}&type=login`)).events).toHaveLength(1);
+
+    const later = new Date(NOW.getTime() + 60_000).toISOString();
+    expect(await get(`after=${later}`)).toEqual({ events: [], cursor: later });
+    const other = await call("GET", `/v1/event-arrivals?after=${before}`, undefined, "key_b");
+    expect((await other.json()).events).toEqual([]);
+  });
 });
 
 describe("templates", () => {

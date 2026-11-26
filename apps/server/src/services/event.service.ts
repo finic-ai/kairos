@@ -27,7 +27,16 @@ export interface EventFilter {
   status?: string;
   /** Events that name this entity. */
   entity?: { type: string; id: string };
+  /** Events that happened at or after `from` and before `to`. */
+  from?: string;
+  to?: string;
 }
+
+/**
+ * A request commits after its events get their `created`, so a poll looks this far back from
+ * the last arrival it saw. The reader drops the events it already has.
+ */
+const ARRIVAL_OVERLAP_MS = 3_000;
 
 /** The API calls the customer's id `id`. */
 const toEvent = (r: EventRow): StoredEvent => ({
@@ -81,10 +90,67 @@ export class EventsService extends DatabaseService<"events"> {
     return found.length;
   }
 
+  /** When the oldest matching event happened. */
+  async firstTs(filter: EventFilter): Promise<string | null> {
+    const r = await this.findFirst({
+      where: this.matching(filter),
+      columns: { ts: true },
+      orderBy: (t, { asc }) => [asc(t.ts)],
+    });
+    return r ? iso(r.ts) : null;
+  }
+
+  /** How many events match in each step of time from `from` to `to`, by type. Step 0 starts at the epoch. */
+  countOverTime(
+    filter: EventFilter & { from: string; to: string },
+    stepSeconds: number,
+  ): Promise<{ step: number; type: string; n: number }[]> {
+    return rows(
+      this.db,
+      sql`SELECT floor(extract(epoch FROM ts) / ${stepSeconds}::int)::int AS step, type, COUNT(*)::int AS n FROM events
+          WHERE workspace_id = ${this.scope.workspaceId} AND environment_id = ${this.scope.environmentId}
+          AND ts >= ${at(filter.from)} AND ts < ${at(filter.to)}
+          ${filter.type ? sql`AND type = ${filter.type}` : sql``}
+          ${filter.status ? sql`AND status = ${filter.status}` : sql``}
+          ${
+            filter.entity
+              ? sql`AND id IN (SELECT event_id FROM event_entities WHERE workspace_id = ${this.scope.workspaceId} AND environment_id = ${this.scope.environmentId} AND entity_type = ${filter.entity.type} AND entity_id = ${filter.entity.id})`
+              : sql``
+          }
+          GROUP BY 1, 2`,
+    );
+  }
+
+  /**
+   * The matching events the server got after `after`, newest arrival first: what a live view
+   * polls for. `cursor` is the `after` of the next poll. An event can be in two answers.
+   */
+  async listArrivals(
+    filter: EventFilter,
+    after: string,
+    limit: number,
+  ): Promise<{ events: StoredEvent[]; cursor: string }> {
+    const found = await this.findMany({
+      where: { ...this.matching(filter), created: { gt: new Date(new Date(after).getTime() - ARRIVAL_OVERLAP_MS) } },
+      orderBy: (t, { desc }) => [desc(t.created), desc(t.id)],
+      limit,
+    });
+    const latest = found[0] ? iso(found[0].created) : after;
+    return { events: found.map(toEvent), cursor: latest > after ? latest : after };
+  }
+
   private matching(filter: EventFilter) {
     return {
       ...(filter.type ? { type: filter.type } : {}),
       ...(filter.status ? { status: filter.status } : {}),
+      ...(filter.from || filter.to
+        ? {
+            ts: {
+              ...(filter.from ? { gte: new Date(filter.from) } : {}),
+              ...(filter.to ? { lt: new Date(filter.to) } : {}),
+            },
+          }
+        : {}),
       ...(filter.entity
         ? {
             RAW: (t: typeof events) =>

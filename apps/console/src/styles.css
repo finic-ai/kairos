@@ -11045,3 +11045,129 @@ tr.picked td {
   white-space: nowrap;
   text-overflow: ellipsis;
 }
+
+.events-bar {
+  align-items: center;
+}
+.events-bar input.input {
+  flex: 0 1 200px;
+  width: 200px;
+}
+.events-bar select.input {
+  width: 160px;
+}
+.btn-icon {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  fill: currentColor;
+}
+
+.events-chart {
+  margin-bottom: 16px;
+  padding: 14px 20px 12px;
+}
+.events-chart-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 8px;
+  font-size: 13.5px;
+}
+.events-chart-head b {
+  font-weight: 600;
+}
+
+.events-table th .unit {
+  margin-left: 4px;
+  letter-spacing: 0.04em;
+  opacity: 0.7;
+}
+.events-table td {
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+.events-table td:first-child {
+  box-shadow: inset 3px 0 0 var(--tone);
+}
+.events-table .event-time {
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+}
+.events-table .event-type {
+  font-weight: 500;
+  color: var(--ink);
+}
+.events-table td.wrap .chip {
+  margin: 2px 5px 2px 0;
+}
+.event-props {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 14px;
+  font-size: 12.5px;
+  color: var(--ink-2);
+}
+.event-props .mono,
+.event-props .more {
+  color: var(--ink-3);
+}
+
+.table-head.live-head {
+  justify-content: flex-start;
+  gap: 8px;
+}
+.live-dot {
+  width: 8px;
+  height: 8px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--approve);
+  animation: live-pulse 1.6s ease-out infinite;
+}
+.live-dot.off {
+  background: var(--ink-3);
+  animation: none;
+}
+.live-waiting .spinner {
+  display: block;
+  width: 22px;
+  height: 22px;
+  margin: 0 auto 16px;
+}
+.events-table tr.arrive {
+  animation: event-arrive 1.4s ease-out;
+}
+
+@keyframes live-pulse {
+  from {
+    box-shadow: 0 0 0 0 var(--approve);
+  }
+  70%,
+  to {
+    box-shadow: 0 0 0 7px transparent;
+  }
+}
+
+@keyframes event-arrive {
+  from {
+    background: var(--accent-soft);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .live-dot,
+  .events-table tr.arrive {
+    animation: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .events-bar .spacer {
+    display: none;
+  }
+  .events-bar input.input {
+    flex: 1 1 100%;
+    width: 100%;
+  }
+}

@@ -133,7 +133,20 @@ The response is a [decision](#post-v1decide) with `event_id` added.
 
 ### `GET /v1/events`
 
-The events, newest first: `{ events, total, total_capped }`. Filters: `type`, `status`, and `entity_type` with `entity_id` for the events that name one entity. One page: `limit` (default 50, at most 200) and `offset`. `total` counts up to 10,000; past that, `total_capped` is true.
+The events, newest first: `{ events, total, total_capped }`. Filters: `type`, `status`, `entity_type` with `entity_id` for the events that name one entity, and `from` and `to` for the events that happened at or after `from` and before `to`. One page: `limit` (default 50, at most 200) and `offset`. `total` counts up to 10,000; past that, `total_capped` is true.
+
+### `GET /v1/event-counts`
+
+How many events happened in each step of a period, by type: `{ buckets, step_seconds, series, total }`. It takes the filters of [`GET /v1/events`](#get-v1events). With no `from`, the period starts at the oldest event that matches; with no `to`, it ends now. The server sets the step, so that there are at most 61 buckets. `buckets` are the start times of the steps. Each of `series` is `{ key, total, values }` with one value for each bucket: the five types with the most events, then one series, `Other (n)`, for the other types.
+
+### `GET /v1/event-arrivals`
+
+The events that Kairos got after a moment, newest arrival first: `{ events, cursor }`. Use it to follow the events as they arrive:
+
+1. Call it with no `after`. The answer has no events, and `cursor` is the time now.
+2. Call it again with `after` set to the `cursor` of the last answer, each few seconds.
+
+The filters are `type`, `status`, and `entity_type` with `entity_id`. `limit` is 200 by default and at most 500. An answer can repeat events of the last few seconds, so ignore an `id` that you already have.
 
 ### `GET /v1/events/:id`
 
